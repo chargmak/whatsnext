@@ -8,12 +8,14 @@ const InstallPrompt = () => {
 
     useEffect(() => {
         const handler = (e) => {
-            // Prevent the mini-infobar from appearing on mobile
             e.preventDefault();
-            // Stash the event so it can be triggered later
             setDeferredPrompt(e);
-            // Show the install prompt
-            setShowPrompt(true);
+
+            // Only show if not previously dismissed
+            const isDismissed = localStorage.getItem('pwa-prompt-dismissed') === 'true';
+            if (!isDismissed) {
+                setShowPrompt(true);
+            }
         };
 
         window.addEventListener('beforeinstallprompt', handler);
@@ -39,21 +41,11 @@ const InstallPrompt = () => {
 
     const handleDismiss = () => {
         setShowPrompt(false);
-        // Store dismissal in localStorage to not show again for a while
-        localStorage.setItem('pwa-prompt-dismissed', Date.now().toString());
+        // Permanently dismiss
+        localStorage.setItem('pwa-prompt-dismissed', 'true');
     };
 
-    // Check if user dismissed recently (within 7 days)
-    useEffect(() => {
-        const dismissed = localStorage.getItem('pwa-prompt-dismissed');
-        if (dismissed) {
-            const dismissedTime = parseInt(dismissed);
-            const sevenDays = 7 * 24 * 60 * 60 * 1000;
-            if (Date.now() - dismissedTime < sevenDays) {
-                setShowPrompt(false);
-            }
-        }
-    }, []);
+    // Dismissal check moved to main handler
 
     return (
         <AnimatePresence>
