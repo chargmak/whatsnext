@@ -4,9 +4,8 @@ import { Settings, LogOut, Bell, BarChart2, TrendingUp, Clock, Film, UserPlus, L
 import { useUser } from '../context/UserContext';
 
 const Profile = () => {
-    const { user } = useUser();
+    const { user, loading, logout } = useUser();
     const navigate = useNavigate();
-    const isAuthenticated = localStorage.getItem('is_authenticated') === 'true';
 
     const settingsItems = [
         { icon: <Bell size={20} />, label: 'Notifications', path: '/notifications' },
@@ -14,23 +13,30 @@ const Profile = () => {
         { icon: <LogOut size={20} />, label: 'Log Out', color: '#EF4444', action: 'logout' }
     ];
 
-    const handleItemClick = (item) => {
+    const handleItemClick = async (item) => {
         if (item.action === 'logout') {
             if (confirm('Are you sure you want to log out?')) {
-                // Clear authentication but keep watchlist data
-                localStorage.removeItem('current_user');
-                localStorage.removeItem('is_authenticated');
-                localStorage.removeItem('user_profile');
+                await logout();
                 alert('Logged out successfully!');
-                window.location.reload();
+                navigate('/');
             }
         } else if (item.path) {
             navigate(item.path);
         }
     };
 
+    // Loading state
+    if (loading) {
+        return (
+            <div className="container" style={{ paddingTop: '100px', textAlign: 'center' }}>
+                <div className="spinner"></div>
+                <p style={{ color: 'var(--text-secondary)', marginTop: '16px' }}>Loading profile...</p>
+            </div>
+        );
+    }
+
     // Guest user view
-    if (!isAuthenticated) {
+    if (!user) {
         return (
             <div className="container" style={{ paddingTop: '60px', paddingBottom: '90px' }}>
                 <div style={{
@@ -138,7 +144,7 @@ const Profile = () => {
                     className="profile-avatar"
                 />
                 <h2 style={{ margin: 0 }}>{user.name}</h2>
-                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{user.level}</span>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{user.level || 'Member'}</span>
 
                 {/* Edit Profile Button */}
                 <button
@@ -161,21 +167,21 @@ const Profile = () => {
                 <div className="card stat-card">
                     <div className="flex-center" style={{ flexDirection: 'column', gap: '8px' }}>
                         <Clock size={24} color="var(--accent-primary)" />
-                        <span className="stat-value">{user.stats.hoursWatched}h</span>
+                        <span className="stat-value">{user.stats?.hoursWatched || 0}h</span>
                         <p className="stat-label" style={{ margin: 0 }}>Time Watched</p>
                     </div>
                 </div>
                 <div className="card stat-card">
                     <div className="flex-center" style={{ flexDirection: 'column', gap: '8px' }}>
                         <Film size={24} color="#F59E0B" />
-                        <span className="stat-value">{user.stats.moviesWatched}</span>
+                        <span className="stat-value">{user.stats?.moviesWatched || 0}</span>
                         <p className="stat-label" style={{ margin: 0 }}>Movies</p>
                     </div>
                 </div>
                 <div className="card stat-card">
                     <div className="flex-center" style={{ flexDirection: 'column', gap: '8px' }}>
                         <TrendingUp size={24} color="#10B981" />
-                        <span className="stat-value">{user.stats.favoriteGenre}</span>
+                        <span className="stat-value">{user.stats?.favoriteGenre || 'None'}</span>
                         <p className="stat-label" style={{ margin: 0 }}>Top Genre</p>
                     </div>
                 </div>
