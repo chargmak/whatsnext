@@ -86,22 +86,7 @@ const Login = () => {
         }
     };
 
-    const handleDemoLogin = () => {
-        // Keep existing demo logic
-        const demoUser = {
-            name: 'Dimitrios',
-            email: 'demo@whatsnext.com',
-            avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
-            bio: 'Movie and TV enthusiast',
-            joinDate: new Date().toISOString().split('T')[0]
-        };
 
-        localStorage.setItem('current_user', JSON.stringify(demoUser));
-        localStorage.setItem('is_authenticated', 'true');
-        localStorage.setItem('user_profile', JSON.stringify(demoUser));
-
-        window.location.href = '/';
-    };
 
     return (
         <div className="container" style={{
@@ -265,26 +250,13 @@ const Login = () => {
                             padding: '14px',
                             fontSize: '1rem',
                             fontWeight: '600',
-                            marginBottom: '12px'
+
                         }}
                     >
                         Log In
                     </button>
 
-                    {/* Demo Login */}
-                    <button
-                        type="button"
-                        onClick={handleDemoLogin}
-                        className="action-btn secondary"
-                        style={{
-                            width: '100%',
-                            padding: '14px',
-                            fontSize: '1rem',
-                            fontWeight: '600'
-                        }}
-                    >
-                        Continue as Demo User
-                    </button>
+
                 </form>
             </motion.div>
 
