@@ -1,0 +1,30 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="512" height="512" rx="110" fill="#141415"/>
+  
+  <!-- Gradient Circle Background -->
+  <circle cx="256" cy="256" r="180" fill="url(#gradient)" opacity="0.15"/>
+  
+  <!-- Play Button / Film Icon -->
+  <g transform="translate(256, 256)">
+    <!-- Outer Ring -->
+    <circle cx="0" cy="0" r="120" stroke="#DC2626" stroke-width="8" fill="none" opacity="0.3"/>
+    
+    <!-- Play Triangle -->
+    <path d="M -40 -60 L -40 60 L 70 0 Z" fill="#DC2626"/>
+    
+    <!-- Accent Dots -->
+    <circle cx="-85" cy="-85" r="8" fill="#FBBF24"/>
+    <circle cx="85" cy="-85" r="8" fill="#FBBF24"/>
+    <circle cx="-85" cy="85" r="8" fill="#FBBF24"/>
+    <circle cx="85" cy="85" r="8" fill="#FBBF24"/>
+  </g>
+  
+  <!-- Gradient Definition -->
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#DC2626;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FBBF24;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+</svg>

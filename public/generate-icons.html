@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Icon Generator</title>
+</head>
+
+<body>
+    <canvas id="canvas192" width="192" height="192"></canvas>
+    <canvas id="canvas512" width="512" height="512"></canvas>
+    <script>
+        // Generate 192x192 icon
+        const canvas192 = document.getElementById('canvas192');
+        const ctx192 = canvas192.getContext('2d');
+
+        // Background
+        ctx192.fillStyle = '#141415';
+        ctx192.fillRect(0, 0, 192, 192);
+
+        // Circle
+        ctx192.strokeStyle = '#DC2626';
+        ctx192.lineWidth = 3;
+        ctx192.beginPath();
+        ctx192.arc(96, 96, 60, 0, 2 * Math.PI);
+        ctx192.stroke();
+
+        // Play triangle
+        ctx192.fillStyle = '#DC2626';
+        ctx192.beginPath();
+        ctx192.moveTo(76, 66);
+        ctx192.lineTo(76, 126);
+        ctx192.lineTo(126, 96);
+        ctx192.closePath();
+        ctx192.fill();
+
+        // Generate 512x512 icon
+        const canvas512 = document.getElementById('canvas512');
+        const ctx512 = canvas512.getContext('2d');
+
+        // Background
+        ctx512.fillStyle = '#141415';
+        ctx512.fillRect(0, 0, 512, 512);
+
+        // Circle
+        ctx512.strokeStyle = '#DC2626';
+        ctx512.lineWidth = 8;
+        ctx512.beginPath();
+        ctx512.arc(256, 256, 160, 0, 2 * Math.PI);
+        ctx512.stroke();
+
+        // Play triangle
+        ctx512.fillStyle = '#DC2626';
+        ctx512.beginPath();
+        ctx512.moveTo(206, 176);
+        ctx512.lineTo(206, 336);
+        ctx512.lineTo(346, 256);
+        ctx512.closePath();
+        ctx512.fill();
+
+        // Download links
+        setTimeout(() => {
+            const link192 = document.createElement('a');
+            link192.download = 'icon-192.png';
+            link192.href = canvas192.toDataURL();
+            link192.click();
+
+            const link512 = document.createElement('a');
+            link512.download = 'icon-512.png';
+            link512.href = canvas512.toDataURL();
+            link512.click();
+        }, 100);
+    </script>
+</body>
+
+</html>
