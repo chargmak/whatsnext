@@ -46,7 +46,7 @@ const Library = () => {
             <h1>My Library</h1>
 
             {/* Toggle Container - Matching Home Page Style */}
-            <div className="toggle-container" style={{ marginBottom: '24px' }}>
+            <div className="toggle-container" style={{ margin: '30px 0' }}>
                 {['watchlist', 'watched'].map((tab) => (
                     <button
                         key={tab}
