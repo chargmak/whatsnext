@@ -16,55 +16,40 @@ export const UserProvider = ({ children }) => {
 
     // Initialize User & Session
     useEffect(() => {
-        const initSession = async () => {
-            if (supabase) {
-                // Check active session
-                const { data: { session } } = await supabase.auth.getSession();
+        // FORCE DEMO USER FOR PORTFOLIO
+        const initDemoSession = () => {
+            // Check if we have saved data, otherwise use default mock
+            const savedUser = localStorage.getItem('user_data');
 
-                if (session) {
-                    await fetchUserProfile(session.user.id);
-                    await fetchUserData(session.user.id);
-                } else {
-                    // Fallback to local storage if no Supabase session (or for guest/demo)
-                    loadFromLocalStorage();
-                }
-
-                // Listen for changes
-                const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-                    if (session) {
-                        await fetchUserProfile(session.user.id);
-                        await fetchUserData(session.user.id);
-                    } else {
-                        setUser(null);
-                        loadFromLocalStorage();
-                    }
-                });
-
-                setLoading(false);
-                return () => subscription.unsubscribe();
+            if (savedUser) {
+                setUser(JSON.parse(savedUser));
             } else {
-                // If Supabase is not configured, just use local storage
-                loadFromLocalStorage();
-                setLoading(false);
+                // Initialize with mock data
+                const demoUser = {
+                    ...CURRENT_USER,
+                    id: 'demo-user-123',
+                    email: 'demo@example.com'
+                };
+                setUser(demoUser);
+                localStorage.setItem('user_data', JSON.stringify(demoUser));
             }
+
+            // Load other local data
+            loadFromLocalStorage();
+            setLoading(false);
         };
 
-        initSession();
+        initDemoSession();
     }, []);
 
     // --- Helpers ---
 
     const loadFromLocalStorage = () => {
-        const savedUser = localStorage.getItem('user_data');
+        // const savedUser = localStorage.getItem('user_data'); // Handled in init
         const savedWatchlist = localStorage.getItem('user_watchlist');
         const savedWatched = localStorage.getItem('user_watched');
         const savedEpisodes = localStorage.getItem('user_watched_episodes');
-        const isAuthenticated = localStorage.getItem('is_authenticated') === 'true';
-
-        // Only set user if explicitly authenticated locally (e.g. demo)
-        if (isAuthenticated && savedUser) {
-            setUser(JSON.parse(savedUser));
-        }
+        // const isAuthenticated = localStorage.getItem('is_authenticated') === 'true'; // Ignored for demo
 
         if (savedWatchlist) setWatchlist(JSON.parse(savedWatchlist));
         if (savedWatched) setWatched(JSON.parse(savedWatched));
@@ -131,36 +116,32 @@ export const UserProvider = ({ children }) => {
 
     // --- Actions ---
 
+    // --- Actions ---
+
     const login = async (email, password) => {
-        if (!supabase) {
-            // Local fallback logic (handled in component currently, but could move here)
-            throw new Error('Supabase not configured');
-        }
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        localStorage.setItem('is_authenticated', 'true');
+        // DEMO MODE: Simulate login or do nothing since we are always logged in
+        console.log("Demo Mode: Login simulated for", email);
+        alert("Demo Mode: You are already logged in as the demo user.");
     };
 
     const signup = async (email, password, metadata) => {
-        if (!supabase) throw new Error('Supabase not configured');
-        const { error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: { data: metadata }
-        });
-        if (error) throw error;
-        localStorage.setItem('is_authenticated', 'true');
+        // DEMO MODE: Simulate signup
+        console.log("Demo Mode: Signup simulated for", email);
+        alert("Demo Mode: Registration disabled. You are using the demo account.");
     };
 
     const logout = async () => {
-        if (supabase) await supabase.auth.signOut();
-        localStorage.removeItem('is_authenticated');
-        localStorage.removeItem('user_data');
-        localStorage.removeItem('current_user'); // Clean legacy
-        setUser(null);
-        setWatchlist([]);
-        setWatched([]);
-        setWatchedEpisodes({});
+        // DEMO MODE: Reset to default demo state instead of logging out
+        if (confirm("Demo Mode: This will reset your demo data. Continue?")) {
+            localStorage.removeItem('user_watchlist');
+            localStorage.removeItem('user_watched');
+            localStorage.removeItem('user_watched_episodes');
+            setWatchlist([]);
+            setWatched([]);
+            setWatchedEpisodes({});
+            alert("Demo data reset!");
+            window.location.reload();
+        }
     };
 
     // --- Data Management ---
@@ -168,69 +149,34 @@ export const UserProvider = ({ children }) => {
     const addToWatchlist = async (movie) => {
         // Optimistic Update
         if (!watchlist.find(m => m.id === movie.id)) {
-            setWatchlist(prev => [...prev, movie]);
-
-            // Sync to DB
-            if (supabase && user) {
-                await supabase.from('watchlists').insert({
-                    user_id: user.id || user.uuid, // Handle auth user vs local
-                    movie_id: movie.id,
-                    media_type: movie.type || 'movie',
-                    title: movie.title,
-                    poster_path: movie.poster_path,
-                    vote_average: movie.vote_average
-                });
-            } else {
-                localStorage.setItem('user_watchlist', JSON.stringify([...watchlist, movie]));
-            }
+            const newList = [...watchlist, movie];
+            setWatchlist(newList);
+            localStorage.setItem('user_watchlist', JSON.stringify(newList));
         }
     };
 
     const removeFromWatchlist = async (movieId) => {
-        setWatchlist(prev => prev.filter(m => m.id !== movieId));
-
-        if (supabase && user) {
-            await supabase.from('watchlists').delete().match({ movie_id: movieId, user_id: user.id });
-        } else {
-            const newList = watchlist.filter(m => m.id !== movieId);
-            localStorage.setItem('user_watchlist', JSON.stringify(newList));
-        }
+        const newList = watchlist.filter(m => m.id !== movieId);
+        setWatchlist(newList);
+        localStorage.setItem('user_watchlist', JSON.stringify(newList));
     };
 
     const markAsWatched = async (movie) => {
         if (!watched.find(m => m.id === movie.id)) {
             const newWatched = [...watched, movie];
             setWatched(newWatched);
-            removeFromWatchlist(movie.id);
+            localStorage.setItem('user_watched', JSON.stringify(newWatched));
 
-            if (supabase && user) {
-                await supabase.from('history').insert({
-                    user_id: user.id,
-                    movie_id: movie.id,
-                    media_type: movie.type || 'movie',
-                    title: movie.title,
-                    poster_path: movie.poster_path,
-                    vote_average: movie.vote_average
-                });
-                // Also remove from watchlist DB
-                await supabase.from('watchlists').delete().match({ movie_id: movie.id, user_id: user.id });
-            } else {
-                localStorage.setItem('user_watched', JSON.stringify(newWatched));
-                const newWl = watchlist.filter(m => m.id !== movie.id);
-                localStorage.setItem('user_watchlist', JSON.stringify(newWl));
-            }
+            const newWl = watchlist.filter(m => m.id !== movie.id);
+            setWatchlist(newWl);
+            localStorage.setItem('user_watchlist', JSON.stringify(newWl));
         }
     };
 
     const removeFromWatched = async (movie) => {
         const newWatched = watched.filter(m => m.id !== movie.id);
         setWatched(newWatched);
-
-        if (supabase && user) {
-            await supabase.from('history').delete().match({ movie_id: movie.id, user_id: user.id });
-        } else {
-            localStorage.setItem('user_watched', JSON.stringify(newWatched));
-        }
+        localStorage.setItem('user_watched', JSON.stringify(newWatched));
     };
 
     // --- TV Episodes (Keep Local for now as schema is complex) ---

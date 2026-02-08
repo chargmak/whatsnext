@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Film, Tv } from 'lucide-react';
 import { useUser } from '../context/UserContext';
-import { getTVSeriesWithEpisodes } from '../services/tmdb';
+import { getTVSeriesWithEpisodes, getTVSeasonDetails } from '../services/tmdb';
 import { motion } from 'framer-motion';
 
 const Calendar = () => {
@@ -64,23 +64,26 @@ const Calendar = () => {
                         const tvDetails = await getTVSeriesWithEpisodes(item.id);
 
                         if (tvDetails?.seasons) {
-                            // Get all seasons
-                            for (const season of tvDetails.seasons) {
+                            // OPTIMIZATION: Only fetch the last 2 seasons to avoid rate limits
+                            // Sort seasons by season_number just in case
+                            const sortedSeasons = [...tvDetails.seasons].sort((a, b) => b.season_number - a.season_number);
+                            const relevantSeasons = sortedSeasons.slice(0, 2);
+
+                            for (const season of relevantSeasons) {
                                 // Skip season 0 (specials) and seasons without episodes
                                 if (season.season_number === 0 || !season.episode_count) continue;
 
                                 try {
-                                    // Fetch season details to get all episodes
-                                    const seasonResponse = await fetch(
-                                        `https://api.themoviedb.org/3/tv/${item.id}/season/${season.season_number}?api_key=${import.meta.env.VITE_TMDB_API_KEY}`
-                                    );
-                                    const seasonData = await seasonResponse.json();
+                                    // Use the service function instead of raw fetch
+                                    const seasonData = await getTVSeasonDetails(item.id, season.season_number);
 
                                     if (seasonData?.episodes) {
                                         // Add all upcoming episodes from this season
                                         for (const episode of seasonData.episodes) {
                                             if (episode.air_date) {
                                                 const airDate = new Date(episode.air_date);
+                                                // Create a slightly loosened check for "today" to handle timezone diffs
+                                                // Use the same 'today' reference from outer scope
                                                 if (airDate >= today) {
                                                     releases.push({
                                                         ...item,
