@@ -118,18 +118,10 @@ const EditProfile = () => {
         // Update user context
         updateUser(formData);
 
-        // Save to localStorage
-        const currentUser = JSON.parse(localStorage.getItem('user_profile') || '{}');
-        const updatedUser = { ...currentUser, ...formData };
-        localStorage.setItem('user_profile', JSON.stringify(updatedUser));
-
-        // Also update in app_users if exists
-        const users = JSON.parse(localStorage.getItem('app_users') || '[]');
-        const userIndex = users.findIndex(u => u.email === formData.email);
-        if (userIndex !== -1) {
-            users[userIndex] = { ...users[userIndex], ...formData };
-            localStorage.setItem('app_users', JSON.stringify(users));
-        }
+        // Save to localStorage (update demo user data)
+        const currentUserData = JSON.parse(localStorage.getItem('user_data') || '{}');
+        const updatedUserData = { ...currentUserData, ...formData };
+        localStorage.setItem('user_data', JSON.stringify(updatedUserData));
 
         alert('Profile updated successfully!');
         navigate('/profile');

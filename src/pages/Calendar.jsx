@@ -344,71 +344,101 @@ const Calendar = () => {
                         </p>
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {upcomingReleases.slice(0, 10).map((item, idx) => (
-                            <motion.div
-                                key={`${item.id}-${idx}`}
-                                whileHover={{ scale: 1.02 }}
-                                onClick={() => navigate(`/${item.type}/${item.id}`)}
-                                className="glass-panel"
-                                style={{
-                                    padding: '16px',
-                                    borderRadius: 'var(--radius-md)',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    gap: '16px',
-                                    alignItems: 'center'
-                                }}
-                            >
-                                <img
-                                    src={item.poster}
-                                    alt={item.title}
-                                    style={{
-                                        width: '60px',
-                                        height: '90px',
-                                        borderRadius: 'var(--radius-sm)',
-                                        objectFit: 'cover'
-                                    }}
-                                />
-                                <div style={{ flex: 1 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                                        {item.type === 'tv' ? <Tv size={16} /> : <Film size={16} />}
-                                        <h4 style={{ margin: 0 }}>{item.title}</h4>
-                                    </div>
-                                    {item.isEpisode && item.episodeTitle && (
-                                        <p style={{
-                                            fontSize: '0.85rem',
-                                            color: 'var(--accent-primary)',
-                                            margin: '2px 0 4px 0',
-                                            fontStyle: 'italic'
-                                        }}>
-                                            "{item.episodeTitle}"
-                                        </p>
-                                    )}
-                                    <p style={{
-                                        fontSize: '0.9rem',
-                                        color: 'var(--text-secondary)',
-                                        margin: '4px 0'
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                        {/* Group items by date */}
+                        {(() => {
+                            const groupedReleases = {};
+                            upcomingReleases.forEach(item => {
+                                const dateKey = new Date(item.releaseDate).toLocaleDateString('en-US', {
+                                    weekday: 'long',
+                                    month: 'long',
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                });
+                                if (!groupedReleases[dateKey]) {
+                                    groupedReleases[dateKey] = [];
+                                }
+                                groupedReleases[dateKey].push(item);
+                            });
+
+                            return Object.entries(groupedReleases).map(([dateStr, items]) => (
+                                <div key={dateStr}>
+                                    <h4 style={{
+                                        margin: '0 0 12px 4px',
+                                        color: 'var(--accent-primary)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
                                     }}>
-                                        {new Date(item.releaseDate).toLocaleDateString('en-US', {
-                                            weekday: 'long',
-                                            year: 'numeric',
-                                            month: 'long',
-                                            day: 'numeric'
-                                        })}
-                                    </p>
-                                    {!item.isEpisode && (
-                                        <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                                            {item.genres?.slice(0, 3).map(genre => (
-                                                <span key={genre} className="meta-tag">
-                                                    {genre}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
+                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-primary)' }}></div>
+                                        {dateStr}
+                                    </h4>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                        {items.map((item, idx) => (
+                                            <motion.div
+                                                key={`${item.id}-${idx}`}
+                                                whileHover={{ scale: 1.02 }}
+                                                onClick={() => navigate(`/${item.type}/${item.id}`)}
+                                                className="glass-panel"
+                                                style={{
+                                                    padding: '16px',
+                                                    borderRadius: 'var(--radius-md)',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    gap: '16px',
+                                                    alignItems: 'center'
+                                                }}
+                                            >
+                                                <img
+                                                    src={item.poster}
+                                                    alt={item.title}
+                                                    style={{
+                                                        width: '60px',
+                                                        height: '90px',
+                                                        borderRadius: 'var(--radius-sm)',
+                                                        objectFit: 'cover'
+                                                    }}
+                                                />
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                                        {item.type === 'tv' ? <Tv size={16} /> : <Film size={16} />}
+                                                        <h4 style={{ margin: 0 }}>{item.title}</h4>
+                                                    </div>
+                                                    {item.isEpisode && item.episodeTitle && (
+                                                        <p style={{
+                                                            fontSize: '0.85rem',
+                                                            color: 'var(--accent-primary)',
+                                                            margin: '2px 0 4px 0',
+                                                            fontStyle: 'italic'
+                                                        }}>
+                                                            "{item.episodeTitle}"
+                                                        </p>
+                                                    )}
+                                                    {/* Date removed from here as it's in the header now */}
+                                                    <p style={{
+                                                        fontSize: '0.85rem',
+                                                        color: 'var(--text-secondary)',
+                                                        margin: '4px 0'
+                                                    }}>
+                                                        {item.isEpisode ? `Season ${item.seasonNumber} • Episode ${item.episodeNumber}` : item.year}
+                                                    </p>
+
+                                                    {!item.isEpisode && (
+                                                        <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                                                            {item.genres?.slice(0, 3).map(genre => (
+                                                                <span key={genre} className="meta-tag">
+                                                                    {genre}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </motion.div>
+                                        ))}
+                                    </div>
                                 </div>
-                            </motion.div>
-                        ))}
+                            ));
+                        })()}
                     </div>
                 )}
             </section>

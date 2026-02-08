@@ -24,11 +24,21 @@ export const UserProvider = ({ children }) => {
             if (savedUser) {
                 setUser(JSON.parse(savedUser));
             } else {
-                // Initialize with mock data
+                // Generate a random name for the new session
+                const demoNames = [
+                    "Alex", "Jordan", "Taylor", "Casey", "Riley", "Sam", "Jamie",
+                    "Neo", "Trinity", "Morpheus", "Skywalker", "Ripley", "Marty", "Doc",
+                    "Maverick", "Goose", "Rocky", "Apollo", "Indiana", "Han", "Leia"
+                ];
+                const randomName = demoNames[Math.floor(Math.random() * demoNames.length)];
+
+                // Initialize with mock data and random identity
                 const demoUser = {
                     ...CURRENT_USER,
-                    id: 'demo-user-123',
-                    email: 'demo@example.com'
+                    id: `demo-user-${Math.floor(Math.random() * 10000)}`,
+                    email: `${randomName.toLowerCase()}@example.com`,
+                    name: randomName,
+                    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${randomName}`
                 };
                 setUser(demoUser);
                 localStorage.setItem('user_data', JSON.stringify(demoUser));
