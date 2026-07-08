@@ -4,6 +4,7 @@ import { Play, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getTrendingMovies, getTrendingTV, getRecommendationsFromSeeds, mapMediaData } from '../services/tmdb';
 import { MovieCard } from '../components/MovieCard';
+import { PosterRow } from '../components/PosterRow';
 import { useUser } from '../context/UserContext';
 import { TRENDING_MOVIES } from '../data/mockData'; // Fallback
 
@@ -154,7 +155,7 @@ const Home = () => {
                     </button>
                 </div>
 
-                <div className="grid-layout">
+                <PosterRow>
                     {/* Slicing from 1 to -1 to reduce count by one as requested */}
                     {mediaItems.slice(1, -1).map((item) => (
                         <MovieCard
@@ -163,7 +164,7 @@ const Home = () => {
                             onClick={(id) => navigate(`/${item.type}/${id}`)}
                         />
                     ))}
-                </div>
+                </PosterRow>
             </section>
 
             {/* Recommended For You - built from the user's saved list for this tab */}
@@ -181,7 +182,7 @@ const Home = () => {
                             Finding {mediaType === 'movie' ? 'movies' : 'shows'} you might like…
                         </p>
                     ) : (
-                        <div className="grid-layout">
+                        <PosterRow>
                             {recommendations.map((item) => (
                                 <MovieCard
                                     key={item.id}
@@ -189,7 +190,7 @@ const Home = () => {
                                     onClick={(id) => navigate(`/${item.type}/${id}`)}
                                 />
                             ))}
-                        </div>
+                        </PosterRow>
                     )}
                 </section>
             )}
@@ -201,7 +202,7 @@ const Home = () => {
                         <h3>From Your List</h3>
                     </div>
 
-                    <div className="grid-layout">
+                    <PosterRow>
                         {watchlist
                             .filter(item => item.type === mediaType)
                             .map((item) => (
@@ -211,7 +212,7 @@ const Home = () => {
                                     onClick={(id) => navigate(`/${item.type}/${id}`)}
                                 />
                             ))}
-                    </div>
+                    </PosterRow>
                 </section>
             )}
         </div>
