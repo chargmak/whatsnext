@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Play, TrendingUp, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getTrendingMovies, getTrendingTV, mapMediaData } from '../services/tmdb';
+import { getTrendingMovies, getTrendingTV, getRecommendationsFromSeeds, mapMediaData } from '../services/tmdb';
 import { MovieCard } from '../components/MovieCard';
+import { PosterRow } from '../components/PosterRow';
 import { useUser } from '../context/UserContext';
 import { useCineBot } from '../context/CineBotContext';
 import { TRENDING_MOVIES } from '../data/mockData'; // Fallback
@@ -12,7 +13,7 @@ import { TRENDING_MOVIES } from '../data/mockData'; // Fallback
 const EXAMPLE_PROMPTS = ['What should I watch next?', 'Something funny under 90 min', 'A short thriller'];
 
 const Home = () => {
-    const { user, watchlist } = useUser();
+    const { user, watchlist, watched } = useUser();
     const { openBot } = useCineBot();
     const navigate = useNavigate();
     // Initialize from session storage if available, otherwise default to 'movie'
@@ -21,11 +22,44 @@ const Home = () => {
     });
     const [mediaItems, setMediaItems] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [recommendations, setRecommendations] = useState([]);
+    const [recsLoading, setRecsLoading] = useState(false);
 
     // Persist mediaType to session storage whenever it changes
     useEffect(() => {
         sessionStorage.setItem('homeMediaType', mediaType);
     }, [mediaType]);
+
+    // Seeds for personalized recommendations: the titles the user has saved for
+    // the active tab. Titles already saved or watched are excluded from results.
+    const recInputs = useMemo(() => {
+        const seeds = watchlist.filter((item) => item.type === mediaType);
+        const excludeIds = new Set([
+            ...seeds.map((item) => item.id),
+            ...watched.filter((item) => item.type === mediaType).map((item) => item.id),
+        ]);
+        return { seeds, excludeIds };
+    }, [watchlist, watched, mediaType]);
+
+    useEffect(() => {
+        let active = true;
+        const loadRecs = async () => {
+            const { seeds, excludeIds } = recInputs;
+            // Drop any stale picks (possibly from the other tab) before fetching.
+            setRecommendations([]);
+            if (seeds.length === 0) {
+                setRecsLoading(false);
+                return;
+            }
+            setRecsLoading(true);
+            const recs = await getRecommendationsFromSeeds(seeds, mediaType, excludeIds);
+            if (!active) return;
+            setRecommendations(recs);
+            setRecsLoading(false);
+        };
+        loadRecs();
+        return () => { active = false; };
+    }, [recInputs, mediaType]);
 
     useEffect(() => {
         const loadMedia = async () => {
@@ -179,7 +213,7 @@ const Home = () => {
                     </button>
                 </div>
 
-                <div className="grid-layout">
+                <PosterRow>
                     {/* Slicing from 1 to -1 to reduce count by one as requested */}
                     {mediaItems.slice(1, -1).map((item) => (
                         <MovieCard
@@ -188,8 +222,36 @@ const Home = () => {
                             onClick={(id) => navigate(`/${item.type}/${id}`)}
                         />
                     ))}
-                </div>
+                </PosterRow>
             </section>
+
+            {/* Recommended For You - built from the user's saved list for this tab */}
+            {recInputs.seeds.length > 0 && (recsLoading || recommendations.length > 0) && (
+                <section style={{ marginBottom: '40px' }}>
+                    <div className="flex-between" style={{ marginBottom: '4px' }}>
+                        <h3>Recommended For You</h3>
+                    </div>
+                    <p style={{ margin: '0 0 16px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Based on the {mediaType === 'movie' ? 'movies' : 'shows'} in your list
+                    </p>
+
+                    {recsLoading && recommendations.length === 0 ? (
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                            Finding {mediaType === 'movie' ? 'movies' : 'shows'} you might like…
+                        </p>
+                    ) : (
+                        <PosterRow>
+                            {recommendations.map((item) => (
+                                <MovieCard
+                                    key={item.id}
+                                    movie={item}
+                                    onClick={(id) => navigate(`/${item.type}/${id}`)}
+                                />
+                            ))}
+                        </PosterRow>
+                    )}
+                </section>
+            )}
 
             {/* My List Section */}
             {watchlist.filter(item => item.type === mediaType).length > 0 && (
@@ -198,7 +260,7 @@ const Home = () => {
                         <h3>From Your List</h3>
                     </div>
 
-                    <div className="grid-layout">
+                    <PosterRow>
                         {watchlist
                             .filter(item => item.type === mediaType)
                             .map((item) => (
@@ -208,7 +270,7 @@ const Home = () => {
                                     onClick={(id) => navigate(`/${item.type}/${id}`)}
                                 />
                             ))}
-                    </div>
+                    </PosterRow>
                 </section>
             )}
         </div>

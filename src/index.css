@@ -108,6 +108,84 @@ body {
   gap: 20px;
 }
 
+/* Horizontal poster row - a single row of posters that slides left/right */
+.poster-row-wrapper {
+  position: relative;
+}
+
+.poster-row {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  /* Hide the scrollbar; sliding is via swipe or the arrow buttons */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  /* Breathing room so hover lift / shadows aren't clipped */
+  padding: 4px 2px 8px;
+  scroll-padding-left: 2px;
+}
+
+.poster-row::-webkit-scrollbar {
+  display: none;
+}
+
+.poster-row > * {
+  flex: 0 0 auto;
+  width: 150px;
+  scroll-snap-align: start;
+}
+
+.poster-row-arrow {
+  /* Hidden by default (touch devices swipe instead); revealed on pointer devices */
+  display: none;
+  position: absolute;
+  top: 35%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(20, 20, 21, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--text-primary);
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.poster-row-arrow.left {
+  left: -8px;
+}
+
+.poster-row-arrow.right {
+  right: -8px;
+}
+
+.poster-row-arrow:hover {
+  background: var(--brand-600);
+  border-color: var(--brand-600);
+}
+
+/* Only devices with a hovering pointer (desktop mouse) get the arrows */
+@media (hover: hover) and (pointer: fine) {
+  .poster-row-arrow {
+    display: flex;
+  }
+
+  .poster-row-arrow.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 /* Typography - Untitled UI Style */
 h1,
 h2,
@@ -337,6 +415,26 @@ p {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-tertiary);
+}
+
+/* Hide scrollbars on horizontal strips (e.g. Browse Categories rows) */
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Skeleton pulse for loading poster strips */
+@keyframes pulse-fade {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
 }
 
 /* Layout Utilities - Added for Consistency */

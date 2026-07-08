@@ -5,8 +5,10 @@ import { useUser } from '../context/UserContext';
 
 export const MovieCard = ({ movie, onClick }) => {
     const { watched } = useUser();
-    // Ensure accurate type comparison, though IDs are usually numbers
-    const isWatched = watched.some(m => m.id === movie.id);
+    // Ensure accurate type comparison, though IDs are usually numbers.
+    // `movie.completed` flags ended series watched entirely via episode tracking,
+    // which never land in the explicit watched list.
+    const isWatched = movie.completed || watched.some(m => m.id === movie.id);
 
     // Get first genre for display
     const primaryGenre = movie.genres && movie.genres.length > 0 ? movie.genres[0] : null;

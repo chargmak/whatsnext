@@ -42,6 +42,45 @@ export const searchMulti = async (query) => {
     return await fetchFromTMDB('/search/multi', { query });
 };
 
+// TMDB's "more like this" list for a single title.
+const getTitleRecommendations = async (id, type) => {
+    const endpoint = type === 'tv' ? `/tv/${id}/recommendations` : `/movie/${id}/recommendations`;
+    const data = await fetchFromTMDB(endpoint);
+    return data?.results || [];
+};
+
+// Build a personalized "recommended for you" row from the titles a user has
+// saved. `seeds` are their saved items (already filtered to one media type);
+// `excludeIds` keeps titles they've already saved or watched out of the result.
+// Candidates are ranked by how many of the user's titles recommend them, so the
+// picks lean toward their overall taste rather than any single title.
+export const getRecommendationsFromSeeds = async (seeds, type, excludeIds = new Set(), limit = 12) => {
+    const validSeeds = (seeds || []).filter((s) => s && s.id);
+    if (!validSeeds.length) return [];
+
+    // Cap the number of requests; the most recently saved titles are the
+    // strongest signal, so sample from the end of the list.
+    const sampled = validSeeds.slice(-8);
+    const lists = await Promise.all(sampled.map((s) => getTitleRecommendations(s.id, type)));
+
+    const scored = new Map();
+    lists.flat().forEach((item) => {
+        if (!item || !item.poster_path) return;
+        if (excludeIds.has(item.id)) return;
+        const entry = scored.get(item.id);
+        if (entry) {
+            entry.score += 1;
+        } else {
+            scored.set(item.id, { item: { ...item, media_type: type }, score: 1 });
+        }
+    });
+
+    return Array.from(scored.values())
+        .sort((a, b) => b.score - a.score || (b.item.popularity || 0) - (a.item.popularity || 0))
+        .slice(0, limit)
+        .map((entry) => mapMediaData(entry.item));
+};
+
 
 export const getDetails = async (id, type, country = 'US') => {
     const endpoint = type === 'tv' ? `/tv/${id}` : `/movie/${id}`;
@@ -100,6 +139,29 @@ export const mapMediaData = (item) => {
 // Get TV Season Details with Episodes
 export const getTVSeasonDetails = async (tvId, seasonNumber) => {
     return await fetchFromTMDB(`/tv/${tvId}/season/${seasonNumber}`);
+};
+
+// Fetch the minimal series info the Library needs to decide whether a show is
+// "completed": mapped card data plus the airing status and per-season episode
+// counts (specials / season 0 excluded, since they aren't part of the main run).
+export const getTVWatchStatus = async (tvId) => {
+    const details = await fetchFromTMDB(`/tv/${tvId}`);
+    if (!details) return null;
+
+    const seasonEpisodeCounts = {};
+    (details.seasons || []).forEach((season) => {
+        if (season.season_number !== 0 && season.episode_count > 0) {
+            seasonEpisodeCounts[season.season_number] = season.episode_count;
+        }
+    });
+
+    return {
+        ...mapMediaData({ ...details, media_type: 'tv' }),
+        // "Ended" or "Canceled" means no further episodes are coming.
+        status: details.status,
+        ended: details.status === 'Ended' || details.status === 'Canceled',
+        seasonEpisodeCounts,
+    };
 };
 
 // Get TV Series with upcoming episodes
