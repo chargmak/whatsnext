@@ -1,72 +1,105 @@
-const CACHE_NAME = 'whatsnext-v1';
-const urlsToCache = [
+const CACHE_NAME = 'whatsnext-v2';
+const IMAGE_CACHE = 'whatsnext-images-v1';
+const API_CACHE = 'whatsnext-tmdb-v1';
+
+const PRECACHE_URLS = [
     '/',
     '/index.html',
-    '/src/main.jsx',
-    '/src/index.css'
+    '/manifest.json',
+    '/icon-192.png',
+    '/icon-512.png',
+    '/apple-touch-icon.png'
 ];
 
-// Install event - cache essential files
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then((cache) => {
-                console.log('Opened cache');
-                return cache.addAll(urlsToCache);
-            })
+        caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
     );
     self.skipWaiting();
 });
 
-// Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
+    const keep = [CACHE_NAME, IMAGE_CACHE, API_CACHE];
     event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    if (cacheName !== CACHE_NAME) {
-                        console.log('Deleting old cache:', cacheName);
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        })
+        caches.keys().then((names) =>
+            Promise.all(names.filter((n) => !keep.includes(n)).map((n) => caches.delete(n)))
+        ).then(() => self.clients.claim())
     );
-    self.clients.claim();
 });
 
-// Fetch event - serve from cache, fallback to network
+const putInCache = async (cacheName, request, response) => {
+    if (response && (response.status === 200 || response.type === 'opaque')) {
+        const cache = await caches.open(cacheName);
+        await cache.put(request, response.clone());
+    }
+    return response;
+};
+
+// Hashed immutable bundles: cache-first
+const cacheFirst = async (request, cacheName) => {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    const response = await fetch(request);
+    return putInCache(cacheName, request, response);
+};
+
+// TMDB images: serve from cache, refresh in the background
+const staleWhileRevalidate = async (request, cacheName) => {
+    const cached = await caches.match(request);
+    const network = fetch(request)
+        .then((response) => putInCache(cacheName, request, response))
+        .catch(() => cached);
+    return cached || network;
+};
+
+// TMDB API: prefer fresh data, fall back to cache offline
+const networkFirst = async (request, cacheName) => {
+    try {
+        const response = await fetch(request);
+        return await putInCache(cacheName, request, response);
+    } catch {
+        const cached = await caches.match(request);
+        if (cached) return cached;
+        throw new Error('offline and not cached');
+    }
+};
+
 self.addEventListener('fetch', (event) => {
-    event.respondWith(
-        caches.match(event.request)
-            .then((response) => {
-                // Cache hit - return response
-                if (response) {
-                    return response;
-                }
+    const { request } = event;
+    if (request.method !== 'GET') return;
 
-                // Clone the request
-                const fetchRequest = event.request.clone();
+    const url = new URL(request.url);
 
-                return fetch(fetchRequest).then((response) => {
-                    // Check if valid response
-                    if (!response || response.status !== 200 || response.type !== 'basic') {
-                        return response;
-                    }
+    // Auth and user data must never be served stale — let the network handle it.
+    if (url.hostname.endsWith('.supabase.co')) return;
 
-                    // Clone the response
-                    const responseToCache = response.clone();
+    if (url.origin === self.location.origin && url.pathname.startsWith('/assets/')) {
+        event.respondWith(cacheFirst(request, CACHE_NAME));
+        return;
+    }
 
-                    caches.open(CACHE_NAME)
-                        .then((cache) => {
-                            cache.put(event.request, responseToCache);
-                        });
+    if (url.hostname === 'image.tmdb.org' || url.hostname === 'api.dicebear.com') {
+        event.respondWith(staleWhileRevalidate(request, IMAGE_CACHE));
+        return;
+    }
 
-                    return response;
-                }).catch(() => {
-                    // Return a custom offline page if available
-                    return caches.match('/index.html');
-                });
-            })
-    );
+    if (url.hostname === 'api.themoviedb.org') {
+        event.respondWith(networkFirst(request, API_CACHE));
+        return;
+    }
+
+    // SPA navigations: network first, offline shell fallback
+    if (request.mode === 'navigate') {
+        event.respondWith(
+            fetch(request).catch(() => caches.match('/index.html'))
+        );
+        return;
+    }
+
+    // Everything else same-origin: cache falling back to network
+    if (url.origin === self.location.origin) {
+        event.respondWith(
+            caches.match(request).then((cached) => cached || fetch(request))
+        );
+    }
 });
