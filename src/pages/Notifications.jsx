@@ -1,19 +1,37 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Bell, BellOff, Tv, Film, Calendar } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
+import { ArrowLeft, Bell, BellOff, Tv, Film, Calendar, X } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useUser } from '../context/UserContext';
+import usePersistentState from '../hooks/usePersistentState';
+
+const daysUntil = (dateStr) => {
+    if (!dateStr) return null;
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const release = new Date(y, m - 1, d);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.round((release - today) / (1000 * 60 * 60 * 24));
+};
 
 const Notifications = () => {
     const navigate = useNavigate();
+    const { user, reminders, toggleReminder } = useUser();
 
-    // Notification preferences state
-    const [preferences, setPreferences] = useState({
-        newEpisodes: true,
-        movieReleases: true,
-        upcomingReleases: true,
-        weeklyDigest: false,
-        pushNotifications: true,
-        emailNotifications: false
-    });
+    const [preferences, setPreferences] = usePersistentState(
+        `prefs:${user?.id || 'guest'}:notifications`,
+        {
+            newEpisodes: true,
+            movieReleases: true,
+            upcomingReleases: true,
+            weeklyDigest: false,
+            pushNotifications: true,
+            emailNotifications: false
+        }
+    );
+
+    const sortedReminders = [...reminders].sort((a, b) =>
+        (a.releaseDate || '9999').localeCompare(b.releaseDate || '9999')
+    );
 
     const togglePreference = (key) => {
         setPreferences(prev => ({
@@ -88,6 +106,79 @@ const Notifications = () => {
                     Notifications
                 </h1>
             </header>
+
+            {/* Release Reminders */}
+            <section style={{ marginBottom: '30px' }}>
+                <h3 style={{ marginBottom: '16px' }}>Your Reminders</h3>
+                {sortedReminders.length === 0 ? (
+                    <div className="glass-panel empty-state" style={{ padding: '24px', borderRadius: 'var(--radius-md)' }}>
+                        <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+                            No reminders yet. Tap "Notify Me" on an upcoming movie to track its release here.
+                        </p>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {sortedReminders.map((reminder) => {
+                            const days = daysUntil(reminder.releaseDate);
+                            const released = days !== null && days <= 0;
+                            return (
+                                <div
+                                    key={`${reminder.type}-${reminder.id}`}
+                                    className="glass-panel"
+                                    style={{
+                                        padding: '12px 16px',
+                                        borderRadius: 'var(--radius-md)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '16px'
+                                    }}
+                                >
+                                    <Link to={`/${reminder.type}/${reminder.id}`} style={{ flexShrink: 0 }}>
+                                        <img
+                                            src={reminder.poster}
+                                            alt={reminder.title}
+                                            style={{ width: '48px', height: '72px', borderRadius: '8px', objectFit: 'cover' }}
+                                        />
+                                    </Link>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {reminder.title}
+                                        </h4>
+                                        <p style={{ margin: 0, fontSize: '0.85rem', color: released ? '#10B981' : 'var(--text-secondary)' }}>
+                                            {days === null
+                                                ? 'Release date unknown'
+                                                : released
+                                                    ? 'Released! 🎬'
+                                                    : days === 1
+                                                        ? 'Releases tomorrow'
+                                                        : `Releases in ${days} days (${reminder.releaseDate})`}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => toggleReminder(reminder)}
+                                        title="Remove reminder"
+                                        style={{
+                                            background: 'rgba(255,255,255,0.05)',
+                                            border: 'none',
+                                            borderRadius: '50%',
+                                            width: '32px',
+                                            height: '32px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            cursor: 'pointer',
+                                            color: 'var(--text-secondary)',
+                                            flexShrink: 0
+                                        }}
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </section>
 
             {/* Notification Types */}
             <section style={{ marginBottom: '30px' }}>

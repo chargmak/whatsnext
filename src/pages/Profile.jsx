@@ -4,21 +4,22 @@ import { Settings, LogOut, Bell, BarChart2, TrendingUp, Clock, Film, UserPlus, L
 import { useUser } from '../context/UserContext';
 
 const Profile = () => {
-    const { user, loading, logout } = useUser();
+    const { user, loading, logout, status, stats } = useUser();
     const navigate = useNavigate();
+    const isGuest = status === 'guest';
 
     const settingsItems = [
         { icon: <Bell size={20} />, label: 'Notifications', path: '/notifications' },
         { icon: <Settings size={20} />, label: 'Settings', path: '/settings' },
-        { icon: <LogOut size={20} />, label: 'Log Out', color: '#EF4444', action: 'logout' }
+        { icon: <LogOut size={20} />, label: isGuest ? 'Exit Guest Mode' : 'Log Out', color: '#EF4444', action: 'logout' }
     ];
 
     const handleItemClick = async (item) => {
         if (item.action === 'logout') {
-            if (confirm('Are you sure you want to log out?')) {
+            const message = isGuest ? 'Exit guest mode?' : 'Are you sure you want to log out?';
+            if (confirm(message)) {
                 await logout();
-                alert('Logged out successfully!');
-                navigate('/');
+                navigate('/login');
             }
         } else if (item.path) {
             navigate(item.path);
@@ -133,9 +134,33 @@ const Profile = () => {
         );
     }
 
-    // Authenticated user view
+    // Authenticated / guest user view
     return (
         <div className="container" style={{ paddingTop: '20px', paddingBottom: '90px' }}>
+            {/* Guest banner */}
+            {isGuest && (
+                <div className="glass-panel" style={{
+                    padding: '16px',
+                    borderRadius: 'var(--radius-md)',
+                    marginBottom: '20px',
+                    border: '1px solid rgba(251, 191, 36, 0.3)',
+                    background: 'rgba(251, 191, 36, 0.08)'
+                }}>
+                    <p style={{ margin: '0 0 12px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                        You're browsing as a guest — your data is stored on this device only.
+                        Create an account to sync it everywhere.
+                    </p>
+                    <button
+                        onClick={() => navigate('/register')}
+                        className="action-btn primary"
+                        style={{ padding: '10px 20px', fontSize: '0.9rem', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                    >
+                        <UserPlus size={18} />
+                        Create Account
+                    </button>
+                </div>
+            )}
+
             {/* Header */}
             <div className="flex-center" style={{ flexDirection: 'column', marginBottom: '30px' }}>
                 <img
@@ -144,7 +169,7 @@ const Profile = () => {
                     className="profile-avatar"
                 />
                 <h2 style={{ margin: 0 }}>{user.name}</h2>
-                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{user.level || 'Member'}</span>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{isGuest ? 'Guest' : stats.rank}</span>
 
                 {/* Edit Profile Button */}
                 <button
@@ -167,29 +192,29 @@ const Profile = () => {
                 <div className="card stat-card">
                     <div className="flex-center" style={{ flexDirection: 'column', gap: '8px' }}>
                         <Clock size={24} color="var(--accent-primary)" />
-                        <span className="stat-value">{user.stats?.hoursWatched || 0}h</span>
+                        <span className="stat-value">{stats.hoursWatched}h</span>
                         <p className="stat-label" style={{ margin: 0 }}>Time Watched</p>
                     </div>
                 </div>
                 <div className="card stat-card">
                     <div className="flex-center" style={{ flexDirection: 'column', gap: '8px' }}>
                         <Film size={24} color="#F59E0B" />
-                        <span className="stat-value">{user.stats?.moviesWatched || 0}</span>
+                        <span className="stat-value">{stats.moviesWatched}</span>
                         <p className="stat-label" style={{ margin: 0 }}>Movies</p>
                     </div>
                 </div>
                 <div className="card stat-card">
                     <div className="flex-center" style={{ flexDirection: 'column', gap: '8px' }}>
                         <TrendingUp size={24} color="#10B981" />
-                        <span className="stat-value">{user.stats?.favoriteGenre || 'None'}</span>
+                        <span className="stat-value">{stats.favoriteGenre}</span>
                         <p className="stat-label" style={{ margin: 0 }}>Top Genre</p>
                     </div>
                 </div>
                 <div className="card stat-card">
                     <div className="flex-center" style={{ flexDirection: 'column', gap: '8px' }}>
                         <BarChart2 size={24} color="#3B82F6" />
-                        <span className="stat-value">Beginner</span>
-                        <p className="stat-label" style={{ margin: 0 }}>Rank</p>
+                        <span className="stat-value">{stats.episodesWatched}</span>
+                        <p className="stat-label" style={{ margin: 0 }}>Episodes</p>
                     </div>
                 </div>
             </div>
@@ -212,7 +237,7 @@ const Profile = () => {
             </div>
 
             <p style={{ textAlign: 'center', marginTop: '30px', fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-                Account: {user.email || 'Dimitrios'}
+                {isGuest ? 'Guest session' : `Account: ${user.email}`}
             </p>
         </div>
     );

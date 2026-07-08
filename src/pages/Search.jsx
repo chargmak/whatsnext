@@ -40,10 +40,12 @@ const Search = () => {
                     const filtered = data.results.filter(item => item.media_type === 'movie' || item.media_type === 'tv');
                     setResults(filtered.map(mapMediaData));
                 }
+                setSelectedGenre(null); // Clear genre when searching
             };
             fetchResults();
-            setSelectedGenre(null); // Clear genre when searching
         } else {
+            // Clearing results when the query empties — not a cascading render
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setResults([]);
         }
     }, [debouncedQuery]);
@@ -59,7 +61,7 @@ const Search = () => {
         }
     };
 
-    const handleResultClick = (id, type, title) => {
+    const handleResultClick = (id, type) => {
         // Add to search history if searching
         if (query) {
             const newHistory = [query, ...searchHistory.filter(h => h !== query)].slice(0, 10);

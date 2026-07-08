@@ -108,6 +108,8 @@ export const UserProvider = ({ children }) => {
         LEGACY_KEYS.forEach((key) => localStorage.removeItem(key));
 
         if (!supabase) {
+            // Bootstrap from localStorage — one-time init, not a cascading render
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             if (localStorage.getItem('guest_mode') === 'true') enterGuestMode();
             else setStatus('signedOut');
             return;
@@ -142,7 +144,6 @@ export const UserProvider = ({ children }) => {
         });
 
         return () => subscription.unsubscribe();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // --- Local data migration (guest → account) ---
@@ -486,4 +487,5 @@ export const UserProvider = ({ children }) => {
     );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useUser = () => useContext(UserContext);

@@ -1,31 +1,40 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Settings as SettingsIcon, Moon, Sun, Globe, Download, Trash2, Shield } from 'lucide-react';
+import { ArrowLeft, Settings as SettingsIcon, Moon, Sun, Download, Trash2, KeyRound, UserX, UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
+import { useUser } from '../context/UserContext';
+import * as userData from '../services/userData';
+
+const panelButtonStyle = (danger = false) => ({
+    padding: '16px',
+    borderRadius: 'var(--radius-md)',
+    border: danger ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(255,255,255,0.05)',
+    background: danger ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255,255,255,0.02)',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    color: danger ? '#EF4444' : 'var(--text-primary)',
+    transition: 'all 0.2s',
+    width: '100%'
+});
 
 const Settings = () => {
     const navigate = useNavigate();
     const { theme, toggleTheme } = useTheme();
+    const { status, user, watchlist, watched, watchedEpisodes, changePassword, deleteAccount } = useUser();
+    const isAuthed = status === 'authed';
 
-    const [settings, setSettings] = useState({
-        autoPlay: true,
-        hdQuality: true,
-        dataSync: true,
-        analytics: false
-    });
-
-    const toggleSetting = (key) => {
-        setSettings(prev => ({
-            ...prev,
-            [key]: !prev[key]
-        }));
-    };
+    const [showPasswordForm, setShowPasswordForm] = useState(false);
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [passwordMessage, setPasswordMessage] = useState(null); // { ok, text }
 
     const handleExportData = () => {
         const data = {
-            watchlist: JSON.parse(localStorage.getItem('user_watchlist') || '[]'),
-            watched: JSON.parse(localStorage.getItem('user_watched') || '[]'),
-            watchedEpisodes: JSON.parse(localStorage.getItem('user_watched_episodes') || '{}'),
+            watchlist,
+            watched,
+            watchedEpisodes,
             exportDate: new Date().toISOString()
         };
 
@@ -44,35 +53,95 @@ const Settings = () => {
         input.accept = 'application/json';
         input.onchange = (e) => {
             const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    try {
-                        const data = JSON.parse(event.target.result);
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    const payload = {
+                        watchlist: data.watchlist || [],
+                        watched: data.watched || [],
+                        episodes: data.watchedEpisodes || {},
+                    };
+                    if (isAuthed) {
+                        await userData.migrateLocalData(user.id, payload);
+                    } else {
                         if (data.watchlist) localStorage.setItem('user_watchlist', JSON.stringify(data.watchlist));
                         if (data.watched) localStorage.setItem('user_watched', JSON.stringify(data.watched));
                         if (data.watchedEpisodes) localStorage.setItem('user_watched_episodes', JSON.stringify(data.watchedEpisodes));
-                        alert('Data imported successfully! Refresh the page to see changes.');
-                    } catch (error) {
-                        alert('Error importing data. Please check the file format.');
                     }
-                };
-                reader.readAsText(file);
-            }
+                    window.location.reload();
+                } catch (error) {
+                    console.error('Import failed:', error);
+                    alert('Error importing data. Please check the file format.');
+                }
+            };
+            reader.readAsText(file);
         };
         input.click();
     };
 
-    const handleClearData = () => {
-        if (confirm('Are you sure you want to clear all your data? This cannot be undone!')) {
-            localStorage.removeItem('user_watchlist');
-            localStorage.removeItem('user_watched');
-            localStorage.removeItem('user_watched_episodes');
-            alert('All data cleared! Refresh the page.');
+    const handleClearData = async () => {
+        if (!confirm('Are you sure you want to clear all your data? This cannot be undone!')) return;
+        try {
+            if (isAuthed) {
+                await userData.clearAllUserData(user.id);
+            } else {
+                ['user_watchlist', 'user_watched', 'user_watched_episodes', 'user_reminders'].forEach(k => localStorage.removeItem(k));
+            }
+            window.location.reload();
+        } catch (error) {
+            console.error('Clear failed:', error);
+            alert('Could not clear data. Please try again.');
+        }
+    };
+
+    const handleChangePassword = async () => {
+        setPasswordMessage(null);
+        if (newPassword.length < 6) {
+            setPasswordMessage({ ok: false, text: 'Password must be at least 6 characters' });
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            setPasswordMessage({ ok: false, text: 'Passwords do not match' });
+            return;
+        }
+        try {
+            await changePassword(newPassword);
+            setPasswordMessage({ ok: true, text: 'Password updated!' });
+            setNewPassword('');
+            setConfirmPassword('');
+            setTimeout(() => setShowPasswordForm(false), 1200);
+        } catch (error) {
+            setPasswordMessage({ ok: false, text: error.message || 'Could not update password' });
+        }
+    };
+
+    const handleDeleteAccount = async () => {
+        if (!confirm('Delete your account? All your data (watchlist, history, reminders) will be permanently removed.')) return;
+        if (!confirm('This cannot be undone. Are you absolutely sure?')) return;
+        try {
+            await deleteAccount();
+            navigate('/login', { replace: true });
+        } catch (error) {
+            console.error('Account deletion failed:', error);
+            alert(`Could not delete the account: ${error.message}`);
         }
     };
 
     const isDarkMode = theme === 'dark';
+
+    const inputStyle = {
+        width: '100%',
+        padding: '12px 16px',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        background: 'rgba(255,255,255,0.05)',
+        color: 'var(--text-primary)',
+        fontSize: '1rem',
+        outline: 'none',
+        marginBottom: '12px'
+    };
 
     return (
         <div className="container" style={{ paddingBottom: '100px' }}>
@@ -145,143 +214,80 @@ const Settings = () => {
                 </div>
             </section>
 
-            {/* Playback */}
+            {/* Account */}
             <section style={{ marginBottom: '30px' }}>
-                <h3 style={{ marginBottom: '16px' }}>Playback</h3>
-                <div className="glass-panel" style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                    {[
-                        { key: 'autoPlay', label: 'Auto-play Trailers', desc: 'Automatically play trailers when available' },
-                        { key: 'hdQuality', label: 'HD Quality', desc: 'Prefer high-definition content' }
-                    ].map((item, idx) => (
-                        <div
-                            key={item.key}
-                            className="settings-item"
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                borderBottom: idx === 0 ? '1px solid rgba(255,255,255,0.05)' : 'none'
-                            }}
-                        >
-                            <div>
-                                <div style={{ fontWeight: '500' }}>{item.label}</div>
+                <h3 style={{ marginBottom: '16px' }}>Account</h3>
+                {isAuthed ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <button onClick={() => setShowPasswordForm(!showPasswordForm)} className="glass-panel" style={panelButtonStyle()}>
+                            <KeyRound size={20} color="#3B82F6" />
+                            <div style={{ textAlign: 'left' }}>
+                                <div style={{ fontWeight: '500' }}>Change Password</div>
                                 <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                    {item.desc}
+                                    Set a new password for {user.email}
                                 </div>
                             </div>
-                            <button
-                                onClick={() => toggleSetting(item.key)}
-                                style={{
-                                    width: '52px',
-                                    height: '28px',
-                                    borderRadius: '14px',
-                                    border: 'none',
-                                    background: settings[item.key] ? 'var(--brand-600)' : 'rgba(255,255,255,0.1)',
-                                    position: 'relative',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.3s'
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        width: '24px',
-                                        height: '24px',
-                                        borderRadius: '50%',
-                                        background: 'white',
-                                        position: 'absolute',
-                                        top: '2px',
-                                        left: settings[item.key] ? '26px' : '2px',
-                                        transition: 'all 0.3s',
-                                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                                    }}
-                                />
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            </section>
+                        </button>
 
-            {/* Data & Privacy */}
-            <section style={{ marginBottom: '30px' }}>
-                <h3 style={{ marginBottom: '16px' }}>Data & Privacy</h3>
-                <div className="glass-panel" style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                    {[
-                        { key: 'dataSync', label: 'Cloud Sync', desc: 'Sync data across devices', icon: <Globe size={20} /> },
-                        { key: 'analytics', label: 'Analytics', desc: 'Help improve the app', icon: <Shield size={20} /> }
-                    ].map((item, idx) => (
-                        <div
-                            key={item.key}
-                            className="settings-item"
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                borderBottom: idx === 0 ? '1px solid rgba(255,255,255,0.05)' : 'none'
-                            }}
-                        >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                {item.icon}
-                                <div>
-                                    <div style={{ fontWeight: '500' }}>{item.label}</div>
-                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                        {item.desc}
-                                    </div>
+                        {showPasswordForm && (
+                            <div className="glass-panel" style={{ padding: '16px', borderRadius: 'var(--radius-md)' }}>
+                                <input
+                                    type="password"
+                                    placeholder="New password"
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    style={inputStyle}
+                                />
+                                <input
+                                    type="password"
+                                    placeholder="Confirm new password"
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    style={inputStyle}
+                                />
+                                {passwordMessage && (
+                                    <p style={{
+                                        color: passwordMessage.ok ? '#10B981' : '#EF4444',
+                                        fontSize: '0.85rem',
+                                        margin: '0 0 12px'
+                                    }}>
+                                        {passwordMessage.text}
+                                    </p>
+                                )}
+                                <button className="action-btn primary" style={{ width: '100%', padding: '12px' }} onClick={handleChangePassword}>
+                                    Update Password
+                                </button>
+                            </div>
+                        )}
+
+                        <button onClick={handleDeleteAccount} className="glass-panel" style={panelButtonStyle(true)}>
+                            <UserX size={20} />
+                            <div style={{ textAlign: 'left' }}>
+                                <div style={{ fontWeight: '500' }}>Delete Account</div>
+                                <div style={{ fontSize: '0.85rem', opacity: 0.8 }}>
+                                    Permanently remove your account and all data
                                 </div>
                             </div>
-                            <button
-                                onClick={() => toggleSetting(item.key)}
-                                style={{
-                                    width: '52px',
-                                    height: '28px',
-                                    borderRadius: '14px',
-                                    border: 'none',
-                                    background: settings[item.key] ? 'var(--brand-600)' : 'rgba(255,255,255,0.1)',
-                                    position: 'relative',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.3s'
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        width: '24px',
-                                        height: '24px',
-                                        borderRadius: '50%',
-                                        background: 'white',
-                                        position: 'absolute',
-                                        top: '2px',
-                                        left: settings[item.key] ? '26px' : '2px',
-                                        transition: 'all 0.3s',
-                                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                                    }}
-                                />
-                            </button>
+                        </button>
+                    </div>
+                ) : (
+                    <button onClick={() => navigate('/register')} className="glass-panel" style={panelButtonStyle()}>
+                        <UserPlus size={20} color="#10B981" />
+                        <div style={{ textAlign: 'left' }}>
+                            <div style={{ fontWeight: '500' }}>Create an Account</div>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                Sync your watchlist across devices and never lose it
+                            </div>
                         </div>
-                    ))}
-                </div>
+                    </button>
+                )}
             </section>
 
             {/* Data Management */}
             <section>
                 <h3 style={{ marginBottom: '16px' }}>Data Management</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <button
-                        onClick={handleExportData}
-                        className="glass-panel"
-                        style={{
-                            padding: '16px',
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid rgba(255,255,255,0.05)',
-                            background: 'rgba(255,255,255,0.02)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                            color: 'var(--text-primary)',
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
-                    >
+                    <button onClick={handleExportData} className="glass-panel" style={panelButtonStyle()}>
                         <Download size={20} color="#10B981" />
                         <div style={{ textAlign: 'left' }}>
                             <div style={{ fontWeight: '500' }}>Export Data</div>
@@ -291,24 +297,7 @@ const Settings = () => {
                         </div>
                     </button>
 
-                    <button
-                        onClick={handleImportData}
-                        className="glass-panel"
-                        style={{
-                            padding: '16px',
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid rgba(255,255,255,0.05)',
-                            background: 'rgba(255,255,255,0.02)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                            color: 'var(--text-primary)',
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
-                    >
+                    <button onClick={handleImportData} className="glass-panel" style={panelButtonStyle()}>
                         <Download size={20} color="#3B82F6" style={{ transform: 'rotate(180deg)' }} />
                         <div style={{ textAlign: 'left' }}>
                             <div style={{ fontWeight: '500' }}>Import Data</div>
@@ -318,24 +307,7 @@ const Settings = () => {
                         </div>
                     </button>
 
-                    <button
-                        onClick={handleClearData}
-                        className="glass-panel"
-                        style={{
-                            padding: '16px',
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                            background: 'rgba(239, 68, 68, 0.1)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                            color: '#EF4444',
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
-                    >
+                    <button onClick={handleClearData} className="glass-panel" style={panelButtonStyle(true)}>
                         <Trash2 size={20} />
                         <div style={{ textAlign: 'left' }}>
                             <div style={{ fontWeight: '500' }}>Clear All Data</div>

@@ -591,3 +591,26 @@ p {
   background: var(--brand-600);
   color: white;
 }
+/* Loading spinner (Profile, guards) */
+.spinner {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--brand-600);
+  border-radius: 50%;
+  animation: spinner-rotate 0.8s linear infinite;
+}
+
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Empty-state panels (Library, Calendar, Notifications) */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-secondary);
+}

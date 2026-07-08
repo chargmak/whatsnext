@@ -58,16 +58,21 @@ const COUNTRIES = [
 
 const EditProfile = () => {
     const navigate = useNavigate();
-    const { user, updateUser } = useUser();
+    const { user, updateUser, status } = useUser();
+    const isAuthed = status === 'authed';
 
     const [formData, setFormData] = useState({
-        name: user.name || 'Dimitrios',
-        email: user.email || 'dimitrios@example.com',
-        bio: user.bio || 'Movie and TV enthusiast',
-        joinDate: user.joinDate || '2024-01-01',
-        country: user.country || 'US',
-        avatar: user.avatar
+        name: user?.name || '',
+        email: user?.email || '',
+        bio: user?.bio || '',
+        country: user?.country || 'US',
+        avatar: user?.avatar
     });
+    const [saved, setSaved] = useState(false);
+
+    const memberSince = user?.joinDate
+        ? new Date(user.joinDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+        : '—';
 
     const [previewAvatar, setPreviewAvatar] = useState(user.avatar);
 
@@ -115,16 +120,12 @@ const EditProfile = () => {
     };
 
     const handleSave = () => {
-        // Update user context
-        updateUser(formData);
-
-        // Save to localStorage (update demo user data)
-        const currentUserData = JSON.parse(localStorage.getItem('user_data') || '{}');
-        const updatedUserData = { ...currentUserData, ...formData };
-        localStorage.setItem('user_data', JSON.stringify(updatedUserData));
-
-        alert('Profile updated successfully!');
-        navigate('/profile');
+        // Context persists to Supabase (authed) or localStorage (guest).
+        // Email is managed by auth and never editable here.
+        const { email: _email, ...updates } = formData;
+        updateUser(updates);
+        setSaved(true);
+        setTimeout(() => navigate('/profile'), 800);
     };
 
     return (
@@ -291,22 +292,23 @@ const EditProfile = () => {
                             type="email"
                             name="email"
                             value={formData.email}
-                            onChange={handleInputChange}
+                            disabled
                             className="glass-panel"
                             style={{
                                 width: '100%',
                                 padding: '12px 16px',
                                 borderRadius: 'var(--radius-md)',
                                 border: '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(255,255,255,0.05)',
-                                color: 'var(--text-primary)',
+                                background: 'rgba(255,255,255,0.03)',
+                                color: 'var(--text-secondary)',
                                 fontSize: '1rem',
                                 outline: 'none',
-                                transition: 'all 0.2s'
+                                cursor: 'not-allowed'
                             }}
-                            onFocus={(e) => e.target.style.border = '1px solid var(--brand-600)'}
-                            onBlur={(e) => e.target.style.border = '1px solid rgba(255,255,255,0.1)'}
                         />
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', marginTop: '6px', marginBottom: 0 }}>
+                            {isAuthed ? 'Your login email cannot be changed here.' : 'Guests have no email — create an account to get one.'}
+                        </p>
                     </div>
 
                     {/* Country */}
@@ -404,26 +406,18 @@ const EditProfile = () => {
                             <CalendarIcon size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
                             Member Since
                         </label>
-                        <input
-                            type="date"
-                            name="joinDate"
-                            value={formData.joinDate}
-                            onChange={handleInputChange}
-                            className="glass-panel"
-                            style={{
-                                width: '100%',
-                                padding: '12px 16px',
-                                borderRadius: 'var(--radius-md)',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(255,255,255,0.05)',
-                                color: 'var(--text-primary)',
-                                fontSize: '1rem',
-                                outline: 'none',
-                                transition: 'all 0.2s'
-                            }}
-                            onFocus={(e) => e.target.style.border = '1px solid var(--brand-600)'}
-                            onBlur={(e) => e.target.style.border = '1px solid rgba(255,255,255,0.1)'}
-                        />
+                        <p className="glass-panel" style={{
+                            width: '100%',
+                            padding: '12px 16px',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            background: 'rgba(255,255,255,0.03)',
+                            color: 'var(--text-secondary)',
+                            fontSize: '1rem',
+                            margin: 0
+                        }}>
+                            {memberSince}
+                        </p>
                     </div>
                 </div>
             </section>
@@ -445,7 +439,7 @@ const EditProfile = () => {
                 }}
             >
                 <Save size={20} />
-                Save Changes
+                {saved ? 'Saved!' : 'Save Changes'}
             </button>
 
             {/* Cancel Button */}

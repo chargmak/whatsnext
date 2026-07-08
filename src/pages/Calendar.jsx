@@ -37,14 +37,17 @@ const Calendar = () => {
     };
 
     // Get releases for a specific date
+    // Compare dates as local yyyy-mm-dd strings; toISOString() shifts the day
+    // for viewers west of UTC.
+    const toLocalDateStr = (date) =>
+        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
     const getReleasesForDate = (date) => {
         if (!date) return [];
 
-        const dateStr = date.toISOString().split('T')[0];
-        return upcomingReleases.filter(release => {
-            const releaseDate = new Date(release.releaseDate).toISOString().split('T')[0];
-            return releaseDate === dateStr;
-        });
+        const dateStr = toLocalDateStr(date);
+        // TMDB dates are already yyyy-mm-dd strings
+        return upcomingReleases.filter(release => release.releaseDate === dateStr);
     };
 
     // Process watchlist for upcoming releases including TV episodes
@@ -54,71 +57,57 @@ const Calendar = () => {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
-            const releases = [];
+            const processTvItem = async (item) => {
+                const releases = [];
+                try {
+                    const tvDetails = await getTVSeriesWithEpisodes(item.id);
+                    if (!tvDetails?.seasons) return releases;
 
-            // Process each item in watchlist
-            for (const item of watchlist) {
-                if (item.type === 'tv') {
-                    // Fetch TV series details to get all upcoming episodes
-                    try {
-                        const tvDetails = await getTVSeriesWithEpisodes(item.id);
+                    // Only the latest 2 real seasons to keep request volume sane
+                    const relevantSeasons = [...tvDetails.seasons]
+                        .sort((a, b) => b.season_number - a.season_number)
+                        .filter(s => s.season_number !== 0 && s.episode_count)
+                        .slice(0, 2);
 
-                        if (tvDetails?.seasons) {
-                            // OPTIMIZATION: Only fetch the last 2 seasons to avoid rate limits
-                            // Sort seasons by season_number just in case
-                            const sortedSeasons = [...tvDetails.seasons].sort((a, b) => b.season_number - a.season_number);
-                            const relevantSeasons = sortedSeasons.slice(0, 2);
+                    const seasonResults = await Promise.all(
+                        relevantSeasons.map(season =>
+                            getTVSeasonDetails(item.id, season.season_number).catch((error) => {
+                                console.error(`Error fetching season ${season.season_number}:`, error);
+                                return null;
+                            })
+                        )
+                    );
 
-                            for (const season of relevantSeasons) {
-                                // Skip season 0 (specials) and seasons without episodes
-                                if (season.season_number === 0 || !season.episode_count) continue;
-
-                                try {
-                                    // Use the service function instead of raw fetch
-                                    const seasonData = await getTVSeasonDetails(item.id, season.season_number);
-
-                                    if (seasonData?.episodes) {
-                                        // Add all upcoming episodes from this season
-                                        for (const episode of seasonData.episodes) {
-                                            if (episode.air_date) {
-                                                const airDate = new Date(episode.air_date);
-                                                // Create a slightly loosened check for "today" to handle timezone diffs
-                                                // Use the same 'today' reference from outer scope
-                                                if (airDate >= today) {
-                                                    releases.push({
-                                                        ...item,
-                                                        title: `${item.title} - S${episode.season_number}E${episode.episode_number}`,
-                                                        episodeTitle: episode.name,
-                                                        releaseDate: episode.air_date,
-                                                        isEpisode: true,
-                                                        seasonNumber: episode.season_number,
-                                                        episodeNumber: episode.episode_number
-                                                    });
-                                                }
-                                            }
-                                        }
-                                    }
-                                } catch (seasonError) {
-                                    console.error(`Error fetching season ${season.season_number}:`, seasonError);
-                                }
+                    for (const seasonData of seasonResults) {
+                        for (const episode of seasonData?.episodes || []) {
+                            if (episode.air_date && new Date(episode.air_date) >= today) {
+                                releases.push({
+                                    ...item,
+                                    title: `${item.title} - S${episode.season_number}E${episode.episode_number}`,
+                                    episodeTitle: episode.name,
+                                    releaseDate: episode.air_date,
+                                    isEpisode: true,
+                                    seasonNumber: episode.season_number,
+                                    episodeNumber: episode.episode_number
+                                });
                             }
                         }
-                    } catch (error) {
-                        console.error('Error fetching TV details:', error);
                     }
-                } else if (item.type === 'movie') {
-                    // Movie release
-                    const releaseDate = new Date(item.releaseDate);
-                    if (releaseDate >= today) {
-                        releases.push({
-                            ...item,
-                            isUpcoming: true
-                        });
-                    }
+                } catch (error) {
+                    console.error('Error fetching TV details:', error);
                 }
-            }
+                return releases;
+            };
 
-            // Sort by release date
+            const results = await Promise.all(watchlist.map(async (item) => {
+                if (item.type === 'tv') return processTvItem(item);
+                if (item.type === 'movie' && item.releaseDate && new Date(item.releaseDate) >= today) {
+                    return [{ ...item, isUpcoming: true }];
+                }
+                return [];
+            }));
+
+            const releases = results.flat();
             releases.sort((a, b) => new Date(a.releaseDate) - new Date(b.releaseDate));
             setUpcomingReleases(releases);
             setLoading(false);
