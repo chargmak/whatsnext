@@ -23,6 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment Variables
+# Environment Variables — never commit real secrets.
+# Ignore every .env variant (.env, .env.local, .env.production, ...)
+# but keep the placeholder template that documents the required keys.
 .env
-.env.local
+.env.*
+!.env.example
