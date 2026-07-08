@@ -1,19 +1,27 @@
 # Release Notifications Setup
 
-This app can send a **Web Push notification** when a movie or show you tapped
-**Notify Me** on is released — even when the app is closed.
+This app can send **Web Push notifications** — even when the app is closed — for:
+
+- **Release reminders**: a movie or show you tapped **Notify Me** on is released.
+- **New episodes**: a new episode of a TV show **in your watchlist** airs today.
 
 ## How it works
 
 1. On the Notifications page, **Push Notifications** asks for permission and
    subscribes the browser's service worker (`public/sw.js`) using a VAPID key.
 2. The subscription is saved to the `push_subscriptions` table (per signed-in user).
-3. A daily cron invokes the **`send-release-reminders`** edge function, which finds
-   reminders releasing today/tomorrow that haven't been notified, sends a push to
-   each of the user's devices, and stamps `reminders.notified_at` so it fires once.
+3. Two daily crons deliver alerts:
+   - **`send-release-reminders`** finds reminders releasing today/tomorrow that
+     haven't been notified, pushes to each of the user's devices, and stamps
+     `reminders.notified_at` so it fires once.
+   - **`send-episode-alerts`** looks at every TV show in each subscribed user's
+     watchlist, asks TMDB whether the show's next episode airs today, and pushes a
+     "new episode" alert. Each `(user, show, season, episode)` is recorded in
+     `episode_notifications` so it fires only once.
 
-> Scheduled alerts require a **signed-in account** — guest reminders live only in
-> `localStorage`, which the server never sees.
+> Scheduled alerts require a **signed-in account** — guest reminders and watchlists
+> live only in `localStorage`, which the server never sees. Episode alerts also
+> require a **TV show in your watchlist** and Push Notifications turned on.
 
 ---
 
@@ -44,7 +52,8 @@ VITE_VAPID_PUBLIC_KEY=BEiuMR6fPv2p9L2n712L-PTP6Eot_iOiWAk8wrIcZ-54C9SX1aDFfVZZ9V
 
 ### 3. Database
 
-Apply the migration that adds `push_subscriptions` and `reminders.notified_at`:
+Apply the migrations that add `push_subscriptions`, `reminders.notified_at`, and
+`episode_notifications`:
 
 ```bash
 supabase db push
@@ -52,37 +61,43 @@ supabase db push
 
 (Already applied to the hosted project if you used the assistant's deploy.)
 
-### 4. Deploy the edge function
+### 4. Deploy the edge functions
 
 ```bash
 supabase functions deploy send-release-reminders
+supabase functions deploy send-episode-alerts
 ```
 
-`supabase/config.toml` already sets `verify_jwt = false` for it — the function
-does its own auth via `CRON_SECRET`.
+`supabase/config.toml` already sets `verify_jwt = false` for both — they do their
+own auth via `CRON_SECRET`.
 
 ### 5. Edge-function secrets
 
-Pick any strong random string for `CRON_SECRET` (e.g. `openssl rand -hex 32`):
+Pick any strong random string for `CRON_SECRET` (e.g. `openssl rand -hex 32`).
+`TMDB_API_KEY` is the same TMDB v3 key used by the client (`VITE_TMDB_API_KEY`) —
+it's required by `send-episode-alerts` to look up episode air dates:
 
 ```bash
 supabase secrets set \
   VAPID_PUBLIC_KEY=BEiuMR6fPv2p9L2n712L-PTP6Eot_iOiWAk8wrIcZ-54C9SX1aDFfVZZ9VB_-cTzRSuUjjZ3ww5lybJem75rogI \
   VAPID_PRIVATE_KEY=<your-vapid-private-key> \
   VAPID_SUBJECT=mailto:you@example.com \
-  CRON_SECRET=<your-random-secret>
+  CRON_SECRET=<your-random-secret> \
+  TMDB_API_KEY=<your-tmdb-v3-api-key>
 ```
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically.
 
-### 6. Schedule the daily job
+### 6. Schedule the daily jobs
 
-**Easiest:** Dashboard → Integrations → **Cron** → create a job targeting the
-`send-release-reminders` function, add header `Authorization: Bearer <CRON_SECRET>`,
-schedule `0 14 * * *`.
+**Easiest:** Dashboard → Integrations → **Cron** → create a job for each function
+(`send-release-reminders`, `send-episode-alerts`), add header
+`Authorization: Bearer <CRON_SECRET>`, and schedule them (e.g. `0 14 * * *` and
+`0 15 * * *`).
 
 **Or via SQL:** enable `pg_cron` + `pg_net` (Dashboard → Database → Extensions),
-then run `supabase/schedule_reminders_cron.sql` with `<CRON_SECRET>` filled in.
+then run `supabase/schedule_reminders_cron.sql` with `<CRON_SECRET>` filled in (and
+add a matching `cron.schedule(...)` call targeting `send-episode-alerts`).
 
 ---
 
