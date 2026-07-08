@@ -44,10 +44,12 @@ supabase secrets set TMDB_API_KEY=...     # server copy of the TMDB key
 
 # 3. Deploy
 supabase functions deploy cinebot
-
-# 4. Enable in the app
-echo "VITE_CINEBOT_AI=true" >> .env   # then rebuild
 ```
+
+Once the function is deployed and its secrets are set, CineBot uses it
+automatically — the AI backend is **on by default** in the app. No frontend
+env var is needed. (Set `VITE_CINEBOT_AI=false` only if you want to force the
+offline local recommender.)
 
 `SUPABASE_URL` and `SUPABASE_ANON_KEY` are injected automatically by the platform.
 

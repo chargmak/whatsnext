@@ -19,6 +19,13 @@ Your code is pushed to GitHub! Follow these final steps to make your app live.
 
     > ⚠️ **Never commit real keys to the repository.** A TMDB API key was previously committed in this file and remains in git history — rotate it at [themoviedb.org → Settings → API](https://www.themoviedb.org/settings/api). The Supabase anon key is public by design (RLS protects the data), but keep it in env vars anyway.
 
+    **CineBot AI (Gemini):** its Gemini-powered replies are **on by default** — no
+    extra Vercel variable is required. You only need to deploy the Edge Function
+    and set its server-side secrets once (see
+    [`supabase/functions/cinebot/README.md`](supabase/functions/cinebot/README.md)).
+    Until then, CineBot falls back to its offline local recommender automatically.
+    To disable the AI backend entirely, add `VITE_CINEBOT_AI=false`.
+
 5.  Click **Deploy**.
 
 ## 2. Verify Your App
