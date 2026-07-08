@@ -3,7 +3,7 @@ import { Search as SearchIcon, History, X, SlidersHorizontal, Trash2 } from 'luc
 import { useNavigate } from 'react-router-dom';
 import { searchMulti, mapMediaData, discoverByGenre } from '../services/tmdb';
 import { MovieCard } from '../components/MovieCard';
-import { GENRES } from '../data/mockData';
+import { BrowseCategories } from '../components/BrowseCategories';
 
 function useDebounce(value, delay) {
     const [debouncedValue, setDebouncedValue] = useState(value);
@@ -243,39 +243,10 @@ const Search = () => {
 
             {/* Browse Categories */}
             {!query && !selectedGenre && (
-                <section>
-                    <h3 style={{ marginBottom: '16px' }}>Browse Categories</h3>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                        {GENRES.map(genre => (
-                            <span
-                                key={genre}
-                                onClick={() => handleGenreClick(genre)}
-                                style={{
-                                    background: 'var(--bg-tertiary)',
-                                    padding: '8px 16px',
-                                    borderRadius: '20px',
-                                    fontSize: '0.9rem',
-                                    color: 'var(--text-secondary)',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    border: '1px solid transparent'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = 'var(--brand-600)';
-                                    e.currentTarget.style.color = 'white';
-                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = 'var(--bg-tertiary)';
-                                    e.currentTarget.style.color = 'var(--text-secondary)';
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                }}
-                            >
-                                {genre}
-                            </span>
-                        ))}
-                    </div>
-                </section>
+                <BrowseCategories
+                    onOpenGenre={handleGenreClick}
+                    onOpenItem={(item) => navigate(`/${item.type}/${item.id}`)}
+                />
             )}
 
             {/* No Results */}
