@@ -1,56 +1,75 @@
-// CineBot — a Claude-powered, library-aware movie/TV recommender.
+// CineBot — a Gemini-powered, library-aware movie/TV recommender.
+//
+// Uses Google Gemini through its OpenAI-compatible endpoint, so the whole thing
+// runs on Gemini's free tier (no credit card). To switch providers later, only
+// BASE_URL, the API-key secret, and MODEL need to change — the format is stock
+// OpenAI function calling.
 //
 // Deploy:  supabase functions deploy cinebot
-// Secrets: supabase secrets set ANTHROPIC_API_KEY=... TMDB_API_KEY=...
+// Secrets: supabase secrets set GEMINI_API_KEY=... TMDB_API_KEY=...
 // Enable in the app by setting VITE_CINEBOT_AI=true.
 //
 // The caller's JWT is forwarded so library reads run under Row-Level Security —
 // the function can only ever see the caller's own watchlist/history.
 
-import Anthropic from 'npm:@anthropic-ai/sdk@0.68.0';
+import OpenAI from 'npm:openai@6.45.0';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { searchTmdb, discoverByGenre } from '../_shared/tmdb.ts';
 
 const DAILY_LIMIT = 40;
 
+// Gemini's OpenAI-compatible surface. gemini-2.5-flash is on the free tier and
+// supports function calling; override with the GEMINI_MODEL secret if desired.
+const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
+const MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash';
+
 const tools = [
   {
-    name: 'search_tmdb',
-    description: 'Search movies and TV shows by title or keywords. Use when the user names a specific title.',
-    input_schema: {
-      type: 'object',
-      properties: { query: { type: 'string', description: 'Title or keywords to search for.' } },
-      required: ['query'],
-    },
-  },
-  {
-    name: 'discover_by_genre',
-    description:
-      'Find popular, well-rated titles in a genre with optional filters. Use for mood/vibe requests ' +
-      '("something funny under 90 min"). max_runtime only applies to movies.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        genre: {
-          type: 'string',
-          enum: ['Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary', 'Drama',
-            'Family', 'Fantasy', 'History', 'Horror', 'Music', 'Mystery', 'Romance', 'Sci-Fi',
-            'Thriller', 'War', 'Western'],
-        },
-        media_type: { type: 'string', enum: ['movie', 'tv'] },
-        max_runtime: { type: 'integer', description: 'Max runtime in minutes (movies only).' },
-        min_rating: { type: 'number', description: 'Minimum TMDB rating 0-10.' },
-        min_year: { type: 'integer' },
-        max_year: { type: 'integer' },
+    type: 'function',
+    function: {
+      name: 'search_tmdb',
+      description: 'Search movies and TV shows by title or keywords. Use when the user names a specific title.',
+      parameters: {
+        type: 'object',
+        properties: { query: { type: 'string', description: 'Title or keywords to search for.' } },
+        required: ['query'],
       },
-      required: ['genre'],
     },
   },
   {
-    name: 'get_my_library',
-    description: "Read the signed-in user's watchlist and watched history. Use for 'what should I watch next?' or personalized picks.",
-    input_schema: { type: 'object', properties: {} },
+    type: 'function',
+    function: {
+      name: 'discover_by_genre',
+      description:
+        'Find popular, well-rated titles in a genre with optional filters. Use for mood/vibe requests ' +
+        '("something funny under 90 min"). max_runtime only applies to movies.',
+      parameters: {
+        type: 'object',
+        properties: {
+          genre: {
+            type: 'string',
+            enum: ['Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary', 'Drama',
+              'Family', 'Fantasy', 'History', 'Horror', 'Music', 'Mystery', 'Romance', 'Sci-Fi',
+              'Thriller', 'War', 'Western'],
+          },
+          media_type: { type: 'string', enum: ['movie', 'tv'] },
+          max_runtime: { type: 'integer', description: 'Max runtime in minutes (movies only).' },
+          min_rating: { type: 'number', description: 'Minimum TMDB rating 0-10.' },
+          min_year: { type: 'integer' },
+          max_year: { type: 'integer' },
+        },
+        required: ['genre'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_my_library',
+      description: "Read the signed-in user's watchlist and watched history. Use for 'what should I watch next?' or personalized picks.",
+      parameters: { type: 'object', properties: {} },
+    },
   },
 ];
 
@@ -131,7 +150,7 @@ Deno.serve(async (req) => {
       if (profile?.full_name) name = profile.full_name;
     }
 
-    const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') });
+    const client = new OpenAI({ apiKey: Deno.env.get('GEMINI_API_KEY'), baseURL: BASE_URL });
     const system =
       `You are CineBot, a warm, concise movie and TV recommender inside the "What's Next?" app. ` +
       `You are talking to ${name}. Today is ${new Date().toISOString().slice(0, 10)}. ` +
@@ -141,48 +160,33 @@ Deno.serve(async (req) => {
       `Recommend one or two titles with a one-line reason each. Keep replies under 80 words.`;
 
     const messages: any[] = [
-      ...history.slice(-8).map((m: any) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content) })),
+      { role: 'system', content: system },
+      ...history.slice(-8).map((m: any) => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: String(m.content),
+      })),
       { role: 'user', content: String(message) },
     ];
 
     let items: any[] = [];
-    let response = await anthropic.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 1024,
-      thinking: { type: 'adaptive' },
-      output_config: { effort: 'low' },
-      system,
-      tools,
-      messages,
-    });
+    let response = await client.chat.completions.create({ model: MODEL, messages, tools, tool_choice: 'auto' });
+    let msg = response.choices?.[0]?.message;
 
-    for (let i = 0; i < 4 && response.stop_reason === 'tool_use'; i++) {
-      messages.push({ role: 'assistant', content: response.content });
-      const toolResults: any[] = [];
-      for (const block of response.content) {
-        if (block.type !== 'tool_use') continue;
-        const { results, items: mapped } = await runTool(block.name, block.input, { caller, userId });
+    for (let i = 0; i < 4 && msg?.tool_calls?.length; i++) {
+      // Echo the assistant turn (with its tool calls) back into the transcript.
+      messages.push({ role: 'assistant', content: msg.content ?? '', tool_calls: msg.tool_calls });
+      for (const call of msg.tool_calls) {
+        let args: any = {};
+        try { args = JSON.parse(call.function?.arguments || '{}'); } catch (_) { args = {}; }
+        const { results, items: mapped } = await runTool(call.function?.name, args, { caller, userId });
         if (mapped?.length) items = mapped;
-        toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(results) });
+        messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(results) });
       }
-      messages.push({ role: 'user', content: toolResults });
-      response = await anthropic.messages.create({
-        model: 'claude-opus-4-8',
-        max_tokens: 1024,
-        thinking: { type: 'adaptive' },
-        output_config: { effort: 'low' },
-        system,
-        tools,
-        messages,
-      });
+      response = await client.chat.completions.create({ model: MODEL, messages, tools, tool_choice: 'auto' });
+      msg = response.choices?.[0]?.message;
     }
 
-    const reply = response.content
-      .filter((b: any) => b.type === 'text')
-      .map((b: any) => b.text)
-      .join('\n')
-      .trim();
-
+    const reply = (msg?.content || '').trim();
     return json({ reply: reply || "I couldn't find a good match — try a genre or a title.", items: items.slice(0, 3) });
   } catch (error) {
     console.error('cinebot error', error);
