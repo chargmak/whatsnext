@@ -628,12 +628,14 @@ const MediaDetail = ({ type }) => {
                             }}>
                                 Loading trailer…
                             </div>
-                            {/* Muted + playsinline so autoplay is allowed on mobile (esp. iOS) instead of
-                                stalling on a black frame; rel=0 keeps unrelated videos out of the end card. */}
+                            {/* youtube-nocookie avoids the third-party-cookie/consent path that desktop
+                                tracking-protection breaks on (a common "black on laptop, fine on phone").
+                                Muted + playsinline keeps autoplay allowed on mobile instead of stalling on a
+                                black frame; rel=0 keeps unrelated videos out of the end card. */}
                             <iframe
                                 width="100%"
                                 height="100%"
-                                src={`https://www.youtube.com/embed/${item.trailerKey}?autoplay=1&mute=1&playsinline=1&rel=0`}
+                                src={`https://www.youtube-nocookie.com/embed/${item.trailerKey}?autoplay=1&mute=1&playsinline=1&rel=0`}
                                 title={`${item.title} — Trailer`}
                                 frameBorder="0"
                                 referrerPolicy="strict-origin-when-cross-origin"
