@@ -108,7 +108,8 @@ const CategoryRow = ({ genre, onOpenGenre, onOpenItem }) => {
                     gap: '14px',
                     overflowX: 'auto',
                     paddingBottom: '4px',
-                    scrollSnapType: 'x proximity',
+                    scrollSnapType: 'x mandatory',
+                    WebkitOverflowScrolling: 'touch',
                 }}
             >
                 {loading &&
@@ -121,10 +122,18 @@ const CategoryRow = ({ genre, onOpenGenre, onOpenItem }) => {
                 )}
 
                 {!loading &&
-                    items.map((item) => (
+                    items.map((item, index) => (
                         <div
                             key={`${item.type}-${item.id}`}
-                            style={{ minWidth: '140px', width: '140px', scrollSnapAlign: 'start' }}
+                            style={{
+                                minWidth: '140px',
+                                width: '140px',
+                                // End-align the last poster so `mandatory` has a
+                                // valid snap stop where it reveals in full (a
+                                // start-aligned last item would sit past max
+                                // scroll and stay clipped).
+                                scrollSnapAlign: index === items.length - 1 ? 'end' : 'start',
+                            }}
                         >
                             <MovieCard movie={item} onClick={() => onOpenItem(item)} />
                         </div>
