@@ -96,3 +96,15 @@ $$ language plpgsql security definer;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+-- ============================================================
+-- NOTE: This file contains the ORIGINAL base schema.
+-- Additional migrations live in supabase/migrations/ and must be
+-- applied in order after this file:
+--   01: ON DELETE CASCADE on user FKs (account deletion)
+--   02: profiles.country / profiles.bio + updated signup trigger
+--   03: payload jsonb on watchlists/history + UPDATE policies
+--   04: watched_episodes table
+--   05: reminders table ("Notify Me")
+--   06: delete_user() RPC (self-serve account deletion)
+-- ============================================================

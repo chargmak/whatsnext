@@ -22,14 +22,14 @@ To make your app fully operational with a real backend, follow these steps:
 ## 3. Run Database SQL
 1.  Go to the **SQL Editor** tab in the left sidebar.
 2.  Click **New Query**.
-3.  Copy and paste the entire content of the `supabase_schema.sql` file located in your project root.
-4.  Click **Run**.
+3.  Run the entire content of `supabase_schema.sql` (base tables), then run each file in `supabase/migrations/` **in order** (cascade deletes, profile columns, payload columns, `watched_episodes`, `reminders`, and the `delete_user` RPC).
 
-This will create the necessary tables (`profiles`, `watchlists`, `history`) and security policies to secure your user data.
+This creates the tables (`profiles`, `watchlists`, `history`, `watched_episodes`, `reminders`), row-level-security policies, the signup trigger that fills in the profile, and the self-serve account-deletion function.
 
 ## 4. Auth Settings
 1.  Go to **Authentication** -> **Providers**.
 2.  Ensure **Email** is enabled.
-3.  (Optional) Disable "Confirm email" for faster testing in **Authentication** -> **URL Configuration** -> **Site URL** (set to your Vercel URL later).
+3.  (Optional) Disable "Confirm email" so new users can log in immediately without a confirmation link. The app handles both modes.
+4.  Under **Authentication** -> **URL Configuration**, set the Site URL to your deployed URL so password-reset links point at `/reset-password` on the right domain.
 
-That's it! Your app will automatically switch from "Local Demo Mode" to "Real Backend Mode" once the keys are detected.
+That's it! With `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` set, the app uses real accounts; without them it runs in guest-only mode.
