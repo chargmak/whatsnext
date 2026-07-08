@@ -24,13 +24,14 @@ const Home = () => {
         sessionStorage.setItem('homeMediaType', mediaType);
     }, [mediaType]);
 
-    // Seeds for personalized recommendations: the titles the user has saved for
-    // the active tab. Titles already saved or watched are excluded from results.
+    // Seeds for personalized recommendations: the titles the user has marked
+    // watched for the active tab. Titles already watched or saved are excluded
+    // from results.
     const recInputs = useMemo(() => {
-        const seeds = watchlist.filter((item) => item.type === mediaType);
+        const seeds = watched.filter((item) => item.type === mediaType);
         const excludeIds = new Set([
             ...seeds.map((item) => item.id),
-            ...watched.filter((item) => item.type === mediaType).map((item) => item.id),
+            ...watchlist.filter((item) => item.type === mediaType).map((item) => item.id),
         ]);
         return { seeds, excludeIds };
     }, [watchlist, watched, mediaType]);
@@ -166,14 +167,14 @@ const Home = () => {
                 </div>
             </section>
 
-            {/* Recommended For You - built from the user's saved list for this tab */}
+            {/* Recommended For You - built from the user's watched history for this tab */}
             {recInputs.seeds.length > 0 && (recsLoading || recommendations.length > 0) && (
                 <section style={{ marginBottom: '40px' }}>
                     <div className="flex-between" style={{ marginBottom: '4px' }}>
                         <h3>Recommended For You</h3>
                     </div>
                     <p style={{ margin: '0 0 16px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                        Based on the {mediaType === 'movie' ? 'movies' : 'shows'} in your list
+                        Based on the {mediaType === 'movie' ? 'movies' : 'shows'} you've watched
                     </p>
 
                     {recsLoading && recommendations.length === 0 ? (
