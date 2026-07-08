@@ -1,19 +1,77 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useUser } from '../context/UserContext';
 import { MovieCard } from '../components/MovieCard';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { SlidersHorizontal } from 'lucide-react';
+import { getTVWatchStatus } from '../services/tmdb';
 
 const Library = () => {
     const [activeTab, setActiveTab] = useState('watchlist');
     const [sortBy, setSortBy] = useState('dateAdded'); // dateAdded, title, rating
     const [filterType, setFilterType] = useState('all'); // all, movie, tv
-    const { watchlist, watched } = useUser();
+    const { watchlist, watched, watchedEpisodes } = useUser();
     const navigate = useNavigate();
 
+    // Ended series where every available episode has been ticked off never got
+    // an explicit "mark watched", so surface them in the Watched tab too.
+    const [completedSeries, setCompletedSeries] = useState([]);
+    // Cache TMDB series details across tab switches (status rarely changes);
+    // the completion decision itself is recomputed from live watched episodes.
+    const seriesDetailsCache = useRef({});
+
+    useEffect(() => {
+        if (activeTab !== 'watched') return;
+        let active = true;
+
+        const load = async () => {
+            const tvIds = Object.keys(watchedEpisodes).filter((tvId) =>
+                Object.values(watchedEpisodes[tvId] || {}).some((eps) => eps.length > 0)
+            );
+
+            await Promise.all(tvIds.map(async (tvId) => {
+                if (seriesDetailsCache.current[tvId] === undefined) {
+                    seriesDetailsCache.current[tvId] = await getTVWatchStatus(tvId);
+                }
+            }));
+            if (!active) return;
+
+            const completed = tvIds
+                .map((tvId) => {
+                    const info = seriesDetailsCache.current[tvId];
+                    if (!info || !info.ended) return null;
+
+                    const seasons = Object.entries(info.seasonEpisodeCounts);
+                    if (seasons.length === 0) return null;
+
+                    const allWatched = seasons.every(([seasonNum, count]) =>
+                        (watchedEpisodes[tvId]?.[seasonNum]?.length || 0) >= count
+                    );
+                    return allWatched ? { ...info, completed: true } : null;
+                })
+                .filter(Boolean);
+
+            setCompletedSeries(completed);
+        };
+
+        load();
+        return () => { active = false; };
+    }, [activeTab, watchedEpisodes]);
+
+    // Merge explicit watched history with auto-detected completed series,
+    // de-duping by media type + id so an already-marked show isn't listed twice.
+    const watchedItems = useMemo(() => {
+        const byKey = new Map();
+        watched.forEach((item) => byKey.set(`${item.type}-${item.id}`, item));
+        completedSeries.forEach((series) => {
+            const key = `${series.type}-${series.id}`;
+            if (!byKey.has(key)) byKey.set(key, series);
+        });
+        return Array.from(byKey.values());
+    }, [watched, completedSeries]);
+
     // Get items based on active tab
-    const rawItems = activeTab === 'watchlist' ? watchlist : watched;
+    const rawItems = activeTab === 'watchlist' ? watchlist : watchedItems;
 
     // Apply filtering and sorting
     const items = useMemo(() => {
