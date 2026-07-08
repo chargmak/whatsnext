@@ -1,4 +1,4 @@
-const CACHE_NAME = 'whatsnext-v2';
+const CACHE_NAME = 'whatsnext-v3';
 const IMAGE_CACHE = 'whatsnext-images-v1';
 const API_CACHE = 'whatsnext-tmdb-v1';
 
@@ -102,4 +102,47 @@ self.addEventListener('fetch', (event) => {
             caches.match(request).then((cached) => cached || fetch(request))
         );
     }
+});
+
+// --- Web Push: release reminders ---
+
+// Payload shape (sent by the send-release-reminders edge function):
+// { title, body, url, tag, icon, image }
+self.addEventListener('push', (event) => {
+    let data = {};
+    try {
+        data = event.data ? event.data.json() : {};
+    } catch {
+        data = { body: event.data ? event.data.text() : '' };
+    }
+
+    const title = data.title || "What's Next?";
+    const options = {
+        body: data.body || 'A title on your list is coming out!',
+        icon: data.icon || '/icon-192.png',
+        badge: '/icon-192.png',
+        image: data.image,
+        tag: data.tag,
+        renotify: Boolean(data.tag),
+        data: { url: data.url || '/notifications' },
+    };
+
+    event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const targetUrl = event.notification.data?.url || '/notifications';
+
+    event.waitUntil(
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+            for (const client of clientList) {
+                if (new URL(client.url).origin === self.location.origin && 'focus' in client) {
+                    client.navigate(targetUrl);
+                    return client.focus();
+                }
+            }
+            return self.clients.openWindow ? self.clients.openWindow(targetUrl) : undefined;
+        })
+    );
 });

@@ -357,6 +357,42 @@ export const UserProvider = ({ children }) => {
         return watchedEpisodes[String(tvId)]?.[String(seasonNumber)]?.includes(Number(episodeNumber)) || false;
     };
 
+    // Mark (or unmark) every episode of a season in one go.
+    const setSeasonWatched = (tvId, seasonNumber, episodeNumbers, watched) => {
+        const tvIdStr = String(tvId);
+        const seasonStr = String(seasonNumber);
+        const nums = episodeNumbers.map(Number);
+        if (!nums.length) return;
+
+        const prev = watchedEpisodes;
+        const newState = JSON.parse(JSON.stringify(watchedEpisodes));
+        if (!newState[tvIdStr]) newState[tvIdStr] = {};
+        const existing = newState[tvIdStr][seasonStr] || [];
+
+        if (watched) {
+            newState[tvIdStr][seasonStr] = Array.from(new Set([...existing, ...nums]));
+        } else {
+            newState[tvIdStr][seasonStr] = existing.filter((ep) => !nums.includes(ep));
+        }
+
+        setWatchedEpisodes(newState);
+        if (isAuthed) {
+            userData.setSeasonEpisodesWatched(user.id, tvId, seasonNumber, nums, watched)
+                .catch((error) => {
+                    console.error('Error saving season state:', error);
+                    setWatchedEpisodes(prev);
+                });
+        } else {
+            persistLocal('user_watched_episodes', newState);
+        }
+    };
+
+    const isSeasonWatched = (tvId, seasonNumber, episodeNumbers) => {
+        if (!episodeNumbers.length) return false;
+        const watchedSet = watchedEpisodes[String(tvId)]?.[String(seasonNumber)] || [];
+        return episodeNumbers.every((ep) => watchedSet.includes(Number(ep)));
+    };
+
     const getWatchedEpisodeCount = (tvId) => {
         const seasons = watchedEpisodes[String(tvId)];
         if (!seasons) return 0;
@@ -470,6 +506,8 @@ export const UserProvider = ({ children }) => {
             removeFromWatched,
             toggleEpisodeWatched,
             isEpisodeWatched,
+            setSeasonWatched,
+            isSeasonWatched,
             getWatchedEpisodeCount,
             isReminderSet,
             toggleReminder,

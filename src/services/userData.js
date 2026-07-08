@@ -125,6 +125,29 @@ export const setEpisodeWatched = async (userId, tvId, seasonNumber, episodeNumbe
     }
 };
 
+export const setSeasonEpisodesWatched = async (userId, tvId, seasonNumber, episodeNumbers, watched) => {
+    if (!episodeNumbers.length) return;
+    if (watched) {
+        const rows = episodeNumbers.map((episodeNumber) => ({
+            user_id: userId,
+            tv_id: Number(tvId),
+            season_number: Number(seasonNumber),
+            episode_number: Number(episodeNumber),
+        }));
+        for (const batch of chunk(rows, 200)) {
+            const { error } = await supabase.from('watched_episodes')
+                .upsert(batch, { onConflict: 'user_id,tv_id,season_number,episode_number' });
+            if (error) throw error;
+        }
+    } else {
+        orThrow(await supabase.from('watched_episodes').delete().match({
+            user_id: userId,
+            tv_id: Number(tvId),
+            season_number: Number(seasonNumber),
+        }).in('episode_number', episodeNumbers.map(Number)));
+    }
+};
+
 export const addReminder = async (userId, entry) => {
     orThrow(await supabase.from('reminders').upsert({
         user_id: userId,
