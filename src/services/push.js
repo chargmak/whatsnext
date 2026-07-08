@@ -8,7 +8,14 @@
 
 import { supabase } from './supabase';
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+// VAPID public key. Safe to ship to the browser — it only identifies which
+// server may push to a subscription; the matching PRIVATE key stays an edge
+// secret (see NOTIFICATIONS_SETUP.md). A build-time env var (Vercel) overrides
+// this default so the key can be rotated without a code change; the baked
+// default keeps push notifications enabled even when the env var is unset.
+const VAPID_PUBLIC_KEY =
+    import.meta.env.VITE_VAPID_PUBLIC_KEY ||
+    'BEiuMR6fPv2p9L2n712L-PTP6Eot_iOiWAk8wrIcZ-54C9SX1aDFfVZZ9VB_-cTzRSuUjjZ3ww5lybJem75rogI';
 
 export const pushSupported = () =>
     typeof window !== 'undefined' &&
