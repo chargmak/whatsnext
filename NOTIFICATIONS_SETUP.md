@@ -27,17 +27,19 @@ intentionally NOT stored in this repo — keep it only in your edge-function
 secrets. Regenerate a fresh pair anytime with `node scripts/generate-vapid-keys.mjs`.
 
 ```
-VAPID_PUBLIC_KEY=BLFJ5RgLUqUnHBkyHvRmTl-2CJPiiwFOaQVlJHvJSiGMKWCvtdiY5AGdgWDrrc1T3PgHBFOiPrQxsIzO2S2hjIQ
+VAPID_PUBLIC_KEY=BEiuMR6fPv2p9L2n712L-PTP6Eot_iOiWAk8wrIcZ-54C9SX1aDFfVZZ9VB_-cTzRSuUjjZ3ww5lybJem75rogI
 VAPID_PRIVATE_KEY=<keep secret — do not commit>
 ```
 
 ### 2. Client env
 
-Add the public key to your client env (`.env` locally, and your Vercel project's
-Environment Variables), then rebuild/redeploy:
+This public key is **already baked into the client** (`src/services/push.js`), so
+push shows up as enabled in the app with no extra config. You only need to set an
+env var if you want to **override / rotate** the key without changing code —
+`.env` locally, and your Vercel project's Environment Variables — then redeploy:
 
 ```
-VITE_VAPID_PUBLIC_KEY=BLFJ5RgLUqUnHBkyHvRmTl-2CJPiiwFOaQVlJHvJSiGMKWCvtdiY5AGdgWDrrc1T3PgHBFOiPrQxsIzO2S2hjIQ
+VITE_VAPID_PUBLIC_KEY=BEiuMR6fPv2p9L2n712L-PTP6Eot_iOiWAk8wrIcZ-54C9SX1aDFfVZZ9VB_-cTzRSuUjjZ3ww5lybJem75rogI
 ```
 
 ### 3. Database
@@ -65,7 +67,7 @@ Pick any strong random string for `CRON_SECRET` (e.g. `openssl rand -hex 32`):
 
 ```bash
 supabase secrets set \
-  VAPID_PUBLIC_KEY=BLFJ5RgLUqUnHBkyHvRmTl-2CJPiiwFOaQVlJHvJSiGMKWCvtdiY5AGdgWDrrc1T3PgHBFOiPrQxsIzO2S2hjIQ \
+  VAPID_PUBLIC_KEY=BEiuMR6fPv2p9L2n712L-PTP6Eot_iOiWAk8wrIcZ-54C9SX1aDFfVZZ9VB_-cTzRSuUjjZ3ww5lybJem75rogI \
   VAPID_PRIVATE_KEY=<your-vapid-private-key> \
   VAPID_SUBJECT=mailto:you@example.com \
   CRON_SECRET=<your-random-secret>
