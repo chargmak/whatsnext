@@ -12,6 +12,7 @@ const MediaDetail = ({ type }) => {
     const navigate = useNavigate();
     const [item, setItem] = useState(null);
     const [showTrailer, setShowTrailer] = useState(false);
+    const [heroError, setHeroError] = useState(false);
     const [loading, setLoading] = useState(true);
     const [copied, setCopied] = useState(false);
     const [seasons, setSeasons] = useState([]);
@@ -77,6 +78,9 @@ const MediaDetail = ({ type }) => {
 
             const tmdbData = await getDetails(id, type, userCountry);
 
+            // New title → give its hero image a fresh chance before falling back.
+            setHeroError(false);
+
             if (tmdbData) {
                 const mapped = mapMediaData({ ...tmdbData, media_type: type });
                 setItem({
@@ -136,6 +140,11 @@ const MediaDetail = ({ type }) => {
 
     const timeLeft = calculateTimeLeft();
 
+    // Backdrop first, then poster — but skip the dead via.placeholder.com stand-in
+    // so a missing image falls through to the gradient instead of a broken/black box.
+    const rawHero = item.backdrop || item.poster;
+    const heroSrc = rawHero && !rawHero.includes('via.placeholder.com') ? rawHero : null;
+
     const franchiseParts = collection?.parts || [];
     const franchiseWatchedCount = franchiseParts.filter(
         (p) => watched.some((w) => w.id === p.id && w.type === 'movie')
@@ -151,13 +160,21 @@ const MediaDetail = ({ type }) => {
 
     return (
         <div style={{ paddingBottom: '100px', background: 'var(--bg-primary)', minHeight: '100vh' }}>
-            {/* Hero Header */}
-            <div style={{ position: 'relative', height: '50vh' }}>
-                <img
-                    src={item.backdrop || item.poster}
-                    alt={item.title}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
+            {/* Hero Header — the gradient is the base layer, so a missing or blocked
+                image (ad blocker, offline, no backdrop) shows a branded backdrop
+                instead of a black void that fills half a desktop screen. */}
+            <div style={{
+                position: 'relative', height: '50vh',
+                background: 'linear-gradient(160deg, rgba(185,28,28,0.45), var(--bg-primary))'
+            }}>
+                {heroSrc && !heroError && (
+                    <img
+                        src={heroSrc}
+                        alt={item.title}
+                        onError={() => setHeroError(true)}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                )}
                 <div style={{
                     position: 'absolute', inset: 0,
                     background: 'linear-gradient(to bottom, rgba(0,0,0,0.3), var(--bg-primary))'
