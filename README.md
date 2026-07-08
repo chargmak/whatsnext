@@ -15,7 +15,7 @@ This application is built as a **Progressive Web App (PWA)**, offering a native-
 *   **✨ Modern UI/UX**: Built with a "Glassmorphism" design aesthetic, featuring smooth animations (powered by Framer Motion), dark mode by default, and intuitive navigation.
 *   **👤 Real Accounts**: Sign up with email/password (Supabase Auth). Your watchlist, history, episode progress, and reminders sync across devices. Includes password reset, change password, and account deletion.
 *   **🎭 Guest Mode**: Prefer not to sign up? Use "Continue as guest" — your data is stored on the device, and when you later create an account you'll be offered a one-click import into it.
-*   **🔔 Release Reminders**: Tap "Notify Me" on an upcoming movie and track the countdown from the Notifications page.
+*   **🔔 Release Reminders + Push Notifications**: Tap "Notify Me" on an upcoming movie to track the countdown from the Notifications page, and opt into Web Push to get alerted the day a title is released — even when the app is closed. Powered by a scheduled Supabase edge function; see [NOTIFICATIONS_SETUP.md](./NOTIFICATIONS_SETUP.md).
 
 ## 🛠️ Tech Stack
 

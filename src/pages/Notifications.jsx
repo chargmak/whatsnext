@@ -1,8 +1,16 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, Bell, BellOff, Tv, Film, Calendar, X } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import usePersistentState from '../hooks/usePersistentState';
+import {
+    pushSupported,
+    pushConfigured,
+    getPermission,
+    isSubscribed,
+    subscribeToPush,
+    unsubscribeFromPush,
+} from '../services/push';
 
 const daysUntil = (dateStr) => {
     if (!dateStr) return null;
@@ -15,7 +23,51 @@ const daysUntil = (dateStr) => {
 
 const Notifications = () => {
     const navigate = useNavigate();
-    const { user, reminders, toggleReminder } = useUser();
+    const { status, user, reminders, toggleReminder } = useUser();
+
+    const [push, setPush] = useState({
+        supported: true,
+        subscribed: false,
+        permission: 'default',
+        busy: false,
+        error: null,
+    });
+
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            if (!pushSupported()) {
+                if (active) setPush((p) => ({ ...p, supported: false }));
+                return;
+            }
+            const subscribed = await isSubscribed();
+            if (active) {
+                setPush((p) => ({ ...p, subscribed, permission: getPermission() }));
+            }
+        })();
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    const handlePushToggle = useCallback(async () => {
+        setPush((p) => ({ ...p, busy: true, error: null }));
+        try {
+            if (push.subscribed) {
+                await unsubscribeFromPush(user?.id);
+                setPush((p) => ({ ...p, subscribed: false, busy: false, permission: getPermission() }));
+                setPreferences((prev) => ({ ...prev, pushNotifications: false }));
+            } else {
+                await subscribeToPush(user?.id);
+                setPush((p) => ({ ...p, subscribed: true, busy: false, permission: getPermission() }));
+                setPreferences((prev) => ({ ...prev, pushNotifications: true }));
+            }
+        } catch (err) {
+            setPush((p) => ({ ...p, busy: false, error: err.message, permission: getPermission() }));
+        }
+        // setPreferences is stable (usePersistentState); user?.id / push.subscribed are the real deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [push.subscribed, user?.id]);
 
     const [preferences, setPreferences] = usePersistentState(
         `prefs:${user?.id || 'guest'}:notifications`,
@@ -265,63 +317,93 @@ const Notifications = () => {
             <section>
                 <h3 style={{ marginBottom: '16px' }}>Delivery Methods</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {deliveryMethods.map(method => (
-                        <div
-                            key={method.id}
-                            className="glass-panel"
-                            style={{
-                                padding: '16px',
-                                borderRadius: 'var(--radius-md)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                gap: '16px'
-                            }}
-                        >
-                            <div>
-                                <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem' }}>
-                                    {method.title}
-                                </h4>
-                                <p style={{
-                                    margin: 0,
-                                    fontSize: '0.85rem',
-                                    color: 'var(--text-secondary)'
-                                }}>
-                                    {method.description}
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => togglePreference(method.id)}
+                    {deliveryMethods.map(method => {
+                        const isPush = method.id === 'pushNotifications';
+
+                        // The push toggle reflects the real browser subscription;
+                        // email is still a saved-preference placeholder.
+                        const isOn = isPush ? push.subscribed : preferences[method.id];
+                        const disabled = isPush && (push.busy || !push.supported || !pushConfigured());
+                        const onToggle = isPush ? handlePushToggle : () => togglePreference(method.id);
+
+                        let description = method.description;
+                        if (isPush) {
+                            if (!push.supported) description = 'Not supported on this device or browser';
+                            else if (!pushConfigured()) description = 'Not enabled for this deployment yet';
+                            else if (push.permission === 'denied') description = 'Blocked — enable notifications for this site in your browser settings';
+                            else if (push.busy) description = 'Working…';
+                        }
+
+                        return (
+                            <div
+                                key={method.id}
+                                className="glass-panel"
                                 style={{
-                                    width: '52px',
-                                    height: '28px',
-                                    borderRadius: '14px',
-                                    border: 'none',
-                                    background: preferences[method.id]
-                                        ? 'var(--brand-600)'
-                                        : 'rgba(255,255,255,0.1)',
-                                    position: 'relative',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.3s',
-                                    flexShrink: 0
+                                    padding: '16px',
+                                    borderRadius: 'var(--radius-md)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '16px'
                                 }}
                             >
-                                <div
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem' }}>
+                                        {method.title}
+                                    </h4>
+                                    <p style={{
+                                        margin: 0,
+                                        fontSize: '0.85rem',
+                                        color: 'var(--text-secondary)'
+                                    }}>
+                                        {description}
+                                    </p>
+                                    {isPush && push.error && (
+                                        <p style={{ margin: '6px 0 0 0', fontSize: '0.8rem', color: '#F87171' }}>
+                                            {push.error}
+                                        </p>
+                                    )}
+                                    {isPush && push.subscribed && status !== 'authed' && (
+                                        <p style={{ margin: '6px 0 0 0', fontSize: '0.8rem', color: '#FBBF24' }}>
+                                            Sign in to receive scheduled release alerts — guest reminders are tracked on this device only.
+                                        </p>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={onToggle}
+                                    disabled={disabled}
                                     style={{
-                                        width: '24px',
-                                        height: '24px',
-                                        borderRadius: '50%',
-                                        background: 'white',
-                                        position: 'absolute',
-                                        top: '2px',
-                                        left: preferences[method.id] ? '26px' : '2px',
+                                        width: '52px',
+                                        height: '28px',
+                                        borderRadius: '14px',
+                                        border: 'none',
+                                        background: isOn
+                                            ? 'var(--brand-600)'
+                                            : 'rgba(255,255,255,0.1)',
+                                        position: 'relative',
+                                        cursor: disabled ? 'not-allowed' : 'pointer',
+                                        opacity: disabled ? 0.5 : 1,
                                         transition: 'all 0.3s',
-                                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                        flexShrink: 0
                                     }}
-                                />
-                            </button>
-                        </div>
-                    ))}
+                                >
+                                    <div
+                                        style={{
+                                            width: '24px',
+                                            height: '24px',
+                                            borderRadius: '50%',
+                                            background: 'white',
+                                            position: 'absolute',
+                                            top: '2px',
+                                            left: isOn ? '26px' : '2px',
+                                            transition: 'all 0.3s',
+                                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                        }}
+                                    />
+                                </button>
+                            </div>
+                        );
+                    })}
                 </div>
             </section>
 
@@ -339,7 +421,7 @@ const Notifications = () => {
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
                     <BellOff size={20} color="#FBBF24" style={{ flexShrink: 0, marginTop: '2px' }} />
                     <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                        Your notification preferences are saved locally. Enable push notifications in your browser settings for the best experience.
+                        Turn on Push Notifications to get alerted when a title you tapped "Notify Me" on is released. You'll be asked to allow notifications, and alerts are sent even when the app is closed. Install the app to your home screen for the most reliable delivery.
                     </p>
                 </div>
             </div>
