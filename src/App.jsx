@@ -27,6 +27,8 @@ function App() {
       <Router>
         <CineBotProvider>
           <div className="app">
+            {/* One boundary around the whole UI so any render crash degrades to a
+                recoverable "Something went wrong" screen instead of a black page. */}
             <ErrorBoundary>
               <Routes>
                 <Route path="/" element={<Home />} />
@@ -45,10 +47,14 @@ function App() {
                 <Route path="/person/:id" element={<Person />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              {/* Isolated so a CineBot crash removes only the chat widget rather
+                  than unmounting the app (it used to sit outside any boundary). */}
+              <ErrorBoundary fallback={null}>
+                <CineBot />
+              </ErrorBoundary>
+              <InstallPrompt />
+              <BottomNav />
             </ErrorBoundary>
-            <CineBot />
-            <InstallPrompt />
-            <BottomNav />
           </div>
         </CineBotProvider>
       </Router>

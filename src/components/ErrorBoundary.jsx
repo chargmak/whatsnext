@@ -16,6 +16,9 @@ class ErrorBoundary extends React.Component {
 
     render() {
         if (this.state.hasError) {
+            // A caller can opt into a lighter fallback (e.g. null) so a crash in a
+            // non-critical widget is contained without taking over the screen.
+            if (this.props.fallback !== undefined) return this.props.fallback;
             return (
                 <div className="container" style={{ paddingTop: '100px', textAlign: 'center' }}>
                     <h2>Something went wrong</h2>
