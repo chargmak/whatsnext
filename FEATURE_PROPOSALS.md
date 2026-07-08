@@ -86,9 +86,24 @@ Turn the existing provider display into a JustWatch-class feature:
   organic-growth surface, and the seed of every social feature in Tier 3.
 - **Effort: M**
 
-### 6. Quick wins bundle (ship alongside any of the above)
-- **Mark season / mark all previous as watched** — one tap instead of 22 on the episode
-  checklist.
+### 6. Mark whole seasons (and series) as watched
+Catching up on a show you're 4 seasons into currently means ~80 individual taps on the
+episode checklist. Bulk progress actions remove the single biggest friction point in
+episode tracking:
+
+- **"Mark season as watched"** button next to the season selector on the detail page
+  (with undo), plus **"mark all previous episodes"** when checking an episode
+  mid-season — the two gestures TV Time users rely on daily.
+- When marking a whole show as watched from the card/detail page, offer to flag every
+  aired episode too, so stats and the Up Next queue (#1) stay accurate.
+- Implementation: a `setSeasonWatched(tvId, seasonNumber, episodeNumbers, watched)`
+  action in `UserContext` — one state update instead of N `toggleEpisodeWatched` calls —
+  backed by a batch upsert/delete in `userData.js` (the `watched_episodes` table already
+  fits; guest mode persists to `localStorage` as usual). Episode numbers per season come
+  from `getTVSeasonDetails`, which the detail page already fetches.
+- **Effort: S** · pairs naturally with #1, since Up Next assumes accurate progress.
+
+### 7. Quick wins bundle (ship alongside any of the above)
 - **Clickable cast → person page** (`/person/:id`, TMDB `person` + `combined_credits`):
   filmography with "in your library / watched" badges.
 - **Hide watched titles from Trending** (toggle), and a "In your watchlist" badge on Home.
@@ -101,7 +116,7 @@ Turn the existing provider display into a JustWatch-class feature:
 
 ## Tier 2 — Differentiate (features few or none of the competitors have)
 
-### 7. A real CineBot (Claude-powered) 🤖
+### 8. A real CineBot (Claude-powered) 🤖
 CineBot is currently a keyword matcher pretending to be a bot. Make it real and it
 becomes the headline feature no mainstream tracker has:
 
@@ -114,7 +129,7 @@ becomes the headline feature no mainstream tracker has:
 - **Effort: L** · but it's the "best of genre" moment — mood-based, library-aware,
   conversational discovery.
 
-### 8. "Because you watched" personalized rows
+### 9. "Because you watched" personalized rows
 Zero-backend personalization from data already on hand:
 
 - TMDB `/movie/{id}/recommendations` and `/tv/{id}/recommendations` seeded from the
@@ -123,7 +138,7 @@ Zero-backend personalization from data already on hand:
   genre" (favorite genre is already computed in stats).
 - **Effort: S–M** · dramatic feel-of-intelligence gain for a weekend of work.
 
-### 9. Stats 2.0 + "Reel Wrapped" year in review 📊
+### 10. Stats 2.0 + "Reel Wrapped" year in review 📊
 Stats already exist (hours, favorite genre, rank) — turn them into a shareable identity:
 
 - Genre donut, monthly watch-time heatmap, top actors/directors (from cached credits),
@@ -135,7 +150,7 @@ Stats already exist (hours, favorite genre, rank) — turn them into a shareable
   explorer" — TV Time-style light gamification on the Profile page.
 - **Effort: M**
 
-### 10. Subscribe-able release calendar (iCal feed) 📅
+### 11. Subscribe-able release calendar (iCal feed) 📅
 Nobody in the genre does this well:
 
 - A Supabase Edge Function serving a per-user tokenized `.ics` feed of their release
@@ -144,7 +159,7 @@ Nobody in the genre does this well:
   already live in, updating automatically.
 - **Effort: S–M** · tiny surface, huge "how did I live without this" factor.
 
-### 11. Import from Trakt / Letterboxd / TV Time
+### 12. Import from Trakt / Letterboxd / TV Time
 Every power user in this genre already has years of history elsewhere:
 
 - CSV/JSON importers (all three export data) mapping to watchlist/watched/ratings via
@@ -152,24 +167,24 @@ Every power user in this genre already has years of history elsewhere:
 - This is the #1 adoption unblocker for exactly the users who evangelize tracker apps.
 - **Effort: M**
 
-### 12. Follow people (actors, directors, creators)
-- "Follow" button on person pages (Tier 1 #6); `followed_people` table.
+### 13. Follow people (actors, directors, creators)
+- "Follow" button on person pages (Tier 1 #7); `followed_people` table.
 - Notifications/calendar entries when a followed person's new project gets a release
   date (TMDB `person/{id}/combined_credits` diffed by the daily cron).
 - Only niche apps (Sequel, Callsheet) do this — a genuine differentiator.
-- **Effort: M** (requires #2 and #6)
+- **Effort: M** (requires #2 and #7)
 
 ---
 
 ## Tier 3 — Social & moonshots (the moat)
 
-### 13. Friends & activity feed
+### 14. Friends & activity feed
 - Follow users, public profile toggle, feed of friends' ratings/reviews/finishes.
 - Reviews from friends surface first on detail pages.
 - **Effort: L** · unlocks the Letterboxd-style network effect; build only after ratings
   (#3) and lists (#5) give the feed content.
 
-### 14. "What should WE watch tonight?" — shared decision mode 🎲
+### 15. "What should WE watch tonight?" — shared decision mode 🎲
 The unsolved problem of the genre — deciding *together*:
 
 - Collaborative watchlists (share a list with a partner; both can add).
@@ -179,12 +194,12 @@ The unsolved problem of the genre — deciding *together*:
 - **Effort: L** · composes lists (#5), services (#4), and accounts — a headline feature
   no major tracker has shipped well.
 
-### 15. Episode discussions with spoiler shields
+### 16. Episode discussions with spoiler shields
 - Per-episode comment threads, blurred until you've marked that episode watched
   (TV Time's stickiest feature).
 - **Effort: L** · needs moderation strategy; ship last.
 
-### 16. Weekly email digest
+### 17. Weekly email digest
 - "Your week ahead: 3 episodes, 1 premiere, 2 titles left Netflix" via Resend +
   `pg_cron` — the `weeklyDigest` toggle already exists in the UI, unwired.
 - **Effort: S–M** (reuses #2's scheduling)
@@ -211,10 +226,10 @@ The unsolved problem of the genre — deciding *together*:
 
 | Phase | Ships | Outcome |
 |---|---|---|
-| **1. Core loop** (now) | Up Next (#1), quick wins (#6), push notifications (#2) | Opening the app answers "what's next?"; the app reaches out when something airs |
-| **2. Taste & discovery** | Ratings/diary (#3), Because-you-watched (#8), services & alerts (#4), real CineBot (#7) | The app knows what you like and where you can watch it |
-| **3. Identity & growth** | Lists (#5), Stats 2.0/Wrapped (#9), iCal feed (#10), importers (#11) | Shareable surfaces bring new users; importers convert them |
-| **4. Together** | Follow people (#12), friends (#13), Tonight Picker (#14), digest (#16) | Network effects and the "decide together" moat |
+| **1. Core loop** (now) | Up Next (#1), season bulk-mark (#6), quick wins (#7), push notifications (#2) | Opening the app answers "what's next?"; the app reaches out when something airs |
+| **2. Taste & discovery** | Ratings/diary (#3), Because-you-watched (#9), services & alerts (#4), real CineBot (#8) | The app knows what you like and where you can watch it |
+| **3. Identity & growth** | Lists (#5), Stats 2.0/Wrapped (#10), iCal feed (#11), importers (#12) | Shareable surfaces bring new users; importers convert them |
+| **4. Together** | Follow people (#13), friends (#14), Tonight Picker (#15), digest (#17) | Network effects and the "decide together" moat |
 
 ### If only three things get built
 1. **Up Next queue** — it's the app's name and the genre's proven daily-habit loop.
