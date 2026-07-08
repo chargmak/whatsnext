@@ -9,13 +9,15 @@ Your code is pushed to GitHub! Follow these final steps to make your app live.
     - **Framework Preset**: Vite (should be auto-detected).
     - **Root Directory**: `./` (default).
 4.  **Environment Variables** (Crucial Step):
-    Expand the "Environment Variables" section and add the following keys. Copy the values from your local `.env` file (or see below):
+    Expand the "Environment Variables" section and add the following keys. Copy the values from your local `.env` file (see `.env.example` for the expected format):
 
     | Key | Value |
     |-----|-------|
-    | `VITE_TMDB_API_KEY` | `7430fb2936fe01713e636ff97be73de7` |
-    | `VITE_SUPABASE_URL` | `https://vtftqdsltwernbjvewqm.supabase.co` |
-    | `VITE_SUPABASE_ANON_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0ZnRxZHNsdHdlcm5ianZld3FtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzNzk5NzUsImV4cCI6MjA4NTk1NTk3NX0.6tHgM77GACtzvOdbRakkMO63Am_e2owrUaQTSCeWNXc` |
+    | `VITE_TMDB_API_KEY` | `<your TMDB API key>` |
+    | `VITE_SUPABASE_URL` | `<your Supabase project URL>` |
+    | `VITE_SUPABASE_ANON_KEY` | `<your Supabase anon key>` |
+
+    > ⚠️ **Never commit real keys to the repository.** A TMDB API key was previously committed in this file and remains in git history — rotate it at [themoviedb.org → Settings → API](https://www.themoviedb.org/settings/api). The Supabase anon key is public by design (RLS protects the data), but keep it in env vars anyway.
 
 5.  Click **Deploy**.
 
