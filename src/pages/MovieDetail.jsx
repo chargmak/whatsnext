@@ -23,6 +23,7 @@ const MediaDetail = ({ type }) => {
         addToWatchlist, removeFromWatchlist, watchlist,
         markAsWatched, watched, removeFromWatched,
         toggleEpisodeWatched, isEpisodeWatched,
+        setSeasonWatched, isSeasonWatched,
         isReminderSet, toggleReminder
     } = useUser();
 
@@ -279,18 +280,36 @@ const MediaDetail = ({ type }) => {
                     {/* Episodes Section - TV Series Only */}
                     {type === 'tv' && item.seasons > 0 && (
                         <div style={{ marginTop: '30px', marginBottom: '30px' }}>
-                            <div className="flex-between" style={{ marginBottom: '16px' }}>
+                            <div className="flex-between" style={{ marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
                                 <h3>Episodes</h3>
-                                <select
-                                    value={selectedSeason}
-                                    onChange={(e) => setSelectedSeason(Number(e.target.value))}
-                                    className="input-field"
-                                    style={{ width: 'auto', padding: '8px 12px' }}
-                                >
-                                    {Array.from({ length: item.seasons }, (_, i) => i + 1).map(seasonNum => (
-                                        <option key={seasonNum} value={seasonNum}>Season {seasonNum}</option>
-                                    ))}
-                                </select>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    {seasons[selectedSeason] && seasons[selectedSeason].length > 0 && (() => {
+                                        const episodeNumbers = seasons[selectedSeason].map(ep => ep.episode_number);
+                                        const seasonSeen = isSeasonWatched(item.id, selectedSeason, episodeNumbers);
+                                        return (
+                                            <button
+                                                onClick={() => withUser(() => setSeasonWatched(item.id, selectedSeason, episodeNumbers, !seasonSeen))}
+                                                className={`action-btn ${seasonSeen ? 'active' : 'secondary'}`}
+                                                style={{ flexDirection: 'row', gap: '6px', padding: '8px 12px', width: 'auto' }}
+                                            >
+                                                <Check size={16} />
+                                                <span style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                                                    {seasonSeen ? 'Season Seen' : 'Mark Season Seen'}
+                                                </span>
+                                            </button>
+                                        );
+                                    })()}
+                                    <select
+                                        value={selectedSeason}
+                                        onChange={(e) => setSelectedSeason(Number(e.target.value))}
+                                        className="input-field"
+                                        style={{ width: 'auto', padding: '8px 12px' }}
+                                    >
+                                        {Array.from({ length: item.seasons }, (_, i) => i + 1).map(seasonNum => (
+                                            <option key={seasonNum} value={seasonNum}>Season {seasonNum}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
 
                             {loadingEpisodes ? (
