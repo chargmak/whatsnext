@@ -17,35 +17,40 @@ import ResetPassword from './pages/ResetPassword';
 import NotFound from './pages/NotFound';
 import MediaDetail from './pages/MovieDetail';
 import Person from './pages/Person';
+import CineBot from './components/CineBot';
 import { UserProvider } from './context/UserContext';
+import { CineBotProvider } from './context/CineBotContext';
 
 function App() {
   return (
     <UserProvider>
       <Router>
-        <div className="app">
-          <ErrorBoundary>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/search" element={<Search />} />
-              <Route path="/library" element={<RequireUser><Library /></RequireUser>} />
-              <Route path="/calendar" element={<RequireUser><Calendar /></RequireUser>} />
-              <Route path="/profile" element={<RequireUser><Profile /></RequireUser>} />
-              <Route path="/profile/edit" element={<RequireUser><EditProfile /></RequireUser>} />
-              <Route path="/notifications" element={<RequireUser><Notifications /></RequireUser>} />
-              <Route path="/settings" element={<RequireUser><Settings /></RequireUser>} />
-              <Route path="/login" element={<RedirectIfAuthed><Login /></RedirectIfAuthed>} />
-              <Route path="/register" element={<RedirectIfAuthed><Register /></RedirectIfAuthed>} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/movie/:id" element={<MediaDetail type="movie" />} />
-              <Route path="/tv/:id" element={<MediaDetail type="tv" />} />
-              <Route path="/person/:id" element={<Person />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </ErrorBoundary>
-          <InstallPrompt />
-          <BottomNav />
-        </div>
+        <CineBotProvider>
+          <div className="app">
+            <ErrorBoundary>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/search" element={<Search />} />
+                <Route path="/library" element={<RequireUser><Library /></RequireUser>} />
+                <Route path="/calendar" element={<RequireUser><Calendar /></RequireUser>} />
+                <Route path="/profile" element={<RequireUser><Profile /></RequireUser>} />
+                <Route path="/profile/edit" element={<RequireUser><EditProfile /></RequireUser>} />
+                <Route path="/notifications" element={<RequireUser><Notifications /></RequireUser>} />
+                <Route path="/settings" element={<RequireUser><Settings /></RequireUser>} />
+                <Route path="/login" element={<RedirectIfAuthed><Login /></RedirectIfAuthed>} />
+                <Route path="/register" element={<RedirectIfAuthed><Register /></RedirectIfAuthed>} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/movie/:id" element={<MediaDetail type="movie" />} />
+                <Route path="/tv/:id" element={<MediaDetail type="tv" />} />
+                <Route path="/person/:id" element={<Person />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </ErrorBoundary>
+            <CineBot />
+            <InstallPrompt />
+            <BottomNav />
+          </div>
+        </CineBotProvider>
       </Router>
     </UserProvider>
   );
