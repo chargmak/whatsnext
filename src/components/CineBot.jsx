@@ -8,10 +8,14 @@ import { useUser } from '../context/UserContext';
 import { useCineBot } from '../context/CineBotContext';
 
 // Real AI replies (Google Gemini, free tier) run through a Supabase Edge
-// Function (see supabase/functions/cinebot). Enable by deploying it and setting
-// VITE_CINEBOT_AI=true. Without it, CineBot still works using the
-// intent-aware local recommender below.
-const AI_ENABLED = import.meta.env.VITE_CINEBOT_AI === 'true';
+// Function (see supabase/functions/cinebot). This is ON by default whenever
+// Supabase is configured: if the function isn't deployed or errors, tryAI()
+// gracefully falls back to the intent-aware local recommender below, so the
+// app always works. Opt out with VITE_CINEBOT_AI=false to force the local
+// recommender. (Previously this was opt-IN via VITE_CINEBOT_AI=true, so a
+// forgotten Vercel build flag silently downgraded CineBot to the dumb path
+// even when the Gemini backend was deployed and working.)
+const AI_ENABLED = import.meta.env.VITE_CINEBOT_AI !== 'false';
 
 // Natural-language mood/genre → TMDB genre (matches GENRE_MAP in tmdb.js).
 const MOOD_MAP = [
@@ -128,10 +132,16 @@ const CineBot = () => {
             const { data, error } = await supabase.functions.invoke('cinebot', {
                 body: { message: userText, history },
             });
-            if (error || !data?.reply) return null;
+            if (error || !data?.reply) {
+                // Surface the reason so a silent downgrade to the local
+                // recommender is diagnosable in devtools instead of invisible.
+                console.warn('CineBot AI backend unavailable — using local recommender.', error || data);
+                return null;
+            }
             const first = Array.isArray(data.items) ? data.items[0] : null;
             return { text: data.reply, link: first ? `/${first.type}/${first.id}` : null };
-        } catch {
+        } catch (err) {
+            console.warn('CineBot AI call failed — using local recommender.', err);
             return null;
         }
     };
