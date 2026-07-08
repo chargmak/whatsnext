@@ -7,8 +7,8 @@ import { supabase } from '../services/supabase';
 import { useUser } from '../context/UserContext';
 import { useCineBot } from '../context/CineBotContext';
 
-// Real Claude-powered replies run through a Supabase Edge Function (see
-// supabase/functions/cinebot). Enable by deploying it and setting
+// Real AI replies (Google Gemini, free tier) run through a Supabase Edge
+// Function (see supabase/functions/cinebot). Enable by deploying it and setting
 // VITE_CINEBOT_AI=true. Without it, CineBot still works using the
 // intent-aware local recommender below.
 const AI_ENABLED = import.meta.env.VITE_CINEBOT_AI === 'true';
@@ -85,7 +85,7 @@ const CineBot = () => {
     const pushBot = (text, link = null) =>
         setMessages((prev) => [...prev, { id: Date.now() + Math.random(), isBot: true, text, link }]);
 
-    // Try the Claude-powered Edge Function; return null to fall back locally.
+    // Try the Gemini-powered Edge Function; return null to fall back locally.
     const tryAI = async (userText) => {
         if (!AI_ENABLED || !supabase) return null;
         try {
