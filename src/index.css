@@ -339,6 +339,26 @@ p {
   background: var(--text-tertiary);
 }
 
+/* Hide scrollbars on horizontal strips (e.g. Browse Categories rows) */
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Skeleton pulse for loading poster strips */
+@keyframes pulse-fade {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
 /* Layout Utilities - Added for Consistency */
 .page-header {
   padding: 20px 0;
