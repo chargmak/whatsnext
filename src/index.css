@@ -591,6 +591,92 @@ p {
   background: var(--brand-600);
   color: white;
 }
+
+/* Episodes section toolbar (season selector + "mark season" button) */
+.episodes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.episodes-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.season-select {
+  width: auto;
+  height: 44px;
+  padding: 0 14px;
+  flex-shrink: 0;
+}
+
+.season-mark-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--brand-500);
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.45);
+  transition: background 0.2s, border-color 0.2s, transform 0.1s, box-shadow 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.season-mark-btn:hover {
+  background: rgba(220, 38, 38, 0.16);
+  border-color: var(--brand-500);
+}
+
+.season-mark-btn:active {
+  transform: scale(0.97);
+}
+
+.season-mark-btn.seen {
+  color: white;
+  background: var(--brand-600);
+  border-color: var(--brand-600);
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.3);
+}
+
+.season-mark-btn .btn-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  flex-shrink: 0;
+}
+
+.season-mark-btn.seen .btn-check {
+  background: white;
+  border-color: white;
+  color: var(--brand-600);
+}
+
+/* On phones, let the action row own its own line and give the button room */
+@media (max-width: 600px) {
+  .episodes-actions {
+    width: 100%;
+  }
+  .season-mark-btn {
+    flex: 1 1 auto;
+  }
+}
+
 /* Loading spinner (Profile, guards) */
 .spinner {
   width: 40px;
