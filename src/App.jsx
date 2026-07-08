@@ -17,7 +17,6 @@ import ResetPassword from './pages/ResetPassword';
 import NotFound from './pages/NotFound';
 import MediaDetail from './pages/MovieDetail';
 import Person from './pages/Person';
-import CineBot from './components/CineBot';
 import { UserProvider } from './context/UserContext';
 
 function App() {
@@ -44,7 +43,6 @@ function App() {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </ErrorBoundary>
-          <CineBot />
           <InstallPrompt />
           <BottomNav />
         </div>
