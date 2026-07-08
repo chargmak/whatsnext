@@ -102,6 +102,29 @@ export const getTVSeasonDetails = async (tvId, seasonNumber) => {
     return await fetchFromTMDB(`/tv/${tvId}/season/${seasonNumber}`);
 };
 
+// Fetch the minimal series info the Library needs to decide whether a show is
+// "completed": mapped card data plus the airing status and per-season episode
+// counts (specials / season 0 excluded, since they aren't part of the main run).
+export const getTVWatchStatus = async (tvId) => {
+    const details = await fetchFromTMDB(`/tv/${tvId}`);
+    if (!details) return null;
+
+    const seasonEpisodeCounts = {};
+    (details.seasons || []).forEach((season) => {
+        if (season.season_number !== 0 && season.episode_count > 0) {
+            seasonEpisodeCounts[season.season_number] = season.episode_count;
+        }
+    });
+
+    return {
+        ...mapMediaData({ ...details, media_type: 'tv' }),
+        // "Ended" or "Canceled" means no further episodes are coming.
+        status: details.status,
+        ended: details.status === 'Ended' || details.status === 'Canceled',
+        seasonEpisodeCounts,
+    };
+};
+
 // Get TV Series with upcoming episodes
 export const getTVSeriesWithEpisodes = async (tvId) => {
     const details = await fetchFromTMDB(`/tv/${tvId}`);
