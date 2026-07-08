@@ -46,8 +46,6 @@ const Home = () => {
 
     if (loading && mediaItems.length === 0) return <div className="container flex-center" style={{ height: '100vh' }}>Loading...</div>;
 
-    const featuredItem = mediaItems[0];
-
     return (
         <div className="container" style={{ paddingBottom: '160px' }}>
             {/* New Brand Header */}
@@ -108,12 +106,24 @@ const Home = () => {
             <section style={{ marginBottom: '40px' }}>
                 <div className="flex-between" style={{ marginBottom: '16px' }}>
                     <h3>Trending {mediaType === 'movie' ? 'Movies' : 'TV Shows'}</h3>
-                    <span style={{ color: 'var(--accent-primary)', fontSize: '0.9rem' }}>See All</span>
+                    <button
+                        onClick={() => navigate('/search')}
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--accent-primary)',
+                            fontSize: '0.9rem',
+                            cursor: 'pointer',
+                            padding: 0
+                        }}
+                    >
+                        See All
+                    </button>
                 </div>
 
                 <div className="grid-layout">
                     {/* Slicing from 1 to -1 to reduce count by one as requested */}
-                    {mediaItems.slice(1, -1).map((item, index) => (
+                    {mediaItems.slice(1, -1).map((item) => (
                         <MovieCard
                             key={item.id}
                             movie={item}

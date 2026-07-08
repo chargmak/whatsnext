@@ -13,10 +13,9 @@ This application is built as a **Progressive Web App (PWA)**, offering a native-
 *   **📅 Release Calendar**: A personalized calendar view that shows you exactly when new episodes or movies are premiering. Includes a grouped view for easy daily planning.
 *   **📱 PWA Support**: Installable on mobile and desktop devices with offline capabilities and a responsive, touch-friendly interface.
 *   **✨ Modern UI/UX**: Built with a "Glassmorphism" design aesthetic, featuring smooth animations (powered by Framer Motion), dark mode by default, and intuitive navigation.
-*   **👤 Demo Mode**: The application is currently configured in a special **Portfolio Demo Mode**. 
-    *   No login required.
-    *   Generates a unique, random user persona for each visitor.
-    *   Uses secure local storage to persist your watchlist during your session.
+*   **👤 Real Accounts**: Sign up with email/password (Supabase Auth). Your watchlist, history, episode progress, and reminders sync across devices. Includes password reset, change password, and account deletion.
+*   **🎭 Guest Mode**: Prefer not to sign up? Use "Continue as guest" — your data is stored on the device, and when you later create an account you'll be offered a one-click import into it.
+*   **🔔 Release Reminders**: Tap "Notify Me" on an upcoming movie and track the countdown from the Notifications page.
 
 ## 🛠️ Tech Stack
 
@@ -27,7 +26,7 @@ This application is built as a **Progressive Web App (PWA)**, offering a native-
 *   **Icons**: [Lucide React](https://lucide.dev/)
 *   **Routing**: [React Router](https://reactrouter.com/)
 *   **Data Source**: [TMDB API](https://www.themoviedb.org/) (The Movie Database)
-*   **Backend (Optional)**: Supabase (Project includes setup for Supabase auth/db, currently toggled to local demo mode for easy portfolio viewing).
+*   **Backend**: [Supabase](https://supabase.com/) — email/password auth, Postgres with row-level security for watchlists, history, episode progress, and reminders. The app also runs backend-less (guest mode only) if Supabase env vars are absent.
 
 ## 📸 Screenshots
 
@@ -47,11 +46,13 @@ This application is built as a **Progressive Web App (PWA)**, offering a native-
     ```
 
 3.  **Environment Setup**
-    Create a `.env` file in the root directory and add your TMDB API Key:
+    Copy `.env.example` to `.env` and fill in your keys:
     ```env
     VITE_TMDB_API_KEY=your_tmdb_api_key_here
-    VITE_TMDB_ACCESS_TOKEN=your_tmdb_access_token
+    VITE_SUPABASE_URL=your_supabase_project_url
+    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
     ```
+    See `SUPABASE_SETUP.md` for backend setup. Without the Supabase keys the app still runs in guest-only mode.
 
 4.  **Run Locally**
     ```bash
@@ -65,7 +66,7 @@ This project is configured for easy deployment on **Vercel**.
 
 1.  Push your code to GitHub.
 2.  Import the project into Vercel.
-3.  Add the Environment Variables (TMDB Key) in the Vercel project settings.
+3.  Add the Environment Variables (`VITE_TMDB_API_KEY`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) in the Vercel project settings.
 4.  Deploy!
 
 ## 🤝 Contributing

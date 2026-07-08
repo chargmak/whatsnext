@@ -1,57 +1,54 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Play, Plus, Check, Share2, Bell, Star, X, Film, Copy, Users } from 'lucide-react';
+import { ArrowLeft, Play, Plus, Check, Share2, Bell, Star, X, Film } from 'lucide-react';
 import { getDetails, mapMediaData, getTVSeasonDetails } from '../services/tmdb';
 import { TRENDING_MOVIES } from '../data/mockData';
 import { useUser } from '../context/UserContext';
-
-
-// Mock Friends Data
-const MOCK_FRIENDS = [
-    { id: 1, name: "Sarah", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah", status: "online" },
-    { id: 2, name: "Mike", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Mike", status: "offline" },
-    { id: 3, name: "Jessica", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jessica", status: "online" }
-];
 
 // Reusable Detail Component (handles both Movie and TV)
 const MediaDetail = ({ type }) => {
     const { id } = useParams();
     const navigate = useNavigate();
     const [item, setItem] = useState(null);
-    const [showPartyModal, setShowPartyModal] = useState(false);
     const [showTrailer, setShowTrailer] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [partyLink, setPartyLink] = useState('');
-    const [invitedFriends, setInvitedFriends] = useState([]);
     const [copied, setCopied] = useState(false);
     const [seasons, setSeasons] = useState([]);
     const [selectedSeason, setSelectedSeason] = useState(1);
     const [loadingEpisodes, setLoadingEpisodes] = useState(false);
 
-    useEffect(() => {
-        if (showPartyModal && !partyLink) {
-            // Generate unique party link
-            const uniqueId = Math.random().toString(36).substring(7);
-            setPartyLink(`https://whatsnext.app/party/${uniqueId}`);
-        }
-    }, [showPartyModal]);
+    const {
+        status, user,
+        addToWatchlist, removeFromWatchlist, watchlist,
+        markAsWatched, watched, removeFromWatched,
+        toggleEpisodeWatched, isEpisodeWatched,
+        isReminderSet, toggleReminder
+    } = useUser();
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(partyLink);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+    // Saving anything requires an account or guest session.
+    const withUser = (action) => {
+        if (status === 'signedOut') {
+            navigate('/login');
+            return;
+        }
+        action();
     };
 
-    const toggleInvite = (friendId) => {
-        if (invitedFriends.includes(friendId)) {
-            setInvitedFriends(invitedFriends.filter(id => id !== friendId));
+    const handleShare = async () => {
+        const url = window.location.href;
+        if (navigator.share) {
+            try {
+                await navigator.share({ title: item?.title, url });
+            } catch {
+                // user cancelled the share sheet
+            }
         } else {
-            setInvitedFriends([...invitedFriends, friendId]);
+            await navigator.clipboard.writeText(url);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
         }
     };
-
-    const { addToWatchlist, watchlist, markAsWatched, watched, removeFromWatched, toggleEpisodeWatched, isEpisodeWatched, getWatchedEpisodeCount } = useUser();
 
     // Fetch episodes for TV series
     useEffect(() => {
@@ -73,9 +70,8 @@ const MediaDetail = ({ type }) => {
 
     useEffect(() => {
         const fetchDetail = async () => {
-            // Get user's country from profile
-            const userProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
-            const userCountry = userProfile.country || 'US'; // Default to US if not set
+            // Streaming providers are looked up for the user's country
+            const userCountry = user?.country || 'US';
 
             const tmdbData = await getDetails(id, type, userCountry);
 
@@ -99,7 +95,7 @@ const MediaDetail = ({ type }) => {
         };
 
         fetchDetail();
-    }, [id, type]);
+    }, [id, type, user?.country]);
 
     if (loading) return <div className="container flex-center" style={{ height: '100vh' }}>Loading...</div>;
     if (!item) return <div className="container flex-center" style={{ height: '100vh' }}>Media not found</div>;
@@ -197,7 +193,7 @@ const MediaDetail = ({ type }) => {
                             ) : (
                                 <button
                                     className={`action-btn ${isWatched ? 'secondary' : 'primary'}`}
-                                    onClick={() => isWatched ? removeFromWatched(item) : markAsWatched(item)}
+                                    onClick={() => withUser(() => isWatched ? removeFromWatched(item) : markAsWatched(item))}
                                 >
                                     <Check size={24} />
                                     <span>{isWatched ? 'Watched' : 'Mark Watched'}</span>
@@ -207,7 +203,7 @@ const MediaDetail = ({ type }) => {
 
                         <button
                             className={`action-btn ${isInWatchlist ? 'active' : 'secondary'}`}
-                            onClick={() => isInWatchlist ? removeFromWatchlist(item.id) : addToWatchlist(item)}
+                            onClick={() => withUser(() => isInWatchlist ? removeFromWatchlist(item.id) : addToWatchlist(item))}
                         >
                             {isInWatchlist ? <Check size={24} /> : <Plus size={24} />}
                             <span>My List</span>
@@ -226,10 +222,10 @@ const MediaDetail = ({ type }) => {
 
                         <button
                             className="action-btn secondary"
-                            onClick={() => setShowPartyModal(true)}
+                            onClick={handleShare}
                         >
-                            <Share2 size={24} />
-                            <span>Share</span>
+                            {copied ? <Check size={24} /> : <Share2 size={24} />}
+                            <span>{copied ? 'Copied!' : 'Share'}</span>
                         </button>
                     </div>
 
@@ -311,8 +307,7 @@ const MediaDetail = ({ type }) => {
                                                 onClick={(e) => {
                                                     e.preventDefault();
                                                     e.stopPropagation();
-                                                    console.log('Toggling episode:', item.id, selectedSeason, episode.episode_number);
-                                                    toggleEpisodeWatched(item.id, selectedSeason, episode.episode_number);
+                                                    withUser(() => toggleEpisodeWatched(item.id, selectedSeason, episode.episode_number));
                                                 }}
                                                 className="glass-panel"
                                                 style={{
@@ -409,8 +404,19 @@ const MediaDetail = ({ type }) => {
                                     <p style={{ fontSize: '0.9rem', margin: 0, color: 'var(--text-secondary)' }}>HOURS</p>
                                 </div>
                             </div>
-                            <button className="btn" style={{ width: '100%' }}>
-                                <Bell size={18} style={{ marginRight: '8px' }} /> Notify Me
+                            <button
+                                className="btn"
+                                style={{
+                                    width: '100%',
+                                    background: isReminderSet(item.id) ? 'var(--bg-tertiary)' : undefined
+                                }}
+                                onClick={() => withUser(() => toggleReminder(item))}
+                            >
+                                {isReminderSet(item.id) ? (
+                                    <><Check size={18} style={{ marginRight: '8px' }} /> Reminder Set</>
+                                ) : (
+                                    <><Bell size={18} style={{ marginRight: '8px' }} /> Notify Me</>
+                                )}
                             </button>
                         </div>
                     ) : (
@@ -490,115 +496,6 @@ const MediaDetail = ({ type }) => {
                 )}
             </AnimatePresence>
 
-            {/* Watch Party Modal */}
-            <AnimatePresence>
-                {showPartyModal && (
-                    <div className="modal-overlay" onClick={() => setShowPartyModal(false)}>
-                        <motion.div
-                            initial={{ y: '100%' }}
-                            animate={{ y: 0 }}
-                            exit={{ y: '100%' }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="modal-content"
-                        >
-                            <div className="modal-handle" />
-                            <h3 style={{ marginBottom: '8px' }}>Start a Watch Party</h3>
-                            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-                                Watch <strong>{item.title}</strong> with your friends in sync.
-                            </p>
-
-                            {/* Link Copy Section */}
-                            <div style={{
-                                background: 'rgba(255,255,255,0.05)',
-                                padding: '12px',
-                                borderRadius: '12px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '12px',
-                                marginBottom: '24px',
-                                border: '1px solid rgba(255,255,255,0.1)'
-                            }}>
-                                <div style={{
-                                    flex: 1,
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                    fontSize: '0.9rem',
-                                    color: 'var(--text-primary)'
-                                }}>
-                                    {partyLink}
-                                </div>
-                                <button
-                                    onClick={handleCopy}
-                                    style={{
-                                        background: copied ? 'var(--brand-600)' : 'rgba(255,255,255,0.1)',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        padding: '8px',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s',
-                                        color: 'white'
-                                    }}
-                                >
-                                    {copied ? <Check size={18} /> : <Copy size={18} />}
-                                </button>
-                            </div>
-
-                            <h4 style={{ marginBottom: '12px', fontSize: '0.95rem' }}>Invite Friends</h4>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
-                                {MOCK_FRIENDS.map(friend => (
-                                    <div key={friend.id} className="flex-between" style={{
-                                        padding: '12px',
-                                        background: 'rgba(255,255,255,0.02)',
-                                        borderRadius: '12px',
-                                        border: '1px solid rgba(255,255,255,0.05)'
-                                    }}>
-                                        <div className="flex-center" style={{ gap: '12px' }}>
-                                            <div style={{ position: 'relative' }}>
-                                                <img src={friend.avatar} alt={friend.name} style={{ width: '36px', height: '36px', borderRadius: '50%' }} />
-                                                <div style={{
-                                                    position: 'absolute', bottom: 0, right: 0,
-                                                    width: '10px', height: '10px', borderRadius: '50%',
-                                                    background: friend.status === 'online' ? '#10b981' : '#6b7280',
-                                                    border: '2px solid var(--bg-secondary)'
-                                                }} />
-                                            </div>
-                                            <span style={{ fontWeight: '500' }}>{friend.name}</span>
-                                        </div>
-                                        <button
-                                            onClick={() => toggleInvite(friend.id)}
-                                            style={{
-                                                background: invitedFriends.includes(friend.id) ? 'rgba(255,255,255,0.1)' : 'var(--brand-600)',
-                                                color: invitedFriends.includes(friend.id) ? 'var(--text-secondary)' : 'white',
-                                                border: 'none',
-                                                padding: '6px 16px',
-                                                borderRadius: '20px',
-                                                cursor: 'pointer',
-                                                fontSize: '0.8rem',
-                                                fontWeight: '600',
-                                                transition: 'all 0.2s'
-                                            }}
-                                        >
-                                            {invitedFriends.includes(friend.id) ? 'Sent' : 'Invite'}
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <button
-                                className="btn"
-                                style={{ width: '100%', gap: '8px' }}
-                                onClick={() => {
-                                    setShowPartyModal(false);
-                                    // Could navigate to a party room or show a success toast here
-                                }}
-                            >
-                                <Users size={20} /> Start Party ({invitedFriends.length + 1})
-                            </button>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
         </div>
     );
 };
