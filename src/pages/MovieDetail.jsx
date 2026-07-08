@@ -280,30 +280,32 @@ const MediaDetail = ({ type }) => {
                     {/* Episodes Section - TV Series Only */}
                     {type === 'tv' && item.seasons > 0 && (
                         <div style={{ marginTop: '30px', marginBottom: '30px' }}>
-                            <div className="flex-between" style={{ marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
+                            <div className="episodes-header">
                                 <h3>Episodes</h3>
-                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <div className="episodes-actions">
                                     {seasons[selectedSeason] && seasons[selectedSeason].length > 0 && (() => {
                                         const episodeNumbers = seasons[selectedSeason].map(ep => ep.episode_number);
                                         const seasonSeen = isSeasonWatched(item.id, selectedSeason, episodeNumbers);
                                         return (
                                             <button
+                                                type="button"
                                                 onClick={() => withUser(() => setSeasonWatched(item.id, selectedSeason, episodeNumbers, !seasonSeen))}
-                                                className={`action-btn ${seasonSeen ? 'active' : 'secondary'}`}
-                                                style={{ flexDirection: 'row', gap: '6px', padding: '8px 12px', width: 'auto' }}
+                                                className={`season-mark-btn ${seasonSeen ? 'seen' : ''}`}
+                                                aria-pressed={seasonSeen}
+                                                title={seasonSeen ? 'Mark this season as not seen' : 'Mark every episode this season as seen'}
                                             >
-                                                <Check size={16} />
-                                                <span style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
-                                                    {seasonSeen ? 'Season Seen' : 'Mark Season Seen'}
+                                                <span className="btn-check">
+                                                    {seasonSeen && <Check size={13} strokeWidth={3} />}
                                                 </span>
+                                                <span>{seasonSeen ? 'Season Seen' : 'Mark Season Seen'}</span>
                                             </button>
                                         );
                                     })()}
                                     <select
                                         value={selectedSeason}
                                         onChange={(e) => setSelectedSeason(Number(e.target.value))}
-                                        className="input-field"
-                                        style={{ width: 'auto', padding: '8px 12px' }}
+                                        className="input-field season-select"
+                                        aria-label="Select season"
                                     >
                                         {Array.from({ length: item.seasons }, (_, i) => i + 1).map(seasonNum => (
                                             <option key={seasonNum} value={seasonNum}>Season {seasonNum}</option>
