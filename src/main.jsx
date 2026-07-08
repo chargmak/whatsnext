@@ -18,6 +18,9 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js')
       .then((registration) => {
         console.log('SW registered: ', registration);
+        // Force an immediate update check so a newer, self-healing worker is
+        // discovered right away instead of on the browser's own schedule.
+        registration.update();
       })
       .catch((registrationError) => {
         console.log('SW registration failed: ', registrationError);

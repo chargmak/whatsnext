@@ -1,4 +1,4 @@
-const CACHE_NAME = 'whatsnext-v3';
+const CACHE_NAME = 'whatsnext-v4';
 const IMAGE_CACHE = 'whatsnext-images-v1';
 const API_CACHE = 'whatsnext-tmdb-v1';
 
@@ -12,19 +12,40 @@ const PRECACHE_URLS = [
 ];
 
 self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
-    );
     self.skipWaiting();
+    // Precache the app shell, but tolerate individual misses. A rejected
+    // cache.addAll() would abort the whole install and leave visitors stuck on
+    // the previous (possibly broken) worker — exactly what we're recovering from.
+    event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) =>
+            Promise.allSettled(PRECACHE_URLS.map((url) => cache.add(url)))
+        )
+    );
 });
 
 self.addEventListener('activate', (event) => {
     const keep = [CACHE_NAME, IMAGE_CACHE, API_CACHE];
-    event.waitUntil(
-        caches.keys().then((names) =>
-            Promise.all(names.filter((n) => !keep.includes(n)).map((n) => caches.delete(n)))
-        ).then(() => self.clients.claim())
-    );
+    event.waitUntil((async () => {
+        const names = await caches.keys();
+        // A leftover app cache from a previous version means this is an update,
+        // not a first install. Earlier builds shipped a cache-first worker that
+        // could pin a stale index.html referencing build assets that no longer
+        // exist, leaving returning users on a black screen.
+        const isUpdate = names.some((n) => n.startsWith('whatsnext-') && !keep.includes(n));
+        await Promise.all(names.filter((n) => !keep.includes(n)).map((n) => caches.delete(n)));
+        await self.clients.claim();
+
+        // Self-heal: now that this fresh, network-first worker is in control,
+        // reload any open windows so a stuck black screen picks up the current
+        // shell without the user having to clear their cache. Skip on first
+        // install so an ordinary first visit isn't reloaded.
+        if (isUpdate) {
+            const clients = await self.clients.matchAll({ type: 'window' });
+            await Promise.all(clients.map(async (client) => {
+                try { await client.navigate(client.url); } catch { /* client may not be navigable */ }
+            }));
+        }
+    })());
 });
 
 const putInCache = async (cacheName, request, response) => {
