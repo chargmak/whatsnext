@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, X, Send } from 'lucide-react';
+import { Bot, X, Send, Sparkles, ArrowUpRight } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { searchMulti, discoverByGenre } from '../services/tmdb';
 import { supabase } from '../services/supabase';
@@ -35,6 +35,14 @@ const MOOD_MAP = [
 
 const LIBRARY_INTENT = /(watch ?list|my list|from my list|what should i watch|what to watch|recommend|suggest|pick something|choose|surprise me|watch next|next up)/;
 
+// One-tap conversation starters shown under the greeting.
+const SUGGESTIONS = [
+    { emoji: '🍿', label: "What's next?", prompt: 'What should I watch next?' },
+    { emoji: '😂', label: 'Something funny', prompt: 'Something funny under 90 min' },
+    { emoji: '😱', label: 'Scary night', prompt: 'A scary horror movie' },
+    { emoji: '🎲', label: 'Surprise me', prompt: 'Surprise me' },
+];
+
 const detectGenre = (text) => {
     for (const [re, genre] of MOOD_MAP) if (re.test(text)) return genre;
     return null;
@@ -55,8 +63,19 @@ const detectRuntimeCap = (text) => {
 const buildGreeting = (displayName) => ({
     id: 1,
     isBot: true,
-    text: `Hi ${displayName}! I'm CineBot. Tell me a mood ("something funny under 90 min"), a title, or ask "what should I watch next?"`,
+    text: `Hi ${displayName}! I'm **CineBot**. Tell me a mood ("something funny under 90 min"), a title, or ask "what should I watch next?"`,
 });
+
+// Lightweight inline renderer: turns **bold** markdown into <strong> so the
+// recommender's emphasis reads as intended instead of showing literal asterisks.
+const renderRichText = (text) =>
+    text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+        /^\*\*[^*]+\*\*$/.test(part) ? (
+            <strong key={i}>{part.slice(2, -2)}</strong>
+        ) : (
+            <React.Fragment key={i}>{part}</React.Fragment>
+        )
+    );
 
 const CineBot = () => {
     const navigate = useNavigate();
@@ -69,6 +88,7 @@ const CineBot = () => {
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const messagesEndRef = useRef(null);
+    const inputRef = useRef(null);
     const greetedRef = useRef(false);
 
     const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -81,6 +101,18 @@ const CineBot = () => {
             setMessages([buildGreeting(displayName)]);
         }
     }, [isOpen, displayName]);
+
+    // Focus the input and wire up Escape-to-close while the panel is open.
+    useEffect(() => {
+        if (!isOpen) return;
+        const t = setTimeout(() => inputRef.current?.focus(), 250);
+        const onKey = (e) => e.key === 'Escape' && closeBot();
+        window.addEventListener('keydown', onKey);
+        return () => {
+            clearTimeout(t);
+            window.removeEventListener('keydown', onKey);
+        };
+    }, [isOpen, closeBot]);
 
     const pushBot = (text, link = null) =>
         setMessages((prev) => [...prev, { id: Date.now() + Math.random(), isBot: true, text, link }]);
@@ -193,140 +225,200 @@ const CineBot = () => {
     const AUTH_ROUTES = ['/login', '/register', '/reset-password'];
     if (AUTH_ROUTES.includes(location.pathname)) return null;
 
+    // Suggestion chips help first-timers start; drop them once the chat gets going.
+    const showSuggestions = !isTyping && messages.length <= 1;
+
     return (
         <>
-            <motion.button
-                className="flex-center"
-                onClick={() => openBot()}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                style={{
-                    position: 'fixed',
-                    bottom: '160px',
-                    right: '20px',
-                    width: '56px',
-                    height: '56px',
-                    borderRadius: '28px',
-                    background: 'var(--accent-gradient)',
-                    border: 'none',
-                    boxShadow: '0 4px 15px rgba(220, 38, 38, 0.5)',
-                    zIndex: 900,
-                    cursor: 'pointer',
-                    color: 'white'
-                }}
-            >
-                <Bot size={28} />
-            </motion.button>
+            {/* Floating launcher — hidden while the panel is open */}
+            <AnimatePresence>
+                {!isOpen && (
+                    <motion.button
+                        key="cinebot-fab"
+                        className="flex-center"
+                        onClick={() => openBot()}
+                        aria-label="Open CineBot assistant"
+                        initial={{ opacity: 0, scale: 0.6 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.6 }}
+                        whileHover={{ scale: 1.08 }}
+                        whileTap={{ scale: 0.92 }}
+                        style={{
+                            position: 'fixed',
+                            bottom: '96px',
+                            right: '20px',
+                            width: '58px',
+                            height: '58px',
+                            borderRadius: '50%',
+                            background: 'var(--accent-gradient)',
+                            border: '1px solid rgba(255,255,255,0.14)',
+                            boxShadow: '0 8px 24px rgba(220, 38, 38, 0.45)',
+                            zIndex: 900,
+                            cursor: 'pointer',
+                            color: 'white',
+                        }}
+                    >
+                        <Bot size={26} />
+                        <Sparkles
+                            size={13}
+                            style={{ position: 'absolute', top: '11px', right: '11px', opacity: 0.9 }}
+                        />
+                    </motion.button>
+                )}
+            </AnimatePresence>
 
             <AnimatePresence>
                 {isOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                        className="glass-panel"
-                        style={{
-                            position: 'fixed',
-                            bottom: '90px',
-                            right: '20px',
-                            left: '20px',
-                            top: '100px',
-                            maxWidth: '400px',
-                            marginLeft: 'auto',
-                            borderRadius: 'var(--radius-lg)',
-                            boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
-                            zIndex: 950,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            overflow: 'hidden'
-                        }}
-                    >
-                        {/* Header */}
-                        <div className="flex-between" style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                            <div className="flex-center" style={{ gap: '10px' }}>
-                                <Bot size={20} color="var(--brand-600)" />
-                                <h3 style={{ margin: 0, fontSize: '1rem' }}>CineBot</h3>
-                            </div>
-                            <button
-                                onClick={() => closeBot()}
-                                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        {/* Chat Area */}
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            {messages.map((msg) => (
-                                <div
-                                    key={msg.id}
-                                    style={{
-                                        alignSelf: msg.isBot ? 'flex-start' : 'flex-end',
-                                        background: msg.isBot ? 'var(--bg-tertiary)' : 'var(--brand-600)',
-                                        color: msg.isBot ? 'var(--text-primary)' : 'white',
-                                        padding: '10px 14px',
-                                        borderRadius: '16px',
-                                        borderBottomLeftRadius: msg.isBot ? '4px' : '16px',
-                                        borderBottomRightRadius: msg.isBot ? '16px' : '4px',
-                                        maxWidth: '80%',
-                                        fontSize: '0.9rem',
-                                        lineHeight: '1.4'
-                                    }}
-                                >
-                                    <div style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</div>
-                                    {msg.link && (
-                                        <button
-                                            onClick={() => { navigate(msg.link); closeBot(); }}
+                    <>
+                        <motion.div
+                            key="cinebot-backdrop"
+                            className="cinebot-backdrop"
+                            onClick={() => closeBot()}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                        />
+                        <motion.div
+                            key="cinebot-panel"
+                            className="cinebot-panel"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label="CineBot assistant"
+                            initial={{ opacity: 0, scale: 0.94, y: 24 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.94, y: 24 }}
+                            transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+                        >
+                            {/* Header */}
+                            <div className="cinebot-header">
+                                <div className="flex-center" style={{ gap: '11px' }}>
+                                    <div className="cinebot-avatar" style={{ width: '40px', height: '40px' }}>
+                                        <Bot size={22} />
+                                    </div>
+                                    <div>
+                                        <h3 style={{ margin: 0, fontSize: '1.02rem', lineHeight: 1.2 }}>CineBot</h3>
+                                        <div
+                                            className="flex-center"
                                             style={{
-                                                marginTop: '8px',
-                                                background: 'var(--bg-secondary)',
-                                                border: '1px solid var(--brand-600)',
-                                                color: 'var(--brand-600)',
-                                                padding: '6px 12px',
-                                                borderRadius: '8px',
-                                                fontSize: '0.8rem',
-                                                cursor: 'pointer',
-                                                fontWeight: 'bold',
-                                                width: '100%'
+                                                gap: '6px',
+                                                justifyContent: 'flex-start',
+                                                fontSize: '0.74rem',
+                                                color: 'var(--text-secondary)',
+                                                marginTop: '2px',
                                             }}
                                         >
-                                            View Details
-                                        </button>
-                                    )}
+                                            <span className="cinebot-status-dot" />
+                                            Online · your movie guide
+                                        </div>
+                                    </div>
                                 </div>
-                            ))}
-                            {isTyping && (
-                                <div style={{ alignSelf: 'flex-start', color: 'var(--text-secondary)', fontSize: '0.8rem', marginLeft: '10px' }}>
-                                    CineBot is thinking...
-                                </div>
-                            )}
-                            <div ref={messagesEndRef} />
-                        </div>
+                                <button
+                                    className="cinebot-close-btn"
+                                    onClick={() => closeBot()}
+                                    aria-label="Close CineBot"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
 
-                        {/* Input Area */}
-                        <div style={{ padding: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', gap: '10px' }}>
-                            <input
-                                type="text"
-                                placeholder="Mood, title, or 'what's next?'"
-                                className="input-field"
-                                style={{ borderRadius: '24px', padding: '10px 16px' }}
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                            />
-                            <button
-                                onClick={() => handleSend()}
-                                className="flex-center"
-                                style={{
-                                    width: '42px', height: '42px', borderRadius: '50%',
-                                    background: 'var(--brand-600)', border: 'none', color: 'white',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                <Send size={18} />
-                            </button>
-                        </div>
-                    </motion.div>
+                            {/* Chat Area */}
+                            <div className="cinebot-messages">
+                                {messages.map((msg) => (
+                                    <motion.div
+                                        key={msg.id}
+                                        initial={{ opacity: 0, y: 8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'flex-end',
+                                            gap: '8px',
+                                            alignSelf: msg.isBot ? 'flex-start' : 'flex-end',
+                                            flexDirection: msg.isBot ? 'row' : 'row-reverse',
+                                            maxWidth: '90%',
+                                        }}
+                                    >
+                                        {msg.isBot && (
+                                            <div
+                                                className="cinebot-avatar"
+                                                style={{ width: '26px', height: '26px', marginBottom: '2px' }}
+                                            >
+                                                <Bot size={15} />
+                                            </div>
+                                        )}
+                                        <div className={`cinebot-bubble ${msg.isBot ? 'bot' : 'user'}`}>
+                                            <div style={{ whiteSpace: 'pre-wrap' }}>{renderRichText(msg.text)}</div>
+                                            {msg.link && (
+                                                <button
+                                                    className="cinebot-link-btn"
+                                                    onClick={() => { navigate(msg.link); closeBot(); }}
+                                                >
+                                                    View details <ArrowUpRight size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                ))}
+
+                                {isTyping && (
+                                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', alignSelf: 'flex-start' }}>
+                                        <div className="cinebot-avatar" style={{ width: '26px', height: '26px' }}>
+                                            <Bot size={15} />
+                                        </div>
+                                        <div
+                                            className="cinebot-bubble bot flex-center"
+                                            style={{ gap: '4px', padding: '14px' }}
+                                            aria-label="CineBot is typing"
+                                        >
+                                            <span className="cinebot-dot" style={{ animationDelay: '0s' }} />
+                                            <span className="cinebot-dot" style={{ animationDelay: '0.18s' }} />
+                                            <span className="cinebot-dot" style={{ animationDelay: '0.36s' }} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {showSuggestions && (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '2px' }}>
+                                        {SUGGESTIONS.map((s) => (
+                                            <button
+                                                key={s.label}
+                                                className="cinebot-chip"
+                                                onClick={() => handleSend(s.prompt)}
+                                            >
+                                                {s.emoji} {s.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div ref={messagesEndRef} />
+                            </div>
+
+                            {/* Input Area */}
+                            <div className="cinebot-footer">
+                                <input
+                                    ref={inputRef}
+                                    type="text"
+                                    placeholder="Mood, title, or 'what's next?'"
+                                    className="cinebot-input"
+                                    aria-label="Message CineBot"
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                                />
+                                <motion.button
+                                    className="cinebot-send-btn"
+                                    onClick={() => handleSend()}
+                                    disabled={!input.trim() || isTyping}
+                                    aria-label="Send message"
+                                    whileTap={{ scale: 0.9 }}
+                                >
+                                    <Send size={18} />
+                                </motion.button>
+                            </div>
+                        </motion.div>
+                    </>
                 )}
             </AnimatePresence>
         </>
