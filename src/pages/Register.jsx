@@ -117,8 +117,8 @@ const Register = () => {
     };
 
     const { signup } = useUser();
-
-    // ... (rest of state initialization)
+    const [submitting, setSubmitting] = useState(false);
+    const [needsConfirmation, setNeedsConfirmation] = useState(false);
 
     const handleRegister = async (e) => {
         e.preventDefault();
@@ -129,57 +129,29 @@ const Register = () => {
             return;
         }
 
+        setSubmitting(true);
         try {
-            await signup(formData.email, formData.password, {
+            const result = await signup(formData.email, formData.password, {
                 full_name: formData.name,
                 country: formData.country,
                 avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(formData.name)}`,
                 bio: 'Movie and TV enthusiast',
             });
 
-            // Success
-            alert('Account created successfully! Please check your email to confirm if required.');
-            window.location.href = '/';
-        } catch (err) {
-            console.error(err);
-            // Fallback to local storage
-            // Check if email already exists
-            const users = JSON.parse(localStorage.getItem('app_users') || '[]');
-            const existingUser = users.find(u => u.email === formData.email);
-
-            if (existingUser) {
-                setErrors({ email: 'Email already registered' });
+            if (result?.needsConfirmation) {
+                setNeedsConfirmation(true);
                 return;
             }
-
-            // Create new user (Local)
-            const newUser = {
-                id: Date.now(),
-                name: formData.name,
-                email: formData.email,
-                password: formData.password,
-                country: formData.country,
-                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${formData.name}`,
-                bio: 'Movie and TV enthusiast',
-                joinDate: new Date().toISOString().split('T')[0],
-                level: 'Beginner'
-            };
-
-            users.push(newUser);
-            localStorage.setItem('app_users', JSON.stringify(users));
-            localStorage.setItem('current_user', JSON.stringify(newUser));
-            localStorage.setItem('is_authenticated', 'true');
-            localStorage.setItem('user_profile', JSON.stringify({
-                name: newUser.name,
-                email: newUser.email,
-                country: newUser.country,
-                avatar: newUser.avatar,
-                bio: newUser.bio,
-                joinDate: newUser.joinDate
-            }));
-
-            alert('Account created successfully (Local)!');
-            window.location.href = '/';
+            navigate('/', { replace: true });
+        } catch (err) {
+            const message = err.message || 'Could not create the account';
+            if (/already registered/i.test(message)) {
+                setErrors({ email: message });
+            } else {
+                setErrors({ confirmPassword: message });
+            }
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -238,6 +210,21 @@ const Register = () => {
                     Create Account
                 </h2>
 
+                {needsConfirmation ? (
+                    <div style={{ textAlign: 'center' }}>
+                        <Mail size={40} color="var(--brand-600)" style={{ marginBottom: '12px' }} />
+                        <p style={{ color: 'var(--text-primary)', fontWeight: 600, marginBottom: '8px' }}>
+                            Almost there!
+                        </p>
+                        <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                            We sent a confirmation link to <strong>{formData.email}</strong>.
+                            Confirm your email, then log in.
+                        </p>
+                        <button className="action-btn primary" onClick={() => navigate('/login')}>
+                            Go to Login
+                        </button>
+                    </div>
+                ) : (
                 <form onSubmit={handleRegister}>
                     {/* Name */}
                     <div style={{ marginBottom: '20px' }}>
@@ -482,6 +469,7 @@ const Register = () => {
                     <button
                         type="submit"
                         className="action-btn primary"
+                        disabled={submitting}
                         style={{
                             width: '100%',
                             padding: '14px',
@@ -489,9 +477,10 @@ const Register = () => {
                             fontWeight: '600'
                         }}
                     >
-                        Create Account
+                        {submitting ? 'Creating account...' : 'Create Account'}
                     </button>
                 </form>
+                )}
             </motion.div>
 
             {/* Login Link */}

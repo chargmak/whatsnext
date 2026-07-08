@@ -1,17 +1,21 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Film, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Film, Mail, Lock, Eye, EyeOff, UserCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUser } from '../context/UserContext';
+import { supabase } from '../services/supabase';
 
 const Login = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [showPassword, setShowPassword] = useState(false);
     const [formData, setFormData] = useState({
         email: '',
         password: ''
     });
     const [errors, setErrors] = useState({});
+    const [submitting, setSubmitting] = useState(false);
+    const [resetNotice, setResetNotice] = useState('');
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -43,9 +47,7 @@ const Login = () => {
         return newErrors;
     };
 
-    const { login } = useUser();
-
-    // ... (rest of state initialization) ...
+    const { login, enterGuestMode } = useUser();
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -56,36 +58,38 @@ const Login = () => {
             return;
         }
 
+        setSubmitting(true);
         try {
             await login(formData.email, formData.password);
-
-            // If we get here, login was successful
-            // Wait a brief moment for state to sync if needed, though context handles it
-            window.location.href = '/';
+            navigate(location.state?.from || '/', { replace: true });
         } catch (err) {
-            console.error(err);
-            // Fallback: check local storage for demo users if Supabase fails/not configured
-            const users = JSON.parse(localStorage.getItem('app_users') || '[]');
-            const user = users.find(u => u.email === formData.email && u.password === formData.password);
-
-            if (user) {
-                localStorage.setItem('current_user', JSON.stringify(user));
-                localStorage.setItem('is_authenticated', 'true');
-                localStorage.setItem('user_profile', JSON.stringify({
-                    name: user.name,
-                    email: user.email,
-                    avatar: user.avatar,
-                    bio: user.bio || 'Movie and TV enthusiast',
-                    joinDate: user.joinDate
-                }));
-                alert('Login successful (Local)!');
-                window.location.href = '/';
-            } else {
-                setErrors({ password: err.message || 'Invalid email or password' });
-            }
+            setErrors({ password: err.message || 'Invalid email or password' });
+        } finally {
+            setSubmitting(false);
         }
     };
 
+    const handleForgotPassword = async () => {
+        setResetNotice('');
+        if (!formData.email || !/\S+@\S+\.\S+/.test(formData.email)) {
+            setErrors({ email: 'Enter your email above first, then tap "Forgot password?"' });
+            return;
+        }
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(formData.email, {
+                redirectTo: `${window.location.origin}/reset-password`,
+            });
+            if (error) throw error;
+            setResetNotice('Password reset email sent — check your inbox.');
+        } catch (err) {
+            setErrors({ email: err.message || 'Could not send reset email' });
+        }
+    };
+
+    const handleGuest = () => {
+        enterGuestMode();
+        navigate('/', { replace: true });
+    };
 
 
     return (
@@ -239,21 +243,59 @@ const Login = () => {
                                 {errors.password}
                             </p>
                         )}
+                        {supabase && (
+                            <div style={{ textAlign: 'right', marginTop: '8px' }}>
+                                <button
+                                    type="button"
+                                    onClick={handleForgotPassword}
+                                    style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: 'var(--text-secondary)',
+                                        cursor: 'pointer',
+                                        fontSize: '0.85rem',
+                                        textDecoration: 'underline',
+                                        padding: 0
+                                    }}
+                                >
+                                    Forgot password?
+                                </button>
+                            </div>
+                        )}
+                        {resetNotice && (
+                            <p style={{ color: '#10B981', fontSize: '0.85rem', marginTop: '8px', marginBottom: 0 }}>
+                                {resetNotice}
+                            </p>
+                        )}
                     </div>
+
+                    {!supabase && (
+                        <p style={{
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.9rem',
+                            background: 'rgba(255,255,255,0.05)',
+                            padding: '12px',
+                            borderRadius: 'var(--radius-md)',
+                            marginBottom: '16px'
+                        }}>
+                            Accounts are unavailable in this deployment. You can still use the app as a guest below.
+                        </p>
+                    )}
 
                     {/* Login Button */}
                     <button
                         type="submit"
                         className="action-btn primary"
+                        disabled={submitting || !supabase}
                         style={{
                             width: '100%',
                             padding: '14px',
                             fontSize: '1rem',
                             fontWeight: '600',
-
+                            opacity: !supabase ? 0.5 : 1
                         }}
                     >
-                        Log In
+                        {submitting ? 'Logging in...' : 'Log In'}
                     </button>
 
 
@@ -283,6 +325,24 @@ const Login = () => {
                     >
                         Sign Up
                     </button>
+                </p>
+
+                <button
+                    onClick={handleGuest}
+                    className="action-btn"
+                    style={{
+                        marginTop: '20px',
+                        padding: '12px 24px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}
+                >
+                    <UserCircle size={20} />
+                    Continue as guest
+                </button>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '8px' }}>
+                    Guest data stays on this device. You can create an account later to sync it.
                 </p>
             </motion.div>
         </div>
