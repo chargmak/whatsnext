@@ -1,0 +1,8 @@
+# Supabase CLI project config.
+# `project_id` is the project ref (public, appears in your project URL).
+project_id = "vtftqdsltwernbjvewqm"
+
+# The reminder job authenticates callers itself via CRON_SECRET, so it does not
+# use Supabase's built-in JWT gate. Deploy it with JWT verification disabled.
+[functions.send-release-reminders]
+verify_jwt = false
