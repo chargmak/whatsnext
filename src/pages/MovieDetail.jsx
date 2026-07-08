@@ -597,11 +597,12 @@ const MediaDetail = ({ type }) => {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
+                        onClick={() => setShowTrailer(false)}
                         style={{
                             position: 'fixed', inset: 0, zIndex: 3000,
                             background: 'rgba(0,0,0,0.95)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            padding: '20px'
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            padding: '20px', gap: '14px'
                         }}
                     >
                         <button
@@ -616,17 +617,42 @@ const MediaDetail = ({ type }) => {
                             <X size={24} color="black" />
                         </button>
 
-                        <div style={{ width: '100%', maxWidth: '900px', aspectRatio: '16/9', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 0 30px rgba(255,255,255,0.1)' }}>
+                        <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ position: 'relative', width: '100%', maxWidth: '900px', aspectRatio: '16/9', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 0 30px rgba(255,255,255,0.1)', background: '#000' }}
+                        >
+                            {/* Sits behind the player, so a blocked/slow embed shows a hint instead of a black void. */}
+                            <div style={{
+                                position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'center', padding: '16px'
+                            }}>
+                                Loading trailer…
+                            </div>
+                            {/* Muted + playsinline so autoplay is allowed on mobile (esp. iOS) instead of
+                                stalling on a black frame; rel=0 keeps unrelated videos out of the end card. */}
                             <iframe
                                 width="100%"
                                 height="100%"
-                                src={`https://www.youtube.com/embed/${item.trailerKey}?autoplay=1`}
-                                title="Trailer"
+                                src={`https://www.youtube.com/embed/${item.trailerKey}?autoplay=1&mute=1&playsinline=1&rel=0`}
+                                title={`${item.title} — Trailer`}
                                 frameBorder="0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                referrerPolicy="strict-origin-when-cross-origin"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                                 allowFullScreen
+                                style={{ position: 'relative', zIndex: 1, display: 'block' }}
                             ></iframe>
                         </div>
+
+                        {/* Escape hatch when the embed can't play (region locks, disabled embedding, no network). */}
+                        <a
+                            href={`https://www.youtube.com/watch?v=${item.trailerKey}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textDecoration: 'underline' }}
+                        >
+                            Trailer not playing? Watch on YouTube ↗
+                        </a>
                     </motion.div>
                 )}
             </AnimatePresence>
