@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bot, X, Send } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { searchMulti, discoverByGenre } from '../services/tmdb';
 import { supabase } from '../services/supabase';
 import { useUser } from '../context/UserContext';
+import { useCineBot } from '../context/CineBotContext';
 
 // Real Claude-powered replies run through a Supabase Edge Function (see
 // supabase/functions/cinebot). Enable by deploying it and setting
@@ -49,12 +50,21 @@ const detectRuntimeCap = (text) => {
     return null;
 };
 
+// Opening line, shared by the greeting effect and the auto-send effect so they
+// never drift apart. Kept at module scope so it isn't a render-changing dep.
+const buildGreeting = (displayName) => ({
+    id: 1,
+    isBot: true,
+    text: `Hi ${displayName}! I'm CineBot. Tell me a mood ("something funny under 90 min"), a title, or ask "what should I watch next?"`,
+});
+
 const CineBot = () => {
     const navigate = useNavigate();
-    const { user, status, watchlist, watched } = useUser();
+    const location = useLocation();
+    const { user, watchlist, watched } = useUser();
+    const { isOpen, openBot, closeBot, pendingPrompt, consumePrompt } = useCineBot();
     const displayName = user?.name || 'there';
 
-    const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
@@ -68,11 +78,7 @@ const CineBot = () => {
     useEffect(() => {
         if (isOpen && !greetedRef.current) {
             greetedRef.current = true;
-            setMessages([{
-                id: 1,
-                isBot: true,
-                text: `Hi ${displayName}! I'm CineBot. Tell me a mood ("something funny under 90 min"), a title, or ask "what should I watch next?"`,
-            }]);
+            setMessages([buildGreeting(displayName)]);
         }
     }, [isOpen, displayName]);
 
@@ -149,8 +155,10 @@ const CineBot = () => {
         return { text: "I couldn't find a good match for that. Try a genre, a mood, or a specific title." };
     };
 
-    const handleSend = async () => {
-        const userText = input.trim();
+    // overrideText lets the Home widget send a canned prompt through the same
+    // pipeline; when omitted we use whatever is typed in the input box.
+    const handleSend = async (overrideText) => {
+        const userText = (typeof overrideText === 'string' ? overrideText : input).trim();
         if (!userText) return;
         setMessages((prev) => [...prev, { id: Date.now(), text: userText, isBot: false }]);
         setInput('');
@@ -167,14 +175,29 @@ const CineBot = () => {
         }
     };
 
+    // When opened with a prompt (e.g. a Home "What's Next?" chip), auto-send it
+    // once. consumePrompt() clears it so this fires exactly once per request.
+    useEffect(() => {
+        if (!isOpen || !pendingPrompt) return;
+        if (!greetedRef.current) {
+            greetedRef.current = true;
+            setMessages([buildGreeting(displayName)]);
+        }
+        const prompt = pendingPrompt;
+        consumePrompt();
+        handleSend(prompt);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, pendingPrompt]);
+
     // Hide on auth screens where a floating chat would overlap the forms.
-    if (status === 'signedOut') return null;
+    const AUTH_ROUTES = ['/login', '/register', '/reset-password'];
+    if (AUTH_ROUTES.includes(location.pathname)) return null;
 
     return (
         <>
             <motion.button
                 className="flex-center"
-                onClick={() => setIsOpen(true)}
+                onClick={() => openBot()}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 style={{
@@ -225,7 +248,7 @@ const CineBot = () => {
                                 <h3 style={{ margin: 0, fontSize: '1rem' }}>CineBot</h3>
                             </div>
                             <button
-                                onClick={() => setIsOpen(false)}
+                                onClick={() => closeBot()}
                                 style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
                             >
                                 <X size={20} />
@@ -253,7 +276,7 @@ const CineBot = () => {
                                     <div style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</div>
                                     {msg.link && (
                                         <button
-                                            onClick={() => { navigate(msg.link); setIsOpen(false); }}
+                                            onClick={() => { navigate(msg.link); closeBot(); }}
                                             style={{
                                                 marginTop: '8px',
                                                 background: 'var(--bg-secondary)',
@@ -292,7 +315,7 @@ const CineBot = () => {
                                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                             />
                             <button
-                                onClick={handleSend}
+                                onClick={() => handleSend()}
                                 className="flex-center"
                                 style={{
                                     width: '42px', height: '42px', borderRadius: '50%',
