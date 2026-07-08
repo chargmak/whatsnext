@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Play, Plus, Check, Share2, Bell, Star, X, Film } from 'lucide-react';
-import { getDetails, mapMediaData, getTVSeasonDetails } from '../services/tmdb';
+import { ArrowLeft, Play, Plus, Check, Share2, Bell, Star, X, Film, Layers } from 'lucide-react';
+import { getDetails, mapMediaData, getTVSeasonDetails, getCollection } from '../services/tmdb';
 import { TRENDING_MOVIES } from '../data/mockData';
 import { useUser } from '../context/UserContext';
 
@@ -17,6 +17,7 @@ const MediaDetail = ({ type }) => {
     const [seasons, setSeasons] = useState([]);
     const [selectedSeason, setSelectedSeason] = useState(1);
     const [loadingEpisodes, setLoadingEpisodes] = useState(false);
+    const [collection, setCollection] = useState(null);
 
     const {
         status, user,
@@ -81,6 +82,7 @@ const MediaDetail = ({ type }) => {
                     ...mapped,
                     trailerKey: tmdbData.trailerKey,
                     credits: tmdbData.credits,
+                    belongsToCollection: tmdbData.belongs_to_collection || null,
                     streaming: tmdbData.providers?.flatrate?.map(p => ({
                         name: p.provider_name,
                         logo: `https://image.tmdb.org/t/p/original${p.logo_path}`
@@ -96,6 +98,22 @@ const MediaDetail = ({ type }) => {
 
         fetchDetail();
     }, [id, type, user?.country]);
+
+    // Load franchise/collection details for movies that belong to one.
+    useEffect(() => {
+        let active = true;
+        const collectionId = item?.belongsToCollection?.id;
+        const load = async () => {
+            if (type === 'movie' && collectionId) {
+                const data = await getCollection(collectionId);
+                if (active) setCollection(data);
+            } else {
+                setCollection(null);
+            }
+        };
+        load();
+        return () => { active = false; };
+    }, [type, item?.belongsToCollection?.id]);
 
     if (loading) return <div className="container flex-center" style={{ height: '100vh' }}>Loading...</div>;
     if (!item) return <div className="container flex-center" style={{ height: '100vh' }}>Media not found</div>;
@@ -116,6 +134,19 @@ const MediaDetail = ({ type }) => {
     };
 
     const timeLeft = calculateTimeLeft();
+
+    const franchiseParts = collection?.parts || [];
+    const franchiseWatchedCount = franchiseParts.filter(
+        (p) => watched.some((w) => w.id === p.id && w.type === 'movie')
+    ).length;
+
+    const addFranchiseToWatchlist = () => withUser(() => {
+        franchiseParts.forEach((p) => {
+            const seen = watched.some((w) => w.id === p.id);
+            const listed = watchlist.some((w) => w.id === p.id);
+            if (!seen && !listed) addToWatchlist({ ...p, genres: [] });
+        });
+    });
 
     return (
         <div style={{ paddingBottom: '100px', background: 'var(--bg-primary)', minHeight: '100vh' }}>
@@ -253,7 +284,11 @@ const MediaDetail = ({ type }) => {
                                 msOverflowStyle: 'none'
                             }}>
                                 {item.credits.map((actor) => (
-                                    <div key={actor.id} style={{ minWidth: '100px', textAlign: 'center' }}>
+                                    <div
+                                        key={actor.id}
+                                        onClick={() => navigate(`/person/${actor.id}`)}
+                                        style={{ minWidth: '100px', textAlign: 'center', cursor: 'pointer' }}
+                                    >
                                         <img
                                             src={actor.profile_path
                                                 ? `https://image.tmdb.org/t/p/w200${actor.profile_path}`
@@ -273,6 +308,85 @@ const MediaDetail = ({ type }) => {
                                     </div>
                                 ))}
                             </div>
+                        </div>
+                    )}
+
+                    {/* Franchise / Collection Tracking - Movies Only */}
+                    {type === 'movie' && franchiseParts.length > 1 && (
+                        <div style={{ marginTop: '30px', marginBottom: '30px' }}>
+                            <div className="flex-between" style={{ marginBottom: '16px' }}>
+                                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Layers size={20} color="var(--brand-600)" /> {collection.name}
+                                </h3>
+                                <span style={{
+                                    fontSize: '0.85rem', fontWeight: 700, color: 'var(--brand-600)',
+                                    background: 'rgba(220,38,38,0.12)', padding: '4px 10px', borderRadius: '999px'
+                                }}>
+                                    {franchiseWatchedCount}/{franchiseParts.length} watched
+                                </span>
+                            </div>
+
+                            {/* Progress bar */}
+                            <div style={{ height: '6px', background: 'var(--bg-tertiary)', borderRadius: '999px', overflow: 'hidden', marginBottom: '16px' }}>
+                                <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${(franchiseWatchedCount / franchiseParts.length) * 100}%` }}
+                                    transition={{ duration: 0.6 }}
+                                    style={{ height: '100%', background: 'var(--accent-gradient)' }}
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {franchiseParts.map((part) => {
+                                    const seen = watched.some((w) => w.id === part.id && w.type === 'movie');
+                                    const isCurrent = part.id === item.id;
+                                    return (
+                                        <div
+                                            key={part.id}
+                                            onClick={() => !isCurrent && navigate(`/movie/${part.id}`)}
+                                            className="glass-panel"
+                                            style={{
+                                                padding: '10px 12px', borderRadius: 'var(--radius-md)',
+                                                display: 'flex', alignItems: 'center', gap: '12px',
+                                                cursor: isCurrent ? 'default' : 'pointer',
+                                                border: `1px solid ${isCurrent ? 'var(--brand-600)' : 'rgba(255,255,255,0.05)'}`,
+                                                opacity: seen ? 0.75 : 1
+                                            }}
+                                        >
+                                            <div style={{
+                                                width: '24px', height: '24px', borderRadius: '50%', flexShrink: 0,
+                                                border: `2px solid ${seen ? 'var(--brand-600)' : 'var(--text-secondary)'}`,
+                                                background: seen ? 'var(--brand-600)' : 'transparent',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                            }}>
+                                                {seen && <Check size={14} color="white" strokeWidth={3} />}
+                                            </div>
+                                            <img
+                                                src={part.poster}
+                                                alt={part.title}
+                                                loading="lazy"
+                                                style={{ width: '40px', height: '60px', borderRadius: '6px', objectFit: 'cover', flexShrink: 0 }}
+                                            />
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {part.title}{isCurrent ? ' • Now viewing' : ''}
+                                                </div>
+                                                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{part.year || 'TBA'}</div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {franchiseWatchedCount < franchiseParts.length && (
+                                <button
+                                    onClick={addFranchiseToWatchlist}
+                                    className="btn"
+                                    style={{ width: '100%', marginTop: '14px', background: 'var(--bg-tertiary)' }}
+                                >
+                                    <Plus size={18} style={{ marginRight: '8px' }} /> Add remaining to watchlist
+                                </button>
+                            )}
                         </div>
                     )}
 

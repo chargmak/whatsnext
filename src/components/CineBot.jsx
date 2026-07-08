@@ -2,77 +2,173 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bot, X, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { searchMulti } from '../services/tmdb';
+import { searchMulti, discoverByGenre } from '../services/tmdb';
+import { supabase } from '../services/supabase';
+import { useUser } from '../context/UserContext';
+
+// Real Claude-powered replies run through a Supabase Edge Function (see
+// supabase/functions/cinebot). Enable by deploying it and setting
+// VITE_CINEBOT_AI=true. Without it, CineBot still works using the
+// intent-aware local recommender below.
+const AI_ENABLED = import.meta.env.VITE_CINEBOT_AI === 'true';
+
+// Natural-language mood/genre → TMDB genre (matches GENRE_MAP in tmdb.js).
+const MOOD_MAP = [
+    [/(funny|comedy|laugh|hilarious|humou?r|light[- ]?hearted)/, 'Comedy'],
+    [/(scary|horror|creepy|frightening|terrifying)/, 'Horror'],
+    [/(action|explosion|adrenaline|fight)/, 'Action'],
+    [/(romantic|romance|love story|date night)/, 'Romance'],
+    [/(thriller|suspense|tense|edge of my seat)/, 'Thriller'],
+    [/(sad|emotional|cry|tear[- ]?jerker|moving|drama)/, 'Drama'],
+    [/(sci[- ]?fi|science fiction|space|futuristic|dystop)/, 'Sci-Fi'],
+    [/(fantasy|magic|magical|mythical)/, 'Fantasy'],
+    [/(animated|animation|cartoon|anime)/, 'Animation'],
+    [/(documentary|docu|true story|real life)/, 'Documentary'],
+    [/(mystery|detective|whodunit|investigat)/, 'Mystery'],
+    [/(family|kids|children|wholesome)/, 'Family'],
+    [/(crime|heist|gangster|mafia)/, 'Crime'],
+    [/(western|cowboy)/, 'Western'],
+    [/(war|military|battle)/, 'War'],
+    [/(adventure|epic|quest)/, 'Adventure'],
+];
+
+const LIBRARY_INTENT = /(watch ?list|my list|from my list|what should i watch|what to watch|recommend|suggest|pick something|choose|surprise me|watch next|next up)/;
+
+const detectGenre = (text) => {
+    for (const [re, genre] of MOOD_MAP) if (re.test(text)) return genre;
+    return null;
+};
+
+// "under 90 min", "less than 2 hours", "short" → minutes cap (used for messaging).
+const detectRuntimeCap = (text) => {
+    const mins = text.match(/(\d{2,3})\s*(?:min|minutes|mins)/);
+    if (mins) return Number(mins[1]);
+    const hours = text.match(/(\d)\s*(?:h|hour|hours)/);
+    if (hours) return Number(hours[1]) * 60;
+    if (/\b(short|quick|brief)\b/.test(text)) return 100;
+    return null;
+};
 
 const CineBot = () => {
+    const navigate = useNavigate();
+    const { user, status, watchlist, watched } = useUser();
+    const displayName = user?.name || 'there';
+
     const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState([
-        { id: 1, text: "Hi Dimitrios! I'm CineBot. Tell me what you're in the mood for (e.g., 'Batman', 'Comedy', 'Dune').", isBot: true }
-    ]);
-    const [input, setInput] = useState("");
+    const [messages, setMessages] = useState([]);
+    const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const messagesEndRef = useRef(null);
-    const navigate = useNavigate();
+    const greetedRef = useRef(false);
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-
+    const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     useEffect(scrollToBottom, [messages, isTyping]);
 
-    const handleSend = async () => {
-        if (!input.trim()) return;
+    // Greet with the real profile name the first time the panel opens.
+    useEffect(() => {
+        if (isOpen && !greetedRef.current) {
+            greetedRef.current = true;
+            setMessages([{
+                id: 1,
+                isBot: true,
+                text: `Hi ${displayName}! I'm CineBot. Tell me a mood ("something funny under 90 min"), a title, or ask "what should I watch next?"`,
+            }]);
+        }
+    }, [isOpen, displayName]);
 
-        const userText = input;
-        const userMsg = { id: Date.now(), text: userText, isBot: false };
-        setMessages(prev => [...prev, userMsg]);
-        setInput("");
+    const pushBot = (text, link = null) =>
+        setMessages((prev) => [...prev, { id: Date.now() + Math.random(), isBot: true, text, link }]);
+
+    // Try the Claude-powered Edge Function; return null to fall back locally.
+    const tryAI = async (userText) => {
+        if (!AI_ENABLED || !supabase) return null;
+        try {
+            const history = messages
+                .filter((m) => m.text)
+                .slice(-8)
+                .map((m) => ({ role: m.isBot ? 'assistant' : 'user', content: m.text }));
+            const { data, error } = await supabase.functions.invoke('cinebot', {
+                body: { message: userText, history },
+            });
+            if (error || !data?.reply) return null;
+            const first = Array.isArray(data.items) ? data.items[0] : null;
+            return { text: data.reply, link: first ? `/${first.type}/${first.id}` : null };
+        } catch {
+            return null;
+        }
+    };
+
+    // Intent-aware local recommender (works with no backend).
+    const localReply = async (userText) => {
+        const lower = userText.toLowerCase();
+
+        if (/^\s*(hi|hey|hello|yo|sup)\b/.test(lower)) {
+            return { text: `Hey ${displayName}! What are you in the mood for — a genre, a vibe, or a specific title?` };
+        }
+
+        // "What should I watch?" → pull from the user's own watchlist.
+        if (LIBRARY_INTENT.test(lower) && watchlist.length > 0) {
+            const pick = watchlist[Math.floor((Date.now() / 1000) % watchlist.length)];
+            return {
+                text: `From your watchlist, how about **${pick.title}**${pick.year ? ` (${pick.year})` : ''}? It's been waiting for you.`,
+                link: `/${pick.type || 'movie'}/${pick.id}`,
+            };
+        }
+
+        // Mood/genre → discover a well-rated title you haven't seen.
+        const genre = detectGenre(lower);
+        if (genre) {
+            const cap = detectRuntimeCap(lower);
+            const data = await discoverByGenre(genre);
+            const seen = new Set(watched.map((m) => m.id));
+            const candidates = (data?.results || []).filter((r) => !seen.has(r.id));
+            const best = candidates[0];
+            if (best) {
+                const title = best.title || best.name;
+                const type = best.media_type || (best.first_air_date ? 'tv' : 'movie');
+                const year = (best.release_date || best.first_air_date)?.split('-')[0] || '';
+                const capNote = cap ? ` You mentioned around ${cap} min — double-check the runtime on its page.` : '';
+                return {
+                    text: `For a **${genre.toLowerCase()}** pick: **${title}**${year ? ` (${year})` : ''}.\n\n${(best.overview || '').slice(0, 120)}…${capNote}`,
+                    link: `/${type}/${best.id}`,
+                };
+            }
+        }
+
+        // Fallback: treat the input as a title search.
+        const data = await searchMulti(userText);
+        const match = data?.results?.find((r) => r.media_type === 'movie' || r.media_type === 'tv');
+        if (match) {
+            const title = match.title || match.name;
+            const year = (match.release_date || match.first_air_date)?.split('-')[0] || '';
+            return {
+                text: `I found **${title}**${year ? ` (${year})` : ''}.\n\n${(match.overview || '').slice(0, 120)}…`,
+                link: `/${match.media_type}/${match.id}`,
+            };
+        }
+        return { text: "I couldn't find a good match for that. Try a genre, a mood, or a specific title." };
+    };
+
+    const handleSend = async () => {
+        const userText = input.trim();
+        if (!userText) return;
+        setMessages((prev) => [...prev, { id: Date.now(), text: userText, isBot: false }]);
+        setInput('');
         setIsTyping(true);
 
         try {
-            // 1. Simple Keyword Checks (Mock "personality")
-            const lowerInput = userText.toLowerCase();
-            let botResponse = null;
-            let recommendedPath = null;
-
-            if (lowerInput.includes('hello') || lowerInput.includes('hi ')) {
-                botResponse = "Hello! Ready to find a movie?";
-            } else {
-                // 2. Real TMDB Search
-                const data = await searchMulti(userText);
-                const bestMatch = data?.results?.find(item => item.media_type === 'movie' || item.media_type === 'tv');
-
-                if (bestMatch) {
-                    const title = bestMatch.title || bestMatch.name;
-                    const type = bestMatch.media_type;
-                    const year = (bestMatch.release_date || bestMatch.first_air_date)?.split('-')[0] || '';
-
-                    botResponse = `I found "**${title}**" (${year}). \n\n${bestMatch.overview?.substring(0, 100)}...`;
-                    recommendedPath = `/${type}/${bestMatch.id}`;
-                } else {
-                    botResponse = "I couldn't find anything matching that. Try a different title?";
-                }
-            }
-
-            // Simulate "thinking" delay
-            setTimeout(() => {
-                setMessages(prev => [
-                    ...prev,
-                    {
-                        id: Date.now() + 1,
-                        text: botResponse,
-                        isBot: true,
-                        link: recommendedPath
-                    }
-                ]);
-                setIsTyping(false);
-            }, 1000);
-
+            const reply = (await tryAI(userText)) || (await localReply(userText));
+            pushBot(reply.text, reply.link);
         } catch (error) {
-            console.error("Bot Error", error);
+            console.error('CineBot error', error);
+            pushBot('Something went wrong on my end. Mind trying again?');
+        } finally {
             setIsTyping(false);
         }
     };
+
+    // Hide on auth screens where a floating chat would overlap the forms.
+    if (status === 'signedOut') return null;
 
     return (
         <>
@@ -88,9 +184,9 @@ const CineBot = () => {
                     width: '56px',
                     height: '56px',
                     borderRadius: '28px',
-                    background: 'var(--accent-gradient)', // Uses new red gradient
+                    background: 'var(--accent-gradient)',
                     border: 'none',
-                    boxShadow: '0 4px 15px rgba(220, 38, 38, 0.5)', // Red shadow
+                    boxShadow: '0 4px 15px rgba(220, 38, 38, 0.5)',
                     zIndex: 900,
                     cursor: 'pointer',
                     color: 'white'
@@ -114,9 +210,7 @@ const CineBot = () => {
                             top: '100px',
                             maxWidth: '400px',
                             marginLeft: 'auto',
-                            // Removed opaque background, handled by glass-panel
                             borderRadius: 'var(--radius-lg)',
-                            // Border handled by glass-panel
                             boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
                             zIndex: 950,
                             display: 'flex',
@@ -190,12 +284,12 @@ const CineBot = () => {
                         <div style={{ padding: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', gap: '10px' }}>
                             <input
                                 type="text"
-                                placeholder="Type a movie or show..."
+                                placeholder="Mood, title, or 'what's next?'"
                                 className="input-field"
                                 style={{ borderRadius: '24px', padding: '10px 16px' }}
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                             />
                             <button
                                 onClick={handleSend}
@@ -209,7 +303,6 @@ const CineBot = () => {
                                 <Send size={18} />
                             </button>
                         </div>
-
                     </motion.div>
                 )}
             </AnimatePresence>

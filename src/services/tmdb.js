@@ -3,6 +3,10 @@ const BASE_URL = "https://api.themoviedb.org/3";
 const IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
 const BACKDROP_BASE_URL = "https://image.tmdb.org/t/p/original";
 
+// Build a TMDB image URL for an arbitrary path/size, or a placeholder.
+export const imageUrl = (path, size = 'w500', fallback = 'https://via.placeholder.com/500x750?text=No+Image') =>
+    path ? `https://image.tmdb.org/t/p/${size}${path}` : fallback;
+
 // Helper to handle responses
 const fetchFromTMDB = async (endpoint, params = {}) => {
     if (!API_KEY) {
@@ -166,4 +170,84 @@ export const discoverByGenre = async (genreName) => {
     }
 
     return { results: combined.slice(0, 20) }; // Limit to 20 results
+};
+
+// --- People (completionist / person pages) ---
+
+// TV genres that are noise for a "filmography" (talk / news / reality).
+const NON_FILM_TV_GENRES = new Set([10767, 10763, 10764]);
+
+export const getPersonDetails = async (personId) => {
+    return await fetchFromTMDB(`/person/${personId}`);
+};
+
+// Normalize one entry from /person/{id}/combined_credits into the app shape.
+export const mapPersonCredit = (item) => {
+    const isTv = item.media_type === 'tv';
+    return {
+        id: item.id,
+        type: isTv ? 'tv' : 'movie',
+        title: item.title || item.name,
+        poster: imageUrl(item.poster_path, 'w500'),
+        posterPath: item.poster_path || null,
+        year: (item.release_date || item.first_air_date)?.split('-')[0] || '',
+        releaseDate: item.release_date || item.first_air_date || null,
+        rating: item.vote_average ? item.vote_average.toFixed(1) : 'N/A',
+        popularity: item.popularity || 0,
+        voteCount: item.vote_count || 0,
+        genreIds: item.genre_ids || [],
+        character: item.character || null,
+        job: item.job || null,
+        department: item.department || null,
+    };
+};
+
+// A person's notable, watch-trackable filmography (cast + directing/writing crew),
+// de-duped, cleaned of talk/news/reality, and sorted by popularity.
+export const getPersonCredits = async (personId) => {
+    const data = await fetchFromTMDB(`/person/${personId}/combined_credits`);
+    if (!data) return { cast: [], crew: [] };
+
+    const clean = (list) => {
+        const seen = new Set();
+        return (list || [])
+            .filter((c) => (c.media_type === 'movie' || c.media_type === 'tv') && c.poster_path)
+            .filter((c) => !(c.genre_ids || []).some((g) => NON_FILM_TV_GENRES.has(g)))
+            .map(mapPersonCredit)
+            .filter((c) => {
+                const key = `${c.type}-${c.id}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            })
+            .sort((a, b) => b.popularity - a.popularity);
+    };
+
+    // Only surface meaningful crew roles (directors, writers, creators).
+    const keyJobs = new Set(['Director', 'Writer', 'Screenplay', 'Creator', 'Executive Producer']);
+    const crew = clean((data.crew || []).filter((c) => keyJobs.has(c.job)));
+
+    return { cast: clean(data.cast), crew };
+};
+
+// --- Franchises / collections (belongs_to_collection) ---
+
+export const getCollection = async (collectionId) => {
+    const data = await fetchFromTMDB(`/collection/${collectionId}`);
+    if (!data) return null;
+    const parts = (data.parts || [])
+        .map((p) => mapPersonCredit({ ...p, media_type: 'movie' }))
+        .sort((a, b) => {
+            if (!a.releaseDate) return 1;
+            if (!b.releaseDate) return -1;
+            return a.releaseDate.localeCompare(b.releaseDate); // chronological watch order
+        });
+    return {
+        id: data.id,
+        name: data.name,
+        overview: data.overview,
+        poster: imageUrl(data.poster_path, 'w500'),
+        backdrop: data.backdrop_path ? `${BACKDROP_BASE_URL}${data.backdrop_path}` : null,
+        parts,
+    };
 };

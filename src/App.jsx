@@ -16,6 +16,8 @@ import Register from './pages/Register';
 import ResetPassword from './pages/ResetPassword';
 import NotFound from './pages/NotFound';
 import MediaDetail from './pages/MovieDetail';
+import Person from './pages/Person';
+import CineBot from './components/CineBot';
 import { UserProvider } from './context/UserContext';
 
 function App() {
@@ -38,9 +40,11 @@ function App() {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/movie/:id" element={<MediaDetail type="movie" />} />
               <Route path="/tv/:id" element={<MediaDetail type="tv" />} />
+              <Route path="/person/:id" element={<Person />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </ErrorBoundary>
+          <CineBot />
           <InstallPrompt />
           <BottomNav />
         </div>
