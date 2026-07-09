@@ -5,6 +5,14 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { SlidersHorizontal } from 'lucide-react';
 import { getTVWatchStatus } from '../services/tmdb';
+import UpNext from '../components/UpNext';
+
+// Toggle order + display labels; internal ids stay space-free.
+const TABS = [
+    { id: 'watchlist', label: 'Watchlist' },
+    { id: 'upnext', label: 'Up Next' },
+    { id: 'watched', label: 'Watched' },
+];
 
 const Library = () => {
     const [activeTab, setActiveTab] = useState('watchlist');
@@ -73,6 +81,12 @@ const Library = () => {
     // Get items based on active tab
     const rawItems = activeTab === 'watchlist' ? watchlist : watchedItems;
 
+    // Shows we can compute a "next episode" for: the TV entries in the watchlist.
+    const tvWatchlist = useMemo(
+        () => watchlist.filter((item) => item.type === 'tv'),
+        [watchlist]
+    );
+
     // Apply filtering and sorting
     const items = useMemo(() => {
         let filtered = [...rawItems];
@@ -105,15 +119,14 @@ const Library = () => {
 
             {/* Toggle Container - Matching Home Page Style */}
             <div className="toggle-container" style={{ margin: '30px 0' }}>
-                {['watchlist', 'watched'].map((tab) => (
+                {TABS.map(({ id, label }) => (
                     <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={`toggle-btn ${activeTab === tab ? 'active' : ''}`}
-                        style={{ textTransform: 'capitalize' }}
+                        key={id}
+                        onClick={() => setActiveTab(id)}
+                        className={`toggle-btn ${activeTab === id ? 'active' : ''}`}
                     >
-                        {tab}
-                        {activeTab === tab && (
+                        {label}
+                        {activeTab === id && (
                             <motion.div
                                 layoutId="libraryActiveTab"
                                 style={{
@@ -131,6 +144,10 @@ const Library = () => {
                 ))}
             </div>
 
+            {activeTab === 'upnext' ? (
+                <UpNext series={tvWatchlist} />
+            ) : (
+            <>
             {/* Sort and Filter Controls */}
             <div style={{
                 display: 'flex',
@@ -202,6 +219,8 @@ const Library = () => {
                         Explore {activeTab === 'watchlist' ? 'Content' : 'History'}
                     </button>
                 </div>
+            )}
+            </>
             )}
         </div>
     );

@@ -164,6 +164,59 @@ export const getTVWatchStatus = async (tvId) => {
     };
 };
 
+// Find the next episode a viewer should watch for a series: the earliest
+// already-aired episode they haven't marked as watched. Seasons are walked in
+// order; a fully-watched season is skipped without a request, and within a
+// season scanning stops at the first episode that hasn't aired yet (nothing
+// past it is available). `watchedForShow` is the per-show map the app stores:
+// { [seasonNumber]: [episodeNumbers] }. Returns null when the viewer is caught
+// up (no aired, unseen episode) — including shows they've finished or not
+// started but whose next episode hasn't aired.
+export const getNextUnwatchedEpisode = async (tvId, watchedForShow = {}) => {
+    const details = await fetchFromTMDB(`/tv/${tvId}`);
+    if (!details) return null;
+
+    const now = new Date();
+    const seasons = (details.seasons || [])
+        .filter((s) => s.season_number !== 0 && s.episode_count > 0)
+        .sort((a, b) => a.season_number - b.season_number);
+
+    for (const season of seasons) {
+        const seasonNumber = season.season_number;
+        const watchedSet = watchedForShow[String(seasonNumber)] || [];
+        // Whole season already seen — no need to spend a request on it.
+        if (watchedSet.length >= season.episode_count) continue;
+
+        const seasonData = await fetchFromTMDB(`/tv/${tvId}/season/${seasonNumber}`);
+        const episodes = seasonData?.episodes || [];
+
+        for (const ep of episodes) {
+            const aired = ep.air_date && new Date(ep.air_date) <= now;
+            // Episodes air in order, so nothing beyond an unaired one is
+            // available yet — the viewer is caught up on what exists.
+            if (!aired) return null;
+            if (watchedSet.includes(ep.episode_number)) continue;
+
+            return {
+                id: details.id,
+                type: 'tv',
+                title: details.name,
+                poster: details.poster_path ? `${IMAGE_BASE_URL}${details.poster_path}` : null,
+                seasonNumber,
+                episodeNumber: ep.episode_number,
+                episodeName: ep.name,
+                still: ep.still_path ? `${BACKDROP_BASE_URL}${ep.still_path}` : null,
+                airDate: ep.air_date,
+                overview: ep.overview,
+                totalSeasons: seasons.length,
+            };
+        }
+        // Every episode this season is aired-and-watched; keep looking in the
+        // next season rather than declaring the viewer caught up.
+    }
+    return null;
+};
+
 // Get TV Series with upcoming episodes
 export const getTVSeriesWithEpisodes = async (tvId) => {
     const details = await fetchFromTMDB(`/tv/${tvId}`);
