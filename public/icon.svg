@@ -1,30 +1,40 @@
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background -->
-  <rect width="512" height="512" rx="110" fill="#141415"/>
-  
-  <!-- Gradient Circle Background -->
-  <circle cx="256" cy="256" r="180" fill="url(#gradient)" opacity="0.15"/>
-  
-  <!-- Play Button / Film Icon -->
-  <g transform="translate(256, 256)">
-    <!-- Outer Ring -->
-    <circle cx="0" cy="0" r="120" stroke="#DC2626" stroke-width="8" fill="none" opacity="0.3"/>
-    
-    <!-- Play Triangle -->
-    <path d="M -40 -60 L -40 60 L 70 0 Z" fill="#DC2626"/>
-    
-    <!-- Accent Dots -->
-    <circle cx="-85" cy="-85" r="8" fill="#FBBF24"/>
-    <circle cx="85" cy="-85" r="8" fill="#FBBF24"/>
-    <circle cx="-85" cy="85" r="8" fill="#FBBF24"/>
-    <circle cx="85" cy="85" r="8" fill="#FBBF24"/>
-  </g>
-  
-  <!-- Gradient Definition -->
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="What's Next?">
   <defs>
-    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#DC2626;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#FBBF24;stop-opacity:1" />
+    <!-- Dark background gradient (matches the app's near-black surfaces) -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1B1B1F"/>
+      <stop offset="1" stop-color="#050506"/>
     </linearGradient>
+    <!-- Brand red gradient (matches the app accent gradient) -->
+    <linearGradient id="brand" x1="150" y1="130" x2="380" y2="390" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F87171"/>
+      <stop offset="0.5" stop-color="#EF4444"/>
+      <stop offset="1" stop-color="#B91C1C"/>
+    </linearGradient>
+    <!-- Soft red glow behind the glyph -->
+    <radialGradient id="glow" cx="0.5" cy="0.46" r="0.5" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#EF4444" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#EF4444" stop-opacity="0"/>
+    </radialGradient>
   </defs>
+
+  <!-- Rounded-square background -->
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <!-- Subtle inner highlight for depth -->
+  <rect x="4" y="4" width="504" height="504" rx="112" fill="none" stroke="#FFFFFF" stroke-opacity="0.06" stroke-width="2"/>
+
+  <!-- Ambient brand glow -->
+  <circle cx="256" cy="248" r="185" fill="url(#glow)"/>
+
+  <!-- "Skip to next" glyph — the app's namesake "What's Next?" -->
+  <g fill="url(#brand)" transform="translate(-16 0)">
+    <path d="M168 150
+             C168 137 182 129 194 136
+             L330 235
+             C341 243 341 261 330 269
+             L194 368
+             C182 375 168 367 168 354
+             Z"/>
+    <rect x="344" y="150" width="34" height="204" rx="17"/>
+  </g>
 </svg>
