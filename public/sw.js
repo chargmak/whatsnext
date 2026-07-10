@@ -1,4 +1,4 @@
-const CACHE_NAME = 'whatsnext-v4';
+const CACHE_NAME = 'whatsnext-v5';
 const IMAGE_CACHE = 'whatsnext-images-v1';
 const API_CACHE = 'whatsnext-tmdb-v1';
 
