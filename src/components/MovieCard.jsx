@@ -5,10 +5,11 @@ import { useUser } from '../context/UserContext';
 
 export const MovieCard = ({ movie, onClick }) => {
     const { watched } = useUser();
-    // Ensure accurate type comparison, though IDs are usually numbers.
     // `movie.completed` flags ended series watched entirely via episode tracking,
-    // which never land in the explicit watched list.
-    const isWatched = movie.completed || watched.some(m => m.id === movie.id);
+    // which never land in the explicit watched list. Match on type as well as id:
+    // movies and TV shows share the same TMDB id namespace, so a watched movie
+    // would otherwise flag a same-id show (or vice versa) as seen.
+    const isWatched = movie.completed || watched.some(m => m.id === movie.id && (m.type || 'movie') === (movie.type || 'movie'));
 
     // Get first genre for display
     const primaryGenre = movie.genres && movie.genres.length > 0 ? movie.genres[0] : null;
