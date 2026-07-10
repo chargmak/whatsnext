@@ -72,8 +72,11 @@ const buildGreeting = (displayName) => ({
 
 // Lightweight inline renderer: turns **bold** markdown into <strong> so the
 // recommender's emphasis reads as intended instead of showing literal asterisks.
-const renderRichText = (text) =>
-    text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+// Coerce to a string first — a bot message whose `text` is ever missing or a
+// non-string (e.g. an unexpected backend payload) must never throw here, since
+// CineBot renders app-wide and an uncaught error would blank the whole screen.
+const renderRichText = (value) =>
+    String(value ?? '').split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
         /^\*\*[^*]+\*\*$/.test(part) ? (
             <strong key={i}>{part.slice(2, -2)}</strong>
         ) : (
@@ -138,8 +141,14 @@ const CineBot = () => {
                 console.warn('CineBot AI backend unavailable — using local recommender.', error || data);
                 return null;
             }
+            // Coerce/validate the payload: the backend is trusted but a schema
+            // drift (older deploy, unexpected shape) must degrade gracefully, not
+            // feed a non-string into render or build a broken /undefined/undefined link.
             const first = Array.isArray(data.items) ? data.items[0] : null;
-            return { text: data.reply, link: first ? `/${first.type}/${first.id}` : null };
+            const link = first && (first.type === 'movie' || first.type === 'tv') && first.id != null
+                ? `/${first.type}/${first.id}`
+                : null;
+            return { text: String(data.reply), link };
         } catch (err) {
             console.warn('CineBot AI call failed — using local recommender.', err);
             return null;
