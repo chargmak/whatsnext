@@ -3,11 +3,21 @@ import React from 'react';
 class ErrorBoundary extends React.Component {
     constructor(props) {
         super(props);
-        this.state = { hasError: false };
+        this.state = { hasError: false, resetKey: props.resetKey };
     }
 
     static getDerivedStateFromError() {
         return { hasError: true };
+    }
+
+    // Auto-recover when the caller's resetKey changes (we pass the current route).
+    // Without this, a single crashing screen latches hasError forever and every
+    // subsequent page renders the fallback — indistinguishable from a dead app.
+    static getDerivedStateFromProps(props, state) {
+        if (props.resetKey !== state.resetKey) {
+            return { hasError: false, resetKey: props.resetKey };
+        }
+        return null;
     }
 
     componentDidCatch(error, info) {
