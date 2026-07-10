@@ -21,12 +21,45 @@ import CineBot from './components/CineBot';
 import { UserProvider } from './context/UserContext';
 import { CineBotProvider } from './context/CineBotContext';
 
-// The routed pages AND the floating chrome (CineBot, install prompt) all live
-// inside one ErrorBoundary. CineBot in particular used to render as a sibling
-// *outside* the boundary, so any error while it rendered a reply took the whole
-// React tree down to a blank/black screen with no recovery. Keeping the nav
-// outside gives the user a way to navigate off a crashed screen, which resets
-// the boundary (keyed on the route).
+// A compact recover affordance for the CineBot boundary: if the assistant's
+// subtree ever throws, we swap the whole floating widget for this small pill
+// instead of blanking the page. Tapping it calls the boundary's reset() so the
+// assistant remounts fresh (clearing whatever message state tripped it) — no
+// full page reload needed.
+function CineBotCrashFallback(reset) {
+  return (
+    <button
+      onClick={reset}
+      aria-label="Reopen CineBot"
+      style={{
+        position: 'fixed',
+        bottom: '96px',
+        right: '20px',
+        padding: '10px 16px',
+        borderRadius: '999px',
+        background: 'var(--accent-gradient)',
+        color: 'white',
+        border: '1px solid rgba(255,255,255,0.14)',
+        boxShadow: '0 8px 24px rgba(220, 38, 38, 0.45)',
+        fontSize: '0.85rem',
+        fontWeight: 600,
+        cursor: 'pointer',
+        zIndex: 900,
+      }}
+    >
+      Reopen CineBot
+    </button>
+  );
+}
+
+// The routed pages live in their own ErrorBoundary, keyed on the route so it
+// auto-recovers on navigation. The floating chrome (CineBot, install prompt)
+// each get their OWN boundary as siblings — never nested under the page one.
+// CineBot used to render *outside* any boundary (a fault blanked the whole
+// React tree to a black screen), then briefly *inside* the page boundary (a
+// fault replaced the entire page with the generic error screen). Isolating it
+// means an assistant fault can only ever take down the assistant: the page and
+// nav stay fully usable, and the user gets a one-tap "Reopen CineBot" to retry.
 function AppShell() {
   const location = useLocation();
   return (
@@ -49,7 +82,11 @@ function AppShell() {
           <Route path="/person/:id" element={<Person />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+      </ErrorBoundary>
+      <ErrorBoundary resetKey={location.pathname} fallback={CineBotCrashFallback}>
         <CineBot />
+      </ErrorBoundary>
+      <ErrorBoundary resetKey={location.pathname} fallback={null}>
         <InstallPrompt />
       </ErrorBoundary>
       <BottomNav />
