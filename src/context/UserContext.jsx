@@ -250,8 +250,13 @@ export const UserProvider = ({ children }) => {
 
     const persistLocal = (key, value) => localStorage.setItem(key, JSON.stringify(value));
 
+    // Movies and TV shows live in separate TMDB id namespaces, so a movie and a
+    // show can share the same numeric id. Every match must compare type too, or
+    // one masks the other (e.g. a watched movie makes a same-id show look seen).
+    const sameMedia = (a, b) => a.id === b.id && (a.type || 'movie') === (b.type || 'movie');
+
     const addToWatchlist = async (movie) => {
-        if (watchlist.find((m) => m.id === movie.id)) return;
+        if (watchlist.find((m) => sameMedia(m, movie))) return;
         const prev = watchlist;
         const newList = [...watchlist, movie];
         setWatchlist(newList);
@@ -267,10 +272,10 @@ export const UserProvider = ({ children }) => {
         }
     };
 
-    const removeFromWatchlist = async (movieId) => {
-        const item = watchlist.find((m) => m.id === movieId);
+    const removeFromWatchlist = async (movieId, mediaType = 'movie') => {
+        const item = watchlist.find((m) => m.id === movieId && (m.type || 'movie') === mediaType);
         const prev = watchlist;
-        const newList = watchlist.filter((m) => m.id !== movieId);
+        const newList = watchlist.filter((m) => !(m.id === movieId && (m.type || 'movie') === mediaType));
         setWatchlist(newList);
         if (isAuthed && item) {
             try {
@@ -285,11 +290,11 @@ export const UserProvider = ({ children }) => {
     };
 
     const markAsWatched = async (movie) => {
-        if (watched.find((m) => m.id === movie.id)) return;
+        if (watched.find((m) => sameMedia(m, movie))) return;
         const prevWatched = watched;
         const prevWatchlist = watchlist;
         const newWatched = [...watched, movie];
-        const newWatchlist = watchlist.filter((m) => m.id !== movie.id);
+        const newWatchlist = watchlist.filter((m) => !sameMedia(m, movie));
         setWatched(newWatched);
         setWatchlist(newWatchlist);
         if (isAuthed) {
@@ -309,7 +314,7 @@ export const UserProvider = ({ children }) => {
 
     const removeFromWatched = async (movie) => {
         const prev = watched;
-        const newWatched = watched.filter((m) => m.id !== movie.id);
+        const newWatched = watched.filter((m) => !sameMedia(m, movie));
         setWatched(newWatched);
         if (isAuthed) {
             try {

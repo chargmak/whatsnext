@@ -119,8 +119,10 @@ const MediaDetail = ({ type }) => {
     if (loading) return <div className="container flex-center" style={{ height: '100vh' }}>Loading...</div>;
     if (!item) return <div className="container flex-center" style={{ height: '100vh' }}>Media not found</div>;
 
-    const isInWatchlist = watchlist.some(m => m.id === item.id);
-    const isWatched = watched.some(m => m.id === item.id);
+    // Movies and TV shows can share the same numeric TMDB id, so match on type
+    // too — otherwise a watched movie makes a same-id show read as already seen.
+    const isInWatchlist = watchlist.some(m => m.id === item.id && (m.type || 'movie') === type);
+    const isWatched = watched.some(m => m.id === item.id && (m.type || 'movie') === type);
 
     const calculateTimeLeft = () => {
         if (!item.upcoming || !item.releaseDate) return null;
@@ -143,8 +145,8 @@ const MediaDetail = ({ type }) => {
 
     const addFranchiseToWatchlist = () => withUser(() => {
         franchiseParts.forEach((p) => {
-            const seen = watched.some((w) => w.id === p.id);
-            const listed = watchlist.some((w) => w.id === p.id);
+            const seen = watched.some((w) => w.id === p.id && (w.type || 'movie') === 'movie');
+            const listed = watchlist.some((w) => w.id === p.id && (w.type || 'movie') === 'movie');
             if (!seen && !listed) addToWatchlist({ ...p, genres: [] });
         });
     });
@@ -235,7 +237,7 @@ const MediaDetail = ({ type }) => {
 
                         <button
                             className={`action-btn ${isInWatchlist ? 'active' : 'secondary'}`}
-                            onClick={() => withUser(() => isInWatchlist ? removeFromWatchlist(item.id) : addToWatchlist(item))}
+                            onClick={() => withUser(() => isInWatchlist ? removeFromWatchlist(item.id, type) : addToWatchlist(item))}
                         >
                             {isInWatchlist ? <Check size={24} /> : <Plus size={24} />}
                             <span>My List</span>
