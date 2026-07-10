@@ -4,6 +4,7 @@ class ErrorBoundary extends React.Component {
     constructor(props) {
         super(props);
         this.state = { hasError: false, resetKey: props.resetKey };
+        this.reset = this.reset.bind(this);
     }
 
     static getDerivedStateFromError() {
@@ -24,8 +25,22 @@ class ErrorBoundary extends React.Component {
         console.error('Unhandled error:', error, info);
     }
 
+    // Let a custom fallback retry in place (e.g. "reopen CineBot") without a
+    // full page reload.
+    reset() {
+        this.setState({ hasError: false });
+    }
+
     render() {
         if (this.state.hasError) {
+            // A caller can supply a compact, self-contained fallback so a fault in
+            // non-critical chrome (like the floating CineBot assistant) degrades to
+            // a small recoverable affordance instead of replacing the whole page.
+            if (this.props.fallback !== undefined) {
+                return typeof this.props.fallback === 'function'
+                    ? this.props.fallback(this.reset)
+                    : this.props.fallback;
+            }
             return (
                 <div className="container" style={{ paddingTop: '100px', textAlign: 'center' }}>
                     <h2>Something went wrong</h2>

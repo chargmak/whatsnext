@@ -211,7 +211,9 @@ const CineBot = () => {
     const handleSend = async (overrideText) => {
         const userText = (typeof overrideText === 'string' ? overrideText : input).trim();
         if (!userText) return;
-        setMessages((prev) => [...prev, { id: Date.now(), text: userText, isBot: false }]);
+        // Match pushBot's id scheme: two sends in the same millisecond would
+        // otherwise share a key and confuse React's list reconciliation.
+        setMessages((prev) => [...prev, { id: Date.now() + Math.random(), text: userText, isBot: false }]);
         setInput('');
         setIsTyping(true);
 
