@@ -15,7 +15,7 @@ const TABS = [
 ];
 
 const Library = () => {
-    const [activeTab, setActiveTab] = useState('watchlist');
+    const [activeTab, setActiveTab] = useState('upnext');
     const [sortBy, setSortBy] = useState('dateAdded'); // dateAdded, title, rating
     const [filterType, setFilterType] = useState('all'); // all, movie, tv
     const { watchlist, watched, watchedEpisodes } = useUser();
