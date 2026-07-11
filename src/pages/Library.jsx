@@ -201,7 +201,7 @@ const Library = () => {
                 <div className="grid-layout">
                     {items.map(item => (
                         <MovieCard
-                            key={item.id}
+                            key={`${item.type || 'movie'}-${item.id}`}
                             movie={item}
                             onClick={(id) => navigate(`/${item.type || 'movie'}/${id}`)}
                         />

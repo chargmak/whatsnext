@@ -20,6 +20,22 @@ const MediaDetail = ({ type }) => {
     const [loadingEpisodes, setLoadingEpisodes] = useState(false);
     const [collection, setCollection] = useState(null);
 
+    // React reuses this component when navigating detail→detail (a franchise
+    // link, a same-type recommendation, or movie↔tv), so per-title state would
+    // otherwise bleed through from the previous title. Reset it the moment the
+    // route target changes — the render-phase reset pattern from the React docs,
+    // which runs before the fetch effects below.
+    const routeKey = `${type}-${id}`;
+    const [prevRouteKey, setPrevRouteKey] = useState(routeKey);
+    if (prevRouteKey !== routeKey) {
+        setPrevRouteKey(routeKey);
+        setItem(null);
+        setLoading(true);
+        setSeasons({});
+        setSelectedSeason(1);
+        setCollection(null);
+    }
+
     const {
         status, user,
         addToWatchlist, removeFromWatchlist, watchlist,
@@ -546,11 +562,11 @@ const MediaDetail = ({ type }) => {
                                 className="btn"
                                 style={{
                                     width: '100%',
-                                    background: isReminderSet(item.id) ? 'var(--bg-tertiary)' : undefined
+                                    background: isReminderSet(item.id, item.type) ? 'var(--bg-tertiary)' : undefined
                                 }}
                                 onClick={() => withUser(() => toggleReminder(item))}
                             >
-                                {isReminderSet(item.id) ? (
+                                {isReminderSet(item.id, item.type) ? (
                                     <><Check size={18} style={{ marginRight: '8px' }} /> Reminder Set</>
                                 ) : (
                                     <><Bell size={18} style={{ marginRight: '8px' }} /> Notify Me</>
