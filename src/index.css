@@ -817,9 +817,37 @@ p {
   position: absolute;
   inset: 0;
   background: linear-gradient(to top,
-      rgba(2, 2, 2, 0.92) 0%,
-      rgba(2, 2, 2, 0.55) 45%,
-      rgba(2, 2, 2, 0.05) 75%,
+      rgba(2, 2, 2, 0.96) 0%,
+      rgba(2, 2, 2, 0.82) 30%,
+      rgba(2, 2, 2, 0.45) 58%,
+      rgba(2, 2, 2, 0.08) 80%,
+      transparent 100%);
+}
+
+/* Frosted band behind the text: legibility can't depend on the artwork alone
+   (a white-sky backdrop would eat any gradient), so the bottom of the image
+   is progressively blurred under the scrim. Browsers without mask support
+   simply skip the blur and keep the gradient. */
+.spotlight-scrim::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  mask-image: linear-gradient(to top, black 0%, black 45%, transparent 78%);
+  -webkit-mask-image: linear-gradient(to top, black 0%, black 45%, transparent 78%);
+}
+
+/* Poster fallback fills the whole card with (often bright) key art — dim it
+   across the full frame on top of the usual bottom gradient. */
+.spotlight-backdrop.is-poster + .spotlight-scrim {
+  background:
+    linear-gradient(rgba(2, 2, 2, 0.4), rgba(2, 2, 2, 0.4)),
+    linear-gradient(to top,
+      rgba(2, 2, 2, 0.96) 0%,
+      rgba(2, 2, 2, 0.82) 30%,
+      rgba(2, 2, 2, 0.45) 58%,
+      rgba(2, 2, 2, 0.08) 80%,
       transparent 100%);
 }
 
@@ -830,6 +858,11 @@ p {
   bottom: 0;
   padding: 20px;
   color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+.spotlight-content button {
+  text-shadow: none;
 }
 
 @media (min-width: 640px) {
