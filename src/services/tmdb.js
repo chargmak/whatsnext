@@ -81,14 +81,32 @@ export const getRecommendationsFromSeeds = async (seeds, type, excludeIds = new 
         .map((entry) => mapMediaData(entry.item));
 };
 
+// How hard one veto pulls a shared-genre candidate down. Tuned to nudge, not
+// bury: a candidate typically scores 2–5, so a single overlapping dislike costs
+// half a point while several dismissals in the same genre compound.
+const DISLIKE_PENALTY = 0.5;
+
+// How much a candidate overlaps the user's vetoed genres: the summed veto count
+// across every genre the candidate carries. `dislikedGenres` is a genre-name →
+// count tally (empty/null for users who've never hit "Not for me", making this
+// a no-op). List payloads expose only genre_ids, so map them back to names.
+const genreDislikeScore = (item, dislikedGenres) => {
+    if (!dislikedGenres) return 0;
+    return (item.genre_ids || []).reduce(
+        (sum, id) => sum + (dislikedGenres[GENRE_NAMES_BY_ID[id]] || 0),
+        0,
+    );
+};
+
 // Build the "What's Next?" spotlight queue: one-at-a-time picks seeded from the
 // user's watch history. Differs from getRecommendationsFromSeeds in three ways:
 // hits are recency-weighted (a rec from last night's watch counts more than one
 // from months ago), each pick remembers which seed produced it (`becauseOf`, for
 // the "Because you watched X" line), and a short queue is padded with trending
 // titles so brand-new users still get proposals. Returns mapped items extended
-// with { becauseOf, match, source }.
-export const getSpotlightQueue = async ({ seeds, type, excludeIds = new Set(), limit = 20 }) => {
+// with { becauseOf, match, source }. `dislikedGenres` sinks titles whose genres
+// match what the user has vetoed.
+export const getSpotlightQueue = async ({ seeds, type, excludeIds = new Set(), dislikedGenres = null, limit = 20 }) => {
     const validSeeds = (seeds || []).filter((s) => s && s.id);
     // Most recently watched titles are the strongest signal → sample the end.
     const sampled = validSeeds.slice(-8);
@@ -115,15 +133,22 @@ export const getSpotlightQueue = async ({ seeds, type, excludeIds = new Set(), l
                 }
             });
         });
+        // Sink candidates whose genres overlap what the user vetoed ("Not for
+        // me"), so a dismissal shapes the ranking without hard-filtering a whole
+        // genre. Match % follows the adjusted score, so a sunk pick reads lower.
         const ranked = Array.from(scored.values())
-            .sort((a, b) => b.score - a.score || (b.raw.popularity || 0) - (a.raw.popularity || 0));
-        const maxScore = ranked[0]?.score || 1;
+            .map((entry) => ({
+                ...entry,
+                adjScore: Math.max(0.1, entry.score - DISLIKE_PENALTY * genreDislikeScore(entry.raw, dislikedGenres)),
+            }))
+            .sort((a, b) => b.adjScore - a.adjScore || (b.raw.popularity || 0) - (a.raw.popularity || 0));
+        const maxScore = ranked[0]?.adjScore || 1;
         ranked.slice(0, limit).forEach((entry) => picks.push({
             ...mapMediaData({ ...entry.raw, media_type: type }),
             // w1280 is plenty for a hero card and far lighter than `original`.
             backdrop: entry.raw.backdrop_path ? imageUrl(entry.raw.backdrop_path, 'w1280', null) : null,
             becauseOf: entry.becauseOf,
-            match: Math.min(98, Math.round(60 + 38 * (entry.score / maxScore))),
+            match: Math.min(98, Math.round(60 + 38 * (entry.adjScore / maxScore))),
             source: 'history',
         }));
     }
@@ -135,6 +160,9 @@ export const getSpotlightQueue = async ({ seeds, type, excludeIds = new Set(), l
         const have = new Set(picks.map((p) => p.id));
         (data?.results || [])
             .filter((r) => r.poster_path && !excludeIds.has(r.id) && !have.has(r.id))
+            // Vetoed genres sink here too, so cold-start fillers respect "Not for
+            // me". Stable sort keeps trending order among equally-liked titles.
+            .sort((a, b) => genreDislikeScore(a, dislikedGenres) - genreDislikeScore(b, dislikedGenres))
             .slice(0, limit - picks.length)
             .forEach((r) => picks.push({
                 ...mapMediaData({ ...r, media_type: type }),
