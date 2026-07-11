@@ -5,7 +5,7 @@ import { Home, Search, Calendar, List, User } from 'lucide-react';
 const BottomNav = () => {
     return (
         <nav className="bottom-nav">
-            <NavLink to="/home" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                 <Home />
                 <span>Home</span>
             </NavLink>
