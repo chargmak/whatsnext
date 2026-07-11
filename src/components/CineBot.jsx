@@ -136,9 +136,16 @@ const CineBot = () => {
                 body: { message: userText, history },
             });
             if (error || !data?.reply) {
-                // Surface the reason so a silent downgrade to the local
-                // recommender is diagnosable in devtools instead of invisible.
-                console.warn('CineBot AI backend unavailable — using local recommender.', error || data);
+                // A null reply with rateLimited:true is the backend telling us
+                // Gemini's free-tier quota is momentarily spent — expected, not a
+                // fault, so fall back to the local recommender without the noise.
+                if (data?.rateLimited) {
+                    console.info('CineBot AI is rate-limited right now — using local recommender.');
+                } else {
+                    // Surface the reason so a silent downgrade to the local
+                    // recommender is diagnosable in devtools instead of invisible.
+                    console.warn('CineBot AI backend unavailable — using local recommender.', error || data);
+                }
                 return null;
             }
             // Coerce/validate the payload: the backend is trusted but a schema

@@ -7,7 +7,8 @@
 //
 // Deploy:  supabase functions deploy cinebot
 // Secrets: supabase secrets set GEMINI_API_KEY=... TMDB_API_KEY=...
-// Enable in the app by setting VITE_CINEBOT_AI=true.
+// The app uses this automatically once deployed (AI is on by default); set
+// VITE_CINEBOT_AI=false only to force the offline local recommender.
 //
 // The caller's JWT is forwarded so library reads run under Row-Level Security —
 // the function can only ever see the caller's own watchlist/history.
@@ -19,10 +20,27 @@ import { searchTmdb, discoverByGenre } from '../_shared/tmdb.ts';
 
 const DAILY_LIMIT = 40;
 
-// Gemini's OpenAI-compatible surface. gemini-2.5-flash is on the free tier and
-// supports function calling; override with the GEMINI_MODEL secret if desired.
+// Gemini's OpenAI-compatible surface. The model choice is what broke CineBot:
+//  1) A single user turn costs 2+ model calls here (the tool-call round-trip),
+//     so plain `gemini-2.5-flash` (free tier: 10 RPM / 250 RPD) hit its ceiling
+//     almost immediately and every reply came back HTTP 429 — the AI looked
+//     "dead" because the client silently fell back to its offline recommender.
+//  2) Pinned newer names are worse: `gemini-2.5-flash-lite` isn't even served on
+//     THIS OpenAI-compat endpoint (it 404s), so pinning it kills the function.
+// So default to the rolling `gemini-flash-lite-latest` alias: it's a flash-LITE
+// model (the roomiest free-tier limits in the flash family), it's confirmed to
+// work on this endpoint WITH function calling, and being an alias it won't 404
+// when a specific dated model is retired. Override with the GEMINI_MODEL secret.
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
-const MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash';
+const MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-flash-lite-latest';
+
+// True for a provider-side rate-limit (HTTP 429). Gemini's free tier returns a
+// bare "429 status code (no body)", so we also sniff the message defensively.
+const isRateLimit = (err: unknown) => {
+  const status = (err as { status?: number })?.status;
+  const msg = String((err as { message?: string })?.message ?? err ?? '');
+  return status === 429 || /\b429\b|rate.?limit|quota|RESOURCE_EXHAUSTED/i.test(msg);
+};
 
 const tools = [
   {
@@ -150,7 +168,15 @@ Deno.serve(async (req) => {
       if (profile?.full_name) name = profile.full_name;
     }
 
-    const client = new OpenAI({ apiKey: Deno.env.get('GEMINI_API_KEY'), baseURL: BASE_URL });
+    // Cap per-request time and retries so a rate-limited Gemini fails fast and
+    // the client can fall back to its local recommender promptly, rather than
+    // hanging on the SDK's default 10-minute timeout inside an Edge Function.
+    const client = new OpenAI({
+      apiKey: Deno.env.get('GEMINI_API_KEY'),
+      baseURL: BASE_URL,
+      maxRetries: 2,
+      timeout: 20_000,
+    });
     const system =
       `You are CineBot, a warm, concise movie and TV recommender inside the "What's Next?" app. ` +
       `You are talking to ${name}. Today is ${new Date().toISOString().slice(0, 10)}. ` +
@@ -172,7 +198,10 @@ Deno.serve(async (req) => {
     let response = await client.chat.completions.create({ model: MODEL, messages, tools, tool_choice: 'auto' });
     let msg = response.choices?.[0]?.message;
 
-    for (let i = 0; i < 4 && msg?.tool_calls?.length; i++) {
+    // Each pass is another billable Gemini call against the free-tier quota, and
+    // a recommendation almost never needs more than one tool round-trip, so cap
+    // at 3 (worst case 4 model calls/turn) instead of the old 4.
+    for (let i = 0; i < 3 && msg?.tool_calls?.length; i++) {
       // Echo the assistant turn (with its tool calls) back into the transcript.
       messages.push({ role: 'assistant', content: msg.content ?? '', tool_calls: msg.tool_calls });
       for (const call of msg.tool_calls) {
@@ -189,6 +218,15 @@ Deno.serve(async (req) => {
     const reply = (msg?.content || '').trim();
     return json({ reply: reply || "I couldn't find a good match — try a genre or a title.", items: items.slice(0, 3) });
   } catch (error) {
+    // Gemini's free tier is momentarily saturated. Answer 200 with an explicit
+    // rate-limit signal and a null reply: the client treats a missing reply as
+    // "backend unavailable" and seamlessly falls back to its local recommender,
+    // so the user still gets a real suggestion instead of an error. Returning a
+    // 500 here would spam the console and read as a hard outage.
+    if (isRateLimit(error)) {
+      console.warn('cinebot: Gemini rate limit (429) — signaling client fallback.');
+      return json({ reply: null, items: [], rateLimited: true });
+    }
     console.error('cinebot error', error);
     return json({ error: 'internal error' }, 500);
   }
