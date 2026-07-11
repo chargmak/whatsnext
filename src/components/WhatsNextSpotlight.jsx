@@ -205,15 +205,17 @@ export const WhatsNextSpotlight = ({ mediaType }) => {
                         exit={{ opacity: 0, x: -48, scale: 0.97 }}
                         transition={{ type: 'spring', stiffness: 320, damping: 30 }}
                     >
-                        <motion.img
-                            className={`spotlight-backdrop ${current.backdrop ? '' : 'is-poster'}`}
-                            src={current.backdrop || current.poster}
-                            alt={current.title}
-                            initial={{ scale: 1.08 }}
-                            animate={{ scale: 1 }}
-                            transition={{ duration: 6, ease: 'easeOut' }}
-                        />
-                        <div className="spotlight-scrim" />
+                        <div className="spotlight-media">
+                            <motion.img
+                                className={`spotlight-backdrop ${current.backdrop ? '' : 'is-poster'}`}
+                                src={current.backdrop || current.poster}
+                                alt={current.title}
+                                initial={{ scale: 1.08 }}
+                                animate={{ scale: 1 }}
+                                transition={{ duration: 6, ease: 'easeOut' }}
+                            />
+                            <div className="spotlight-scrim" />
+                        </div>
                         <div className="spotlight-content">
                             <span className="spotlight-eyebrow">
                                 {current.becauseOf ? `Because you watched ${current.becauseOf}` : 'Trending now'}

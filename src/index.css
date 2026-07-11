@@ -780,23 +780,29 @@ p {
 }
 
 /* ===== "What's Next?" spotlight hero ===== */
-/* The card interior sits on a photo, so its text/scrim colors are fixed
-   (black scrim, white text) rather than token-driven — both themes need the
-   same treatment for legibility, like the detail page hero. */
+/* The text NEVER sits on the artwork: the image lives in its own media zone
+   and melts into a fixed dark panel that holds all the copy. Legibility is
+   structural, not an overlay trick — it can't lose to a bright backdrop.
+   The card stays dark in both themes, like a cinema screen. */
 .spotlight-card {
   position: relative;
-  aspect-ratio: 3 / 4;
   border-radius: var(--radius-xl);
   overflow: hidden;
-  background: var(--bg-secondary);
+  background: #0b0b0d;
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: var(--shadow-lg);
 }
 
+.spotlight-media {
+  position: relative;
+  aspect-ratio: 16 / 10;
+}
+
 @media (min-width: 640px) {
-  .spotlight-card {
-    aspect-ratio: 16 / 9;
-    max-height: 520px;
+  .spotlight-media {
+    aspect-ratio: 21 / 9;
+    max-height: 380px;
+    width: 100%;
   }
 }
 
@@ -813,61 +819,27 @@ p {
   object-position: center 20%;
 }
 
+/* Melts the bottom of the artwork into the panel color so the card reads as
+   one canvas; solid at the seam, so the transition to the text zone is clean. */
 .spotlight-scrim {
   position: absolute;
   inset: 0;
   background: linear-gradient(to top,
-      rgba(2, 2, 2, 0.96) 0%,
-      rgba(2, 2, 2, 0.82) 30%,
-      rgba(2, 2, 2, 0.45) 58%,
-      rgba(2, 2, 2, 0.08) 80%,
-      transparent 100%);
-}
-
-/* Frosted band behind the text: legibility can't depend on the artwork alone
-   (a white-sky backdrop would eat any gradient), so the bottom of the image
-   is progressively blurred under the scrim. Browsers without mask support
-   simply skip the blur and keep the gradient. */
-.spotlight-scrim::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  mask-image: linear-gradient(to top, black 0%, black 45%, transparent 78%);
-  -webkit-mask-image: linear-gradient(to top, black 0%, black 45%, transparent 78%);
-}
-
-/* Poster fallback fills the whole card with (often bright) key art — dim it
-   across the full frame on top of the usual bottom gradient. */
-.spotlight-backdrop.is-poster + .spotlight-scrim {
-  background:
-    linear-gradient(rgba(2, 2, 2, 0.4), rgba(2, 2, 2, 0.4)),
-    linear-gradient(to top,
-      rgba(2, 2, 2, 0.96) 0%,
-      rgba(2, 2, 2, 0.82) 30%,
-      rgba(2, 2, 2, 0.45) 58%,
-      rgba(2, 2, 2, 0.08) 80%,
-      transparent 100%);
+      #0b0b0d 0%,
+      rgba(11, 11, 13, 0.72) 18%,
+      rgba(11, 11, 13, 0.15) 55%,
+      transparent 78%);
 }
 
 .spotlight-content {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 20px;
+  position: relative;
+  padding: 2px 20px 20px;
   color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
-}
-
-.spotlight-content button {
-  text-shadow: none;
 }
 
 @media (min-width: 640px) {
   .spotlight-content {
-    padding: 28px;
+    padding: 2px 28px 26px;
   }
 }
 
@@ -998,11 +970,19 @@ p {
   color: #fff;
 }
 
-/* Loading placeholder: same box as the card, gentle pulse. */
+/* Loading placeholder: roughly the loaded card's footprint, gentle pulse. */
 .spotlight-skeleton {
+  aspect-ratio: 3 / 4;
   animation: pulse-fade 1.4s ease-in-out infinite;
   background: rgba(255, 255, 255, 0.05);
   border-color: transparent;
+}
+
+@media (min-width: 640px) {
+  .spotlight-skeleton {
+    aspect-ratio: 16 / 9;
+    max-height: 520px;
+  }
 }
 
 /* Empty / exhausted / error panels (token-driven, theme-safe). */
