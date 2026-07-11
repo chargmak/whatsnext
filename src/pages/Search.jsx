@@ -263,7 +263,7 @@ const Search = () => {
                 <div className="grid-layout">
                     {displayedResults.map(item => (
                         <MovieCard
-                            key={item.id}
+                            key={`${item.type}-${item.id}`}
                             movie={item}
                             onClick={(id) => handleResultClick(id, item.type, item.title)}
                         />

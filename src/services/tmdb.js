@@ -220,6 +220,10 @@ const GENRE_NAMES_BY_ID = {
 export const mapMediaData = (item) => {
     if (!item) return null;
     const isTv = item.media_type === 'tv' || item.type === 'tv' || item.first_air_date; // Robust check
+    // TV payloads carry first_air_date, movies release_date — pick whichever
+    // exists so `upcoming` and `releaseDate` work for both (and never build an
+    // Invalid Date from an undefined value).
+    const releaseDate = item.release_date || item.first_air_date || null;
 
     return {
         id: item.id,
@@ -239,8 +243,8 @@ export const mapMediaData = (item) => {
         // Movie Specific
         runtime: item.runtime ? `${Math.floor(item.runtime / 60)}h ${item.runtime % 60}m` : null,
 
-        upcoming: new Date(item.release_date) > new Date(),
-        releaseDate: item.release_date || item.first_air_date
+        upcoming: releaseDate ? new Date(releaseDate) > new Date() : false,
+        releaseDate
     };
 };
 

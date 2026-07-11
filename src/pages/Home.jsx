@@ -156,8 +156,7 @@ const Home = () => {
                 </div>
 
                 <PosterRow>
-                    {/* Slicing from 1 to -1 to reduce count by one as requested */}
-                    {mediaItems.slice(1, -1).map((item) => (
+                    {mediaItems.map((item) => (
                         <MovieCard
                             key={item.id}
                             movie={item}

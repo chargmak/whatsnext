@@ -406,12 +406,17 @@ export const UserProvider = ({ children }) => {
 
     // --- Reminders ("Notify Me") ---
 
-    const isReminderSet = (movieId) => reminders.some((r) => r.id === movieId);
+    // Movies and TV shows share the TMDB id namespace, so — like watchlist and
+    // watched — reminders must be matched on type too, or a same-id movie/show
+    // masks or removes the other's reminder.
+    const isReminderSet = (movieId, mediaType = 'movie') =>
+        reminders.some((r) => r.id === movieId && (r.type || 'movie') === mediaType);
 
     const toggleReminder = async (movie) => {
         const prev = reminders;
-        if (isReminderSet(movie.id)) {
-            const newList = reminders.filter((r) => r.id !== movie.id);
+        const type = movie.type || 'movie';
+        if (isReminderSet(movie.id, type)) {
+            const newList = reminders.filter((r) => !(r.id === movie.id && (r.type || 'movie') === type));
             setReminders(newList);
             if (isAuthed) {
                 try {
