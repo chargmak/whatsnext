@@ -19,7 +19,7 @@ import MediaDetail from './pages/MovieDetail';
 import Person from './pages/Person';
 import CineBot from './components/CineBot';
 import { UserProvider } from './context/UserContext';
-import { CineBotProvider } from './context/CineBotContext';
+import { CineBotProvider, useCineBot } from './context/CineBotContext';
 
 // A compact recover affordance for the CineBot boundary: if the assistant's
 // subtree ever throws, we swap the whole floating widget for this small pill
@@ -62,6 +62,18 @@ function CineBotCrashFallback(reset) {
 // nav stay fully usable, and the user gets a one-tap "Reopen CineBot" to retry.
 function AppShell() {
   const location = useLocation();
+  const { closeBot, consumePrompt } = useCineBot();
+
+  // When the CineBot boundary recovers, don't just clear the error — also return
+  // the assistant to a clean, CLOSED state first. isOpen and any pending
+  // auto-send prompt live in the context OUTSIDE this boundary, so they survive
+  // the crash; without resetting them the assistant remounts straight back into
+  // the same open panel (and re-fires the same prompt) and can immediately throw
+  // again, leaving the user tapping "Reopen CineBot" with nothing happening.
+  // Closing it means it comes back as the fresh launcher, guaranteeing recovery.
+  const cineBotFallback = (reset) =>
+    CineBotCrashFallback(() => { consumePrompt(); closeBot(); reset(); });
+
   return (
     <div className="app">
       <ErrorBoundary resetKey={location.pathname}>
@@ -83,7 +95,7 @@ function AppShell() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </ErrorBoundary>
-      <ErrorBoundary resetKey={location.pathname} fallback={CineBotCrashFallback}>
+      <ErrorBoundary resetKey={location.pathname} fallback={cineBotFallback}>
         <CineBot />
       </ErrorBoundary>
       <ErrorBoundary resetKey={location.pathname} fallback={null}>
