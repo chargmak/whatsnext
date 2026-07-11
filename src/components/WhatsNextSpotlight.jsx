@@ -6,37 +6,66 @@ import { getSpotlightQueue, getSpotlightExtras } from '../services/tmdb';
 import { useUser } from '../context/UserContext';
 import { TrailerModal } from './TrailerModal';
 
-// ---- "Not for me" memory -----------------------------------------------
-// Skips are a device-level taste signal (guests have no account to store them
-// in), so they live in localStorage as ["movie-123", "tv-456", ...], capped so
-// years of skipping can't grow the entry unbounded.
+// ---- Spotlight taste memory --------------------------------------------
+// The showcase remembers two device-level signals (guests have no account to
+// store them in), each a capped localStorage list of { key: "movie-123",
+// genres: [...] } entries:
+//   • SKIPPED   — "Show another" taps. A soft skip: don't surface this exact
+//                 title again, but read nothing into the genre.
+//   • DISMISSED — "Not for me" taps. A hard veto: never show it again AND let
+//                 its genres nudge similar titles down the next proposals.
+// Both feed the queue's exclude set; only DISMISSED feeds the genre penalty.
+const SKIPPED_KEY = 'whatsnext_skipped';
 const DISMISSED_KEY = 'whatsnext_dismissed';
-const DISMISSED_CAP = 200;
+const MEMORY_CAP = 200;
 
-const readDismissed = () => {
+// Tolerate the legacy shape (bare "type-id" strings, pre-genre-tracking) so a
+// user's existing dismissals keep excluding after this change.
+const normalizeEntry = (entry) =>
+    typeof entry === 'string'
+        ? { key: entry, genres: [] }
+        : { key: entry?.key, genres: Array.isArray(entry?.genres) ? entry.genres : [] };
+
+const readMemory = (storageKey) => {
     try {
-        const list = JSON.parse(localStorage.getItem(DISMISSED_KEY));
-        return Array.isArray(list) ? list : [];
+        const list = JSON.parse(localStorage.getItem(storageKey));
+        return Array.isArray(list) ? list.map(normalizeEntry).filter((e) => e.key) : [];
     } catch {
         return [];
     }
 };
 
-const getDismissed = (type) => new Set(
-    readDismissed()
-        .filter((key) => key.startsWith(`${type}-`))
-        .map((key) => Number(key.slice(type.length + 1)))
-);
-
-const addDismissed = (item) => {
-    const list = readDismissed().filter((key) => key !== `${item.type}-${item.id}`);
-    list.push(`${item.type}-${item.id}`);
-    localStorage.setItem(DISMISSED_KEY, JSON.stringify(list.slice(-DISMISSED_CAP)));
+const rememberItem = (storageKey, item) => {
+    const entryKey = `${item.type}-${item.id}`;
+    const list = readMemory(storageKey).filter((e) => e.key !== entryKey);
+    list.push({ key: entryKey, genres: item.genres || [] });
+    localStorage.setItem(storageKey, JSON.stringify(list.slice(-MEMORY_CAP)));
 };
 
-const clearDismissed = (type) => {
-    const list = readDismissed().filter((key) => !key.startsWith(`${type}-`));
-    localStorage.setItem(DISMISSED_KEY, JSON.stringify(list));
+const clearMemory = (storageKey, type) => {
+    const list = readMemory(storageKey).filter((e) => !e.key.startsWith(`${type}-`));
+    localStorage.setItem(storageKey, JSON.stringify(list));
+};
+
+const entriesForType = (storageKey, type) =>
+    readMemory(storageKey).filter((e) => e.key.startsWith(`${type}-`));
+
+// Ids of every title the user has skipped OR vetoed for this media type — all
+// kept out of future queues so a pick never comes back around.
+const getExcludedIds = (type) => new Set(
+    [...entriesForType(SKIPPED_KEY, type), ...entriesForType(DISMISSED_KEY, type)]
+        .map((e) => Number(e.key.slice(type.length + 1)))
+);
+
+// A genre → count tally built only from vetoed ("Not for me") titles. Passed to
+// the queue so recommendations sharing those genres get ranked lower. Skips are
+// deliberately excluded — skipping a title isn't disliking its whole genre.
+const getDislikedGenres = (type) => {
+    const tally = {};
+    entriesForType(DISMISSED_KEY, type).forEach((e) => {
+        e.genres.forEach((g) => { tally[g] = (tally[g] || 0) + 1; });
+    });
+    return tally;
 };
 
 // Providers/trailer already fetched this session, keyed "type-id" — revisiting
@@ -82,12 +111,13 @@ export const WhatsNextSpotlight = ({ mediaType }) => {
             const excludeIds = new Set([
                 ...history.map((item) => item.id),
                 ...list.map((item) => item.id),
-                ...getDismissed(mediaType),
+                ...getExcludedIds(mediaType),
             ]);
             const items = await getSpotlightQueue({
                 seeds: history.length ? history : list,
                 type: mediaType,
                 excludeIds,
+                dislikedGenres: getDislikedGenres(mediaType),
             });
             if (!active) return;
             setResult({ key: requestKey, queue: items, index: 0, error: false });
@@ -131,7 +161,16 @@ export const WhatsNextSpotlight = ({ mediaType }) => {
         }
     }, [queue, index]);
 
-    const showAnother = () => setResult((r) => ({ ...r, index: r.index + 1 }));
+    // Move to the next queued card without recording anything (used after an
+    // action that already recorded its own signal, e.g. saving or vetoing).
+    const advance = () => setResult((r) => ({ ...r, index: r.index + 1 }));
+
+    // "Show another" is a soft skip: remember it so this title stays out of
+    // future queues, then advance.
+    const skip = () => {
+        if (current) rememberItem(SKIPPED_KEY, current);
+        advance();
+    };
 
     // My List / Seen it write to the account (or guest storage) — fully
     // signed-out visitors get routed to login, same as the detail page.
@@ -141,16 +180,17 @@ export const WhatsNextSpotlight = ({ mediaType }) => {
             return;
         }
         action(current);
-        showAnother();
+        advance();
     };
 
     const notInterested = () => {
-        addDismissed(current);
-        showAnother();
+        rememberItem(DISMISSED_KEY, current);
+        advance();
     };
 
     const startOver = () => {
-        clearDismissed(mediaType);
+        clearMemory(SKIPPED_KEY, mediaType);
+        clearMemory(DISMISSED_KEY, mediaType);
         setReloadKey((k) => k + 1);
     };
 
@@ -244,7 +284,7 @@ export const WhatsNextSpotlight = ({ mediaType }) => {
                                 <motion.button
                                     whileTap={{ scale: 0.97 }}
                                     className="spotlight-btn ghost"
-                                    onClick={showAnother}
+                                    onClick={skip}
                                 >
                                     <RefreshCw size={17} /> Show another
                                 </motion.button>
