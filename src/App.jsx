@@ -1,8 +1,9 @@
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import BottomNav from './components/BottomNav';
 import InstallPrompt from './components/InstallPrompt';
 import ErrorBoundary from './components/ErrorBoundary';
 import { RequireUser, RedirectIfAuthed } from './components/RouteGuards';
+import { useUser } from './context/UserContext';
 import Home from './pages/Home';
 import Search from './pages/Search';
 import Library from './pages/Library';
@@ -19,6 +20,21 @@ import MediaDetail from './pages/MovieDetail';
 import Person from './pages/Person';
 import { UserProvider } from './context/UserContext';
 
+// The Library is the app's default landing: anyone with a session (a signed-in
+// account or a local guest) drops straight into their list. Fully signed-out
+// visitors still get the public discovery Home as the entry point.
+function IndexRoute() {
+  const { status } = useUser();
+  if (status === 'loading') {
+    return (
+      <div className="container flex-center" style={{ height: '100vh' }}>
+        <div className="spinner"></div>
+      </div>
+    );
+  }
+  return <Navigate to={status === 'signedOut' ? '/home' : '/library'} replace />;
+}
+
 // The routed pages live in their own ErrorBoundary, keyed on the route so it
 // auto-recovers on navigation. Floating chrome (the install prompt) gets its
 // OWN boundary as a sibling — never nested under the page one — so a fault
@@ -29,7 +45,8 @@ function AppShell() {
     <div className="app">
       <ErrorBoundary resetKey={location.pathname}>
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<IndexRoute />} />
+          <Route path="/home" element={<Home />} />
           <Route path="/search" element={<Search />} />
           <Route path="/library" element={<RequireUser><Library /></RequireUser>} />
           <Route path="/calendar" element={<RequireUser><Calendar /></RequireUser>} />
