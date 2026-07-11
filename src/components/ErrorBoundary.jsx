@@ -25,8 +25,7 @@ class ErrorBoundary extends React.Component {
         console.error('Unhandled error:', error, info);
     }
 
-    // Let a custom fallback retry in place (e.g. "reopen CineBot") without a
-    // full page reload.
+    // Let a custom fallback retry in place without a full page reload.
     reset() {
         this.setState({ hasError: false });
     }
@@ -34,7 +33,7 @@ class ErrorBoundary extends React.Component {
     render() {
         if (this.state.hasError) {
             // A caller can supply a compact, self-contained fallback so a fault in
-            // non-critical chrome (like the floating CineBot assistant) degrades to
+            // non-critical chrome (like the floating install prompt) degrades to
             // a small recoverable affordance instead of replacing the whole page.
             if (this.props.fallback !== undefined) {
                 return typeof this.props.fallback === 'function'

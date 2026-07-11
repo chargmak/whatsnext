@@ -81,6 +81,99 @@ export const getRecommendationsFromSeeds = async (seeds, type, excludeIds = new 
         .map((entry) => mapMediaData(entry.item));
 };
 
+// Build the "What's Next?" spotlight queue: one-at-a-time picks seeded from the
+// user's watch history. Differs from getRecommendationsFromSeeds in three ways:
+// hits are recency-weighted (a rec from last night's watch counts more than one
+// from months ago), each pick remembers which seed produced it (`becauseOf`, for
+// the "Because you watched X" line), and a short queue is padded with trending
+// titles so brand-new users still get proposals. Returns mapped items extended
+// with { becauseOf, match, source }.
+export const getSpotlightQueue = async ({ seeds, type, excludeIds = new Set(), limit = 20 }) => {
+    const validSeeds = (seeds || []).filter((s) => s && s.id);
+    // Most recently watched titles are the strongest signal → sample the end.
+    const sampled = validSeeds.slice(-8);
+    const picks = [];
+
+    if (sampled.length) {
+        const lists = await Promise.all(sampled.map((s) => getTitleRecommendations(s.id, type)));
+        const scored = new Map();
+        lists.forEach((list, i) => {
+            const recency = (i + 1) / lists.length; // 1.0 = newest seed
+            list.forEach((item) => {
+                if (!item || !item.poster_path) return;
+                if (excludeIds.has(item.id)) return;
+                let entry = scored.get(item.id);
+                if (!entry) {
+                    entry = { raw: item, score: 0, becauseOf: null, becauseOfWeight: -1 };
+                    scored.set(item.id, entry);
+                }
+                entry.score += 1 + recency;
+                // Credit the pick to the most recent seed that recommends it.
+                if (recency > entry.becauseOfWeight) {
+                    entry.becauseOf = sampled[i].title;
+                    entry.becauseOfWeight = recency;
+                }
+            });
+        });
+        const ranked = Array.from(scored.values())
+            .sort((a, b) => b.score - a.score || (b.raw.popularity || 0) - (a.raw.popularity || 0));
+        const maxScore = ranked[0]?.score || 1;
+        ranked.slice(0, limit).forEach((entry) => picks.push({
+            ...mapMediaData({ ...entry.raw, media_type: type }),
+            // w1280 is plenty for a hero card and far lighter than `original`.
+            backdrop: entry.raw.backdrop_path ? imageUrl(entry.raw.backdrop_path, 'w1280', null) : null,
+            becauseOf: entry.becauseOf,
+            match: Math.min(98, Math.round(60 + 38 * (entry.score / maxScore))),
+            source: 'history',
+        }));
+    }
+
+    // Cold start (or nearly-exhausted taste graph): pad with trending titles of
+    // the same type. No becauseOf/match — we don't fake personalization.
+    if (picks.length < Math.min(limit, 6)) {
+        const data = type === 'tv' ? await getTrendingTV() : await getTrendingMovies();
+        const have = new Set(picks.map((p) => p.id));
+        (data?.results || [])
+            .filter((r) => r.poster_path && !excludeIds.has(r.id) && !have.has(r.id))
+            .slice(0, limit - picks.length)
+            .forEach((r) => picks.push({
+                ...mapMediaData({ ...r, media_type: type }),
+                backdrop: r.backdrop_path ? imageUrl(r.backdrop_path, 'w1280', null) : null,
+                becauseOf: null,
+                match: null,
+                source: 'trending',
+            }));
+    }
+
+    return picks;
+};
+
+// The extra data the spotlight card shows for the pick currently on screen:
+// streaming providers (for the viewer's country) and a playable trailer. Kept
+// separate from getDetails — that's 4 fetches; the spotlight only needs these 2,
+// requested lazily per shown card.
+export const getSpotlightExtras = async (id, type, country = 'US') => {
+    const endpoint = type === 'tv' ? `/tv/${id}` : `/movie/${id}`;
+    const [providers, videos] = await Promise.all([
+        fetchFromTMDB(`${endpoint}/watch/providers`),
+        fetchFromTMDB(`${endpoint}/videos`),
+    ]);
+
+    const trailer = videos?.results?.find(
+        vid => vid.site === 'YouTube' && vid.type === 'Trailer'
+    ) || videos?.results?.find(vid => vid.site === 'YouTube');
+
+    const countryProviders = providers?.results?.[country] || providers?.results?.US || {};
+    return {
+        providers: (countryProviders.flatrate || []).map((p) => ({
+            id: p.provider_id,
+            name: p.provider_name,
+            logo: imageUrl(p.logo_path, 'w92', null),
+        })).filter((p) => p.logo),
+        trailerKey: trailer?.key || null,
+    };
+};
+
 
 export const getDetails = async (id, type, country = 'US') => {
     const endpoint = type === 'tv' ? `/tv/${id}` : `/movie/${id}`;
@@ -110,6 +203,19 @@ export const getDetails = async (id, type, country = 'US') => {
 };
 
 
+// TMDB genre ids → display names, movie and TV lists combined (their ids don't
+// collide). List payloads (/trending, /recommendations, /discover) only carry
+// `genre_ids`, unlike detail payloads which carry full genre objects — this map
+// lets mapMediaData produce names for both.
+const GENRE_NAMES_BY_ID = {
+    28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy', 80: 'Crime',
+    99: 'Documentary', 18: 'Drama', 10751: 'Family', 14: 'Fantasy', 36: 'History',
+    27: 'Horror', 10402: 'Music', 9648: 'Mystery', 10749: 'Romance', 878: 'Sci-Fi',
+    53: 'Thriller', 10752: 'War', 37: 'Western', 10770: 'TV Movie',
+    10759: 'Action & Adventure', 10762: 'Kids', 10763: 'News', 10764: 'Reality',
+    10765: 'Sci-Fi & Fantasy', 10766: 'Soap', 10767: 'Talk', 10768: 'War & Politics',
+};
+
 // Unified Data Mapper
 export const mapMediaData = (item) => {
     if (!item) return null;
@@ -124,7 +230,9 @@ export const mapMediaData = (item) => {
         rating: item.vote_average ? item.vote_average.toFixed(1) : 'N/A',
         year: (item.release_date || item.first_air_date)?.split('-')[0] || 'N/A',
         plot: item.overview,
-        genres: item.genres?.map(g => g.name) || [],
+        genres: item.genres?.map(g => g.name)
+            || item.genre_ids?.map((id) => GENRE_NAMES_BY_ID[id]).filter(Boolean)
+            || [],
         // TV Specific
         episodes: item.number_of_episodes,
         seasons: item.number_of_seasons,
