@@ -51,7 +51,7 @@ const extrasCache = new Map();
  * save it, mark it seen, or veto it forever.
  */
 export const WhatsNextSpotlight = ({ mediaType }) => {
-    const { status, user, watched, watchlist, addToWatchlist, markAsWatched } = useUser();
+    const { status, user, watched, watchlist, addToWatchlist, markTitleWatched } = useUser();
     const navigate = useNavigate();
     const [reloadKey, setReloadKey] = useState(0);
     // The loaded queue is tagged with the request it answers; while the tag
@@ -262,7 +262,7 @@ export const WhatsNextSpotlight = ({ mediaType }) => {
                                 <button className="spotlight-icon-btn" onClick={guarded(addToWatchlist)}>
                                     <Plus size={16} /> My List
                                 </button>
-                                <button className="spotlight-icon-btn" onClick={guarded(markAsWatched)}>
+                                <button className="spotlight-icon-btn" onClick={guarded(markTitleWatched)}>
                                     <Eye size={16} /> Seen it
                                 </button>
                                 <button className="spotlight-icon-btn" onClick={notInterested}>

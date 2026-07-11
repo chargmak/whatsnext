@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import * as userData from '../services/userData';
+import { getTVWatchStatus } from '../services/tmdb';
 
 const UserContext = createContext();
 
@@ -404,6 +405,55 @@ export const UserProvider = ({ children }) => {
         return Object.values(seasons).reduce((total, episodes) => total + episodes.length, 0);
     };
 
+    // "Seen it" on a whole title: file it in history and — for a series — tick
+    // off every episode of every season in one pass, so the show reads as fully
+    // watched everywhere (per-episode checkmarks, stats, the Library's
+    // completed-series detection). Season 0 (specials) is excluded, matching the
+    // rest of the app's "main run" bookkeeping. Episode marking runs after the
+    // history write and never blocks it: if the series lookup fails, the title
+    // is still recorded as watched.
+    const markTitleWatched = async (movie) => {
+        await markAsWatched(movie);
+        if ((movie.type || 'movie') !== 'tv') return;
+
+        let info;
+        try {
+            info = await getTVWatchStatus(movie.id);
+        } catch (error) {
+            console.error('Error loading series episodes:', error);
+            return;
+        }
+
+        const seasons = Object.entries(info?.seasonEpisodeCounts || {});
+        if (!seasons.length) return;
+        // TMDB numbers episodes 1..count within a season; this is the same
+        // representation the app's completion checks already assume.
+        const episodeNumbersFor = (count) => Array.from({ length: count }, (_, i) => i + 1);
+
+        const tvIdStr = String(movie.id);
+        const prev = watchedEpisodes;
+        const newState = JSON.parse(JSON.stringify(watchedEpisodes));
+        if (!newState[tvIdStr]) newState[tvIdStr] = {};
+        seasons.forEach(([seasonNum, count]) => {
+            const existing = newState[tvIdStr][seasonNum] || [];
+            newState[tvIdStr][seasonNum] = Array.from(new Set([...existing, ...episodeNumbersFor(count)]));
+        });
+        setWatchedEpisodes(newState);
+
+        if (isAuthed) {
+            try {
+                await Promise.all(seasons.map(([seasonNum, count]) =>
+                    userData.setSeasonEpisodesWatched(user.id, movie.id, seasonNum, episodeNumbersFor(count), true)
+                ));
+            } catch (error) {
+                console.error('Error saving series episodes:', error);
+                setWatchedEpisodes(prev);
+            }
+        } else {
+            persistLocal('user_watched_episodes', newState);
+        }
+    };
+
     // --- Reminders ("Notify Me") ---
 
     // Movies and TV shows share the TMDB id namespace, so — like watchlist and
@@ -513,6 +563,7 @@ export const UserProvider = ({ children }) => {
             addToWatchlist,
             removeFromWatchlist,
             markAsWatched,
+            markTitleWatched,
             removeFromWatched,
             toggleEpisodeWatched,
             isEpisodeWatched,
