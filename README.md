@@ -17,7 +17,7 @@ This application is built as a **Progressive Web App (PWA)**, offering a native-
 *   **🎭 Guest Mode**: Prefer not to sign up? Use "Continue as guest" — your data is stored on the device, and when you later create an account you'll be offered a one-click import into it.
 *   **🔔 Release Reminders + Push Notifications**: Tap "Notify Me" on an upcoming movie to track the countdown from the Notifications page, and opt into Web Push to get alerted the day a title is released — even when the app is closed. Powered by a scheduled Supabase edge function; see [NOTIFICATIONS_SETUP.md](./NOTIFICATIONS_SETUP.md).
 *   **🎯 Completionist Tracking**: Tap any cast member to open their page and see your **filmography completion %** (with per-title check-off), and track your progress through **movie franchises** with an in-order checklist.
-*   **🤖 CineBot**: A built-in assistant that understands moods and time limits ("something funny under 90 min"), pulls picks from your watchlist ("what should I watch next?"), and looks up titles. Optionally upgradeable to a Claude-powered, library-aware backend (see `supabase/functions/cinebot`).
+*   **✨ What's Next Spotlight**: The home screen proposes one movie or show at a time, seeded from your watch history — with a "Because you watched…" line, match %, streaming-provider logos, instant trailer playback, and one-tap Save / Seen it / Not for me.
 
 ## 🛠️ Tech Stack
 
