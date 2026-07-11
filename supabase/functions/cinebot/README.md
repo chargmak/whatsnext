@@ -7,7 +7,7 @@ local recommender in `src/components/CineBot.jsx`, so the app works out of the b
 ## What it does
 
 A Supabase Edge Function that calls Google Gemini through its OpenAI-compatible
-endpoint (`gemini-2.5-flash` by default) with tool use:
+endpoint (`gemini-flash-lite-latest` by default) with tool use:
 
 - `search_tmdb` — title/keyword search
 - `discover_by_genre` — mood + time-boxed discovery (e.g. "funny under 90 min")
@@ -18,11 +18,26 @@ It returns `{ reply, items }`; the client renders `reply` and deep-links `items[
 
 ## Why Gemini
 
-Google's Gemini API has a genuinely free tier (no credit card): `gemini-2.5-flash`
-supports function calling with limits (~10 req/min, ~250 req/day) that are ample
-for a personal watch-tracker. Because it speaks the OpenAI wire format, swapping
-to another provider later (e.g. Groq) only means changing `BASE_URL`, `MODEL`, and
-the API-key secret in `index.ts`.
+Google's Gemini API has a genuinely free tier (no credit card). The model choice
+here is load-bearing — it's what broke CineBot before:
+
+- **Don't pin `gemini-2.5-flash`.** A single user turn costs 2+ model calls (the
+  tool-call round-trip), and `-flash`'s free tier is only ~10 req/min / 250 req/day,
+  so the ceiling was hit almost immediately and replies came back HTTP **429**. The
+  client then silently fell back to its offline recommender, making the AI look dead.
+- **Don't pin `gemini-2.5-flash-lite` either.** Despite appearing in the native model
+  list, that exact id is **not served on the OpenAI-compat endpoint** — it returns
+  HTTP **404**, which takes the whole function down.
+- **Default to the rolling `gemini-flash-lite-latest` alias.** It's confirmed to work
+  on this endpoint *with* function calling, it's a flash-**lite** model (the roomiest
+  free-tier limits in the flash family), and being an alias it won't 404 when a dated
+  model is retired.
+
+On a 429 the function now returns a soft `{ reply: null, rateLimited: true }` (HTTP
+200) so the client falls back to its local recommender cleanly instead of erroring.
+Because Gemini speaks the OpenAI wire format, swapping to another provider later
+(e.g. Groq) only means changing `BASE_URL`, `MODEL`, and the API-key secret in
+`index.ts`. Override the model with the `GEMINI_MODEL` secret.
 
 ## Get the keys (both free)
 
@@ -40,7 +55,7 @@ the API-key secret in `index.ts`.
 # 2. Set secrets
 supabase secrets set GEMINI_API_KEY=...   # server-side only
 supabase secrets set TMDB_API_KEY=...     # server copy of the TMDB key
-# optional: supabase secrets set GEMINI_MODEL=gemini-2.5-flash-lite  # higher daily quota
+# optional: supabase secrets set GEMINI_MODEL=gemini-flash-latest  # a more capable (non-lite) alias
 
 # 3. Deploy
 supabase functions deploy cinebot
