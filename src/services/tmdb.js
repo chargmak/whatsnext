@@ -98,59 +98,118 @@ const genreDislikeScore = (item, dislikedGenres) => {
     );
 };
 
+// Fisher–Yates on a copy, so callers keep their input untouched. Used to vary
+// the order seeds are visited each build, so no single watched title always
+// leads the spotlight queue.
+const shuffle = (arr) => {
+    const out = [...arr];
+    for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+};
+
+// Pick up to `n` titles to seed recommendations from. Recent watches are the
+// strongest signal, but sampling the *whole* history (recency-weighted, with a
+// dash of randomness) means reloads rotate through everything the user has seen
+// — movies and series alike — instead of forever leaning on the last handful.
+// Returned in watch order so the recency weighting downstream stays meaningful.
+const sampleSeeds = (seeds, n) => {
+    if (seeds.length <= n) return seeds;
+    return seeds
+        .map((seed, i) => ({ seed, i, weight: (i + 1) * Math.random() }))
+        .sort((a, b) => b.weight - a.weight)
+        .slice(0, n)
+        .sort((a, b) => a.i - b.i)
+        .map((x) => x.seed);
+};
+
 // Build the "What's Next?" spotlight queue: one-at-a-time picks seeded from the
 // user's watch history. Differs from getRecommendationsFromSeeds in three ways:
 // hits are recency-weighted (a rec from last night's watch counts more than one
 // from months ago), each pick remembers which seed produced it (`becauseOf`, for
 // the "Because you watched X" line), and a short queue is padded with trending
-// titles so brand-new users still get proposals. Returns mapped items extended
-// with { becauseOf, match, source }. `dislikedGenres` sinks titles whose genres
-// match what the user has vetoed.
+// titles so brand-new users still get proposals. Picks round-robin across the
+// seeded titles so consecutive cards come from *different* watches rather than
+// piling up behind whichever one recommends the most. Returns mapped items
+// extended with { becauseOf, match, source }. `dislikedGenres` sinks titles
+// whose genres match what the user has vetoed.
 export const getSpotlightQueue = async ({ seeds, type, excludeIds = new Set(), dislikedGenres = null, limit = 20 }) => {
     const validSeeds = (seeds || []).filter((s) => s && s.id);
-    // Most recently watched titles are the strongest signal → sample the end.
-    const sampled = validSeeds.slice(-8);
+    // Draw seeds from across the whole history, not just the most recent handful,
+    // so proposals aren't forever anchored to the last thing watched.
+    const sampled = sampleSeeds(validSeeds, 8);
     const picks = [];
 
     if (sampled.length) {
         const lists = await Promise.all(sampled.map((s) => getTitleRecommendations(s.id, type)));
+
+        // Score every candidate across all seeds (recency-weighted). Drives the
+        // match % and breaks ties within a seed's own ranked bucket below.
         const scored = new Map();
         lists.forEach((list, i) => {
-            const recency = (i + 1) / lists.length; // 1.0 = newest seed
+            const recency = (i + 1) / lists.length; // 1.0 = newest sampled seed
             list.forEach((item) => {
-                if (!item || !item.poster_path) return;
-                if (excludeIds.has(item.id)) return;
+                if (!item || !item.poster_path || excludeIds.has(item.id)) return;
                 let entry = scored.get(item.id);
                 if (!entry) {
-                    entry = { raw: item, score: 0, becauseOf: null, becauseOfWeight: -1 };
+                    entry = { raw: item, score: 0 };
                     scored.set(item.id, entry);
                 }
                 entry.score += 1 + recency;
-                // Credit the pick to the most recent seed that recommends it.
-                if (recency > entry.becauseOfWeight) {
-                    entry.becauseOf = sampled[i].title;
-                    entry.becauseOfWeight = recency;
-                }
             });
         });
         // Sink candidates whose genres overlap what the user vetoed ("Not for
         // me"), so a dismissal shapes the ranking without hard-filtering a whole
         // genre. Match % follows the adjusted score, so a sunk pick reads lower.
-        const ranked = Array.from(scored.values())
-            .map((entry) => ({
-                ...entry,
-                adjScore: Math.max(0.1, entry.score - DISLIKE_PENALTY * genreDislikeScore(entry.raw, dislikedGenres)),
-            }))
-            .sort((a, b) => b.adjScore - a.adjScore || (b.raw.popularity || 0) - (a.raw.popularity || 0));
-        const maxScore = ranked[0]?.adjScore || 1;
-        ranked.slice(0, limit).forEach((entry) => picks.push({
-            ...mapMediaData({ ...entry.raw, media_type: type }),
-            // w1280 is plenty for a hero card and far lighter than `original`.
-            backdrop: entry.raw.backdrop_path ? imageUrl(entry.raw.backdrop_path, 'w1280', null) : null,
-            becauseOf: entry.becauseOf,
-            match: Math.min(98, Math.round(60 + 38 * (entry.adjScore / maxScore))),
-            source: 'history',
+        scored.forEach((entry) => {
+            entry.adjScore = Math.max(
+                0.1,
+                entry.score - DISLIKE_PENALTY * genreDislikeScore(entry.raw, dislikedGenres),
+            );
+        });
+        const maxScore = Math.max(1, ...Array.from(scored.values(), (e) => e.adjScore));
+
+        // One ranked bucket per seed, then round-robin across the buckets in a
+        // shuffled order: the queue draws one pick from each watched title in
+        // turn, so the "Because you watched X" line rotates through the user's
+        // whole history instead of being dominated by a single title. Each
+        // candidate is emitted once, credited to whichever seed's turn claims it.
+        const buckets = sampled.map((seed, i) => ({
+            title: seed.title,
+            items: (lists[i] || [])
+                .map((item) => scored.get(item?.id))
+                .filter(Boolean)
+                .sort((a, b) => b.adjScore - a.adjScore || (b.raw.popularity || 0) - (a.raw.popularity || 0)),
+            cursor: 0,
         }));
+        const order = shuffle(buckets.map((_, i) => i));
+        const chosen = new Set();
+        let progressed = true;
+        while (picks.length < limit && progressed) {
+            progressed = false;
+            for (const b of order) {
+                if (picks.length >= limit) break;
+                const bucket = buckets[b];
+                // Skip candidates an earlier seed's turn already claimed.
+                while (bucket.cursor < bucket.items.length && chosen.has(bucket.items[bucket.cursor].raw.id)) {
+                    bucket.cursor++;
+                }
+                if (bucket.cursor >= bucket.items.length) continue;
+                const entry = bucket.items[bucket.cursor++];
+                chosen.add(entry.raw.id);
+                picks.push({
+                    ...mapMediaData({ ...entry.raw, media_type: type }),
+                    // w1280 is plenty for a hero card and far lighter than `original`.
+                    backdrop: entry.raw.backdrop_path ? imageUrl(entry.raw.backdrop_path, 'w1280', null) : null,
+                    becauseOf: bucket.title,
+                    match: Math.min(98, Math.round(60 + 38 * (entry.adjScore / maxScore))),
+                    source: 'history',
+                });
+                progressed = true;
+            }
+        }
     }
 
     // Cold start (or nearly-exhausted taste graph): pad with trending titles of
