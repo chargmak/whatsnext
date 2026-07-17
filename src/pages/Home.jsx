@@ -27,11 +27,14 @@ const Home = () => {
 
     // Seeds for personalized recommendations: the titles the user has saved for
     // the active tab. Titles already saved or watched are excluded from results.
+    // Match media type the way the rest of the app does — legacy items saved
+    // before `type` was stored default to 'movie' — so a watched movie or series
+    // is reliably skipped from the recommendations instead of slipping through.
     const recInputs = useMemo(() => {
-        const seeds = watchlist.filter((item) => item.type === mediaType);
+        const seeds = watchlist.filter((item) => (item.type || 'movie') === mediaType);
         const excludeIds = new Set([
             ...seeds.map((item) => item.id),
-            ...watched.filter((item) => item.type === mediaType).map((item) => item.id),
+            ...watched.filter((item) => (item.type || 'movie') === mediaType).map((item) => item.id),
         ]);
         return { seeds, excludeIds };
     }, [watchlist, watched, mediaType]);
