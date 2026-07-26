@@ -33,6 +33,9 @@
   --font-heading: 'Space Grotesk', sans-serif;
 
   --nav-height: 64px;
+  /* Vertical space the floating dock takes out of the viewport: its own height,
+     the 24px it hovers above the screen edge, and a gap so nothing tucks under it. */
+  --nav-dock-space: calc(var(--nav-height) + 40px);
 
   /* Radius - Untitled UI often uses generous radii */
   --radius-xs: 4px;
@@ -783,20 +786,28 @@ p {
 /* The card interior sits on a photo, so its text/scrim colors are fixed
    (black scrim, white text) rather than token-driven — both themes need the
    same treatment for legibility, like the detail page hero. */
+/* The card is sized to fill what's left of the first screen: the viewport,
+   less everything stacked above it on the home page and less the floating
+   dock at the bottom. Whatever the queue proposes lands fully in view, with
+   its actions sitting just above the dock — no scrolling to act on a pick.
+   `--spotlight-lead-space` is the measured stack above it on the home page:
+   the page header, the movie/TV toggle, and this section's own title block. */
+:root {
+  --spotlight-lead-space: 220px;
+}
+
 .spotlight-card {
   position: relative;
-  aspect-ratio: 3 / 4;
+  height: calc(100vh - var(--spotlight-lead-space) - var(--nav-dock-space));
+  /* Dynamic units so mobile browser chrome collapsing doesn't clip the card. */
+  height: calc(100dvh - var(--spotlight-lead-space) - var(--nav-dock-space));
+  /* Floor for short/landscape viewports — better to scroll than to squash. */
+  min-height: 420px;
   border-radius: var(--radius-xl);
   overflow: hidden;
   background: var(--bg-secondary);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: var(--shadow-lg);
-}
-
-@media (min-width: 640px) {
-  .spotlight-card {
-    aspect-ratio: 16 / 9;
-  }
 }
 
 .spotlight-backdrop {
@@ -815,11 +826,17 @@ p {
 .spotlight-scrim {
   position: absolute;
   inset: 0;
+  /* Stops are in pixels, not percentages: the text block is a fixed ~330px
+     tall, so on a full-height card a percentage fade would either wash out
+     the copy or darken half the backdrop. This keeps the shade on the text
+     and leaves everything above it clear at any card height. */
   background: linear-gradient(to top,
-      rgba(2, 2, 2, 0.92) 0%,
-      rgba(2, 2, 2, 0.55) 45%,
-      rgba(2, 2, 2, 0.05) 75%,
-      transparent 100%);
+      rgba(2, 2, 2, 0.95) 0px,
+      rgba(2, 2, 2, 0.9) 140px,
+      rgba(2, 2, 2, 0.68) 240px,
+      rgba(2, 2, 2, 0.34) 340px,
+      rgba(2, 2, 2, 0.08) 420px,
+      transparent 480px);
 }
 
 .spotlight-content {
@@ -834,6 +851,9 @@ p {
 @media (min-width: 640px) {
   .spotlight-content {
     padding: 28px;
+    /* The card is full-bleed on wide screens; cap the copy so the plot
+       doesn't run the entire width in one line. */
+    max-width: 680px;
   }
 }
 
@@ -971,8 +991,16 @@ p {
   border-color: transparent;
 }
 
-/* Empty / exhausted / error panels (token-driven, theme-safe). */
+/* Empty / exhausted / error panels (token-driven, theme-safe). They match the
+   card's footprint so swapping between a pick and a panel doesn't jump the page. */
 .spotlight-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - var(--spotlight-lead-space) - var(--nav-dock-space));
+  height: calc(100dvh - var(--spotlight-lead-space) - var(--nav-dock-space));
+  min-height: 420px;
   border-radius: var(--radius-lg);
   padding: 28px 20px;
   text-align: center;
