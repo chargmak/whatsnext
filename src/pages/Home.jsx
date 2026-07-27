@@ -119,7 +119,7 @@ const Home = () => {
 
             {/* Content Toggle - the spotlight and every section below follow it */}
             <div className="toggle-container">
-                {['movie', 'tv'].map((type) => (
+                {['tv', 'movie'].map((type) => (
                     <button
                         key={type}
                         onClick={() => setMediaType(type)}
