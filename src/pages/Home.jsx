@@ -125,7 +125,7 @@ const Home = () => {
                         onClick={() => setMediaType(type)}
                         className={`toggle-btn ${mediaType === type ? 'active' : ''}`}
                     >
-                        {type === 'movie' ? 'Movies' : 'TV Series'}
+                        {type === 'movie' ? 'Movies' : 'TV Shows'}
                         {mediaType === type && (
                             <motion.div
                                 layoutId="activeTab"

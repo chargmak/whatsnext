@@ -416,8 +416,8 @@ export const getNextUnwatchedEpisode = async (tvId, watchedForShow = {}) => {
     return null;
 };
 
-// Get TV Series with upcoming episodes
-export const getTVSeriesWithEpisodes = async (tvId) => {
+// Get TV shows with upcoming episodes
+export const getTVShowWithEpisodes = async (tvId) => {
     const details = await fetchFromTMDB(`/tv/${tvId}`);
     if (!details) return null;
 

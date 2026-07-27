@@ -69,7 +69,7 @@ const MediaDetail = ({ type }) => {
         }
     };
 
-    // Fetch episodes for TV series
+    // Fetch episodes for TV shows
     useEffect(() => {
         if (type === 'tv' && item && item.seasons > 0) {
             const fetchEpisodes = async () => {
@@ -410,7 +410,7 @@ const MediaDetail = ({ type }) => {
                         </div>
                     )}
 
-                    {/* Episodes Section - TV Series Only */}
+                    {/* Episodes Section - TV Shows Only */}
                     {type === 'tv' && item.seasons > 0 && (
                         <div style={{ marginTop: '30px', marginBottom: '30px' }}>
                             <div className="episodes-header">
