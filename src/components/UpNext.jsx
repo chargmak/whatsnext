@@ -13,7 +13,7 @@ const formatAirDate = (dateStr) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
-// "Up Next": for every TV series passed in, resolve the next episode the viewer
+// "Up Next": for every TV show passed in, resolve the next episode the viewer
 // should watch — the earliest aired episode they haven't marked as seen — and
 // list only the shows that actually have one waiting. Marking an episode here
 // advances that show to its following episode in place.

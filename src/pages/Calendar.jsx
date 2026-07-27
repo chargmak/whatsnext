@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Film, Tv } from 'lucide-react';
 import { useUser } from '../context/UserContext';
-import { getTVSeriesWithEpisodes, getTVSeasonDetails } from '../services/tmdb';
+import { getTVShowWithEpisodes, getTVSeasonDetails } from '../services/tmdb';
 import { motion } from 'framer-motion';
 
 const Calendar = () => {
@@ -60,7 +60,7 @@ const Calendar = () => {
             const processTvItem = async (item) => {
                 const releases = [];
                 try {
-                    const tvDetails = await getTVSeriesWithEpisodes(item.id);
+                    const tvDetails = await getTVShowWithEpisodes(item.id);
                     if (!tvDetails?.seasons) return releases;
 
                     // Only the latest 2 real seasons to keep request volume sane
