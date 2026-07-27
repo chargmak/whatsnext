@@ -5,6 +5,7 @@ import { getTrendingMovies, getTrendingTV, getRecommendationsFromSeeds, mapMedia
 import { MovieCard } from '../components/MovieCard';
 import { PosterRow } from '../components/PosterRow';
 import { WhatsNextSpotlight } from '../components/WhatsNextSpotlight';
+import UpNext from '../components/UpNext';
 import { useUser } from '../context/UserContext';
 import { TRENDING_MOVIES } from '../data/mockData'; // Fallback
 
@@ -38,6 +39,13 @@ const Home = () => {
         ]);
         return { seeds, excludeIds };
     }, [watchlist, watched, mediaType]);
+
+    // Shows we can compute a "next episode" for — same source the Library's
+    // Up Next tab uses: the TV entries saved to the watchlist.
+    const tvWatchlist = useMemo(
+        () => watchlist.filter((item) => item.type === 'tv'),
+        [watchlist]
+    );
 
     useEffect(() => {
         let active = true;
@@ -138,6 +146,35 @@ const Home = () => {
 
             {/* "What's Next?" spotlight — answers the app's namesake question */}
             <WhatsNextSpotlight mediaType={mediaType} />
+
+            {/* Up Next — the next unwatched episode of every series in the list.
+                TV-only by nature, so it rides the TV tab, and it stays hidden
+                until there is at least one show to resolve an episode for. */}
+            {mediaType === 'tv' && tvWatchlist.length > 0 && (
+                <section style={{ marginBottom: '40px' }}>
+                    <div className="flex-between" style={{ marginBottom: '4px' }}>
+                        <h3>Up Next</h3>
+                        <button
+                            onClick={() => navigate('/library')}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'var(--accent-primary)',
+                                fontSize: '0.9rem',
+                                cursor: 'pointer',
+                                padding: 0
+                            }}
+                        >
+                            See All
+                        </button>
+                    </div>
+                    <p style={{ margin: '0 0 16px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Pick up where you left off in the shows you follow
+                    </p>
+
+                    <UpNext series={tvWatchlist} />
+                </section>
+            )}
 
             {/* Trending Section */}
             <section style={{ marginBottom: '40px' }}>
