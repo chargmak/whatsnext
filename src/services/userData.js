@@ -65,16 +65,41 @@ const orThrow = ({ data, error }) => {
     return data;
 };
 
+// PostgREST caps every response at the project's `max-rows` setting (1000 on
+// Supabase by default) and truncates silently — no error, just a short array.
+// An unpaged select is therefore a data-loss bug the moment a library passes
+// 1000 rows: the surplus reads back as "never watched", so episodes marked in
+// the app reappear as unwatched on the next load. Always page.
+const PAGE_SIZE = 1000;
+
+const fetchAllRows = async (table, columns, userId, orderBy) => {
+    const rows = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+        let query = supabase.from(table).select(columns).eq('user_id', userId);
+        if (orderBy) query = query.order(orderBy, { ascending: true });
+        // The primary key breaks ties in the sort. Without it rows that compare
+        // equal can shuffle between requests, so paging would drop or duplicate
+        // them — exactly the corruption the paging is here to prevent.
+        const { data, error } = await query
+            .order('id', { ascending: true })
+            .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        rows.push(...(data || []));
+        // A short page means the server had nothing more to give.
+        if (!data || data.length < PAGE_SIZE) return rows;
+    }
+};
+
 export const fetchAllUserData = async (userId) => {
     const [wl, hist, eps, rems] = await Promise.all([
-        supabase.from('watchlists').select('*').eq('user_id', userId).order('added_at', { ascending: true }),
-        supabase.from('history').select('*').eq('user_id', userId).order('watched_at', { ascending: true }),
-        supabase.from('watched_episodes').select('tv_id,season_number,episode_number').eq('user_id', userId),
-        supabase.from('reminders').select('*').eq('user_id', userId).order('release_date', { ascending: true }),
+        fetchAllRows('watchlists', '*', userId, 'added_at'),
+        fetchAllRows('history', '*', userId, 'watched_at'),
+        fetchAllRows('watched_episodes', 'tv_id,season_number,episode_number', userId),
+        fetchAllRows('reminders', '*', userId, 'release_date'),
     ]);
 
     const episodes = {};
-    (orThrow(eps) || []).forEach((row) => {
+    eps.forEach((row) => {
         const tv = String(row.tv_id);
         const season = String(row.season_number);
         if (!episodes[tv]) episodes[tv] = {};
@@ -83,10 +108,10 @@ export const fetchAllUserData = async (userId) => {
     });
 
     return {
-        watchlist: (orThrow(wl) || []).map(fromDbRow),
-        watched: (orThrow(hist) || []).map(fromDbRow),
+        watchlist: wl.map(fromDbRow),
+        watched: hist.map(fromDbRow),
         episodes,
-        reminders: (orThrow(rems) || []).map(fromReminderRow),
+        reminders: rems.map(fromReminderRow),
     };
 };
 
@@ -110,19 +135,14 @@ export const deleteHistoryItem = async (userId, movieId, mediaType) => {
         .delete().match({ user_id: userId, movie_id: movieId, media_type: mediaType }));
 };
 
-export const setEpisodeWatched = async (userId, tvId, seasonNumber, episodeNumber, watched) => {
-    const key = {
-        user_id: userId,
-        tv_id: Number(tvId),
-        season_number: Number(seasonNumber),
-        episode_number: Number(episodeNumber),
-    };
-    if (watched) {
-        const { error } = await supabase.from('watched_episodes').insert(key);
-        if (error && error.code !== '23505') throw error; // 23505: already marked, fine
-    } else {
-        orThrow(await supabase.from('watched_episodes').delete().match(key));
-    }
+// A watched_episodes row is a bare marker — the key *is* the whole record — so
+// there is never anything to update on conflict. `ignoreDuplicates` makes this
+// ON CONFLICT DO NOTHING; the DO UPDATE form would additionally require an
+// UPDATE row-level-security policy, and re-marking a season that already had
+// one episode ticked would fail outright.
+const EPISODE_UPSERT = {
+    onConflict: 'user_id,tv_id,season_number,episode_number',
+    ignoreDuplicates: true,
 };
 
 export const setSeasonEpisodesWatched = async (userId, tvId, seasonNumber, episodeNumbers, watched) => {
@@ -136,7 +156,7 @@ export const setSeasonEpisodesWatched = async (userId, tvId, seasonNumber, episo
         }));
         for (const batch of chunk(rows, 200)) {
             const { error } = await supabase.from('watched_episodes')
-                .upsert(batch, { onConflict: 'user_id,tv_id,season_number,episode_number' });
+                .upsert(batch, EPISODE_UPSERT);
             if (error) throw error;
         }
     } else {
@@ -211,8 +231,7 @@ export const migrateLocalData = async (userId, { watchlist = [], watched = [], e
         });
     });
     for (const batch of chunk(episodeRows, 200)) {
-        orThrow(await supabase.from('watched_episodes')
-            .upsert(batch, { onConflict: 'user_id,tv_id,season_number,episode_number' }));
+        orThrow(await supabase.from('watched_episodes').upsert(batch, EPISODE_UPSERT));
     }
 
     for (const rem of reminders) {

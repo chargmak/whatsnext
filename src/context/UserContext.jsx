@@ -17,6 +17,18 @@ const readLocal = (key, fallback) => {
     }
 };
 
+// Add or remove episode numbers for one season, returning a new state object.
+// Shared by the optimistic write and its rollback so both stay in step.
+const applyEpisodes = (state, tvId, seasonNumber, episodeNumbers, watched) => {
+    const tvIdStr = String(tvId);
+    const seasonStr = String(seasonNumber);
+    const existing = state[tvIdStr]?.[seasonStr] || [];
+    const next = watched
+        ? Array.from(new Set([...existing, ...episodeNumbers]))
+        : existing.filter((ep) => !episodeNumbers.includes(ep));
+    return { ...state, [tvIdStr]: { ...state[tvIdStr], [seasonStr]: next } };
+};
+
 const createGuestUser = () => {
     const guestNames = [
         "Alex", "Jordan", "Taylor", "Casey", "Riley", "Sam", "Jamie",
@@ -251,6 +263,13 @@ export const UserProvider = ({ children }) => {
 
     const persistLocal = (key, value) => localStorage.setItem(key, JSON.stringify(value));
 
+    // Episode state is written through functional updates, so the caller never
+    // holds the resulting object to hand to localStorage. Mirror it here instead
+    // — guests have nowhere else for their data to live.
+    useEffect(() => {
+        if (status === 'guest') persistLocal('user_watched_episodes', watchedEpisodes);
+    }, [status, watchedEpisodes]);
+
     // Movies and TV shows live in separate TMDB id namespaces, so a movie and a
     // show can share the same numeric id. Every match must compare type too, or
     // one masks the other (e.g. a watched movie makes a same-id show look seen).
@@ -331,32 +350,37 @@ export const UserProvider = ({ children }) => {
 
     // --- TV episodes ---
 
+    // Every episode write goes through here: it updates state optimistically and
+    // syncs in the background. Both the write and its rollback are functional
+    // updates against the *current* state, and the rollback only touches the
+    // episodes this call actually changed — so a failed save can't wipe out ticks
+    // the user made while it was in flight, and two fast taps can't clobber each
+    // other by both building on the same stale snapshot.
+    const writeEpisodes = (tvId, seasonNumber, episodeNumbers, watched) => {
+        const nums = episodeNumbers.map(Number);
+        if (!nums.length) return;
+
+        let applied = nums;
+        setWatchedEpisodes((current) => {
+            const existing = current[String(tvId)]?.[String(seasonNumber)] || [];
+            applied = watched
+                ? nums.filter((ep) => !existing.includes(ep))
+                : nums.filter((ep) => existing.includes(ep));
+            return applyEpisodes(current, tvId, seasonNumber, applied, watched);
+        });
+
+        if (!isAuthed) return; // guest data is mirrored to localStorage by effect
+        userData.setSeasonEpisodesWatched(user.id, tvId, seasonNumber, nums, watched)
+            .catch((error) => {
+                console.error('Error saving episode state:', error);
+                setWatchedEpisodes((current) =>
+                    applyEpisodes(current, tvId, seasonNumber, applied, !watched));
+            });
+    };
+
     const toggleEpisodeWatched = (tvId, seasonNumber, episodeNumber) => {
-        const tvIdStr = String(tvId);
-        const seasonStr = String(seasonNumber);
-        const episodeNum = Number(episodeNumber);
-
-        const prev = watchedEpisodes;
-        const newState = JSON.parse(JSON.stringify(watchedEpisodes));
-        if (!newState[tvIdStr]) newState[tvIdStr] = {};
-        if (!newState[tvIdStr][seasonStr]) newState[tvIdStr][seasonStr] = [];
-
-        const episodes = newState[tvIdStr][seasonStr];
-        const index = episodes.indexOf(episodeNum);
-        const nowWatched = index === -1;
-        if (nowWatched) episodes.push(episodeNum);
-        else episodes.splice(index, 1);
-
-        setWatchedEpisodes(newState);
-        if (isAuthed) {
-            userData.setEpisodeWatched(user.id, tvId, seasonNumber, episodeNum, nowWatched)
-                .catch((error) => {
-                    console.error('Error saving episode state:', error);
-                    setWatchedEpisodes(prev);
-                });
-        } else {
-            persistLocal('user_watched_episodes', newState);
-        }
+        writeEpisodes(tvId, seasonNumber, [episodeNumber],
+            !isEpisodeWatched(tvId, seasonNumber, episodeNumber));
     };
 
     const isEpisodeWatched = (tvId, seasonNumber, episodeNumber) => {
@@ -365,32 +389,7 @@ export const UserProvider = ({ children }) => {
 
     // Mark (or unmark) every episode of a season in one go.
     const setSeasonWatched = (tvId, seasonNumber, episodeNumbers, watched) => {
-        const tvIdStr = String(tvId);
-        const seasonStr = String(seasonNumber);
-        const nums = episodeNumbers.map(Number);
-        if (!nums.length) return;
-
-        const prev = watchedEpisodes;
-        const newState = JSON.parse(JSON.stringify(watchedEpisodes));
-        if (!newState[tvIdStr]) newState[tvIdStr] = {};
-        const existing = newState[tvIdStr][seasonStr] || [];
-
-        if (watched) {
-            newState[tvIdStr][seasonStr] = Array.from(new Set([...existing, ...nums]));
-        } else {
-            newState[tvIdStr][seasonStr] = existing.filter((ep) => !nums.includes(ep));
-        }
-
-        setWatchedEpisodes(newState);
-        if (isAuthed) {
-            userData.setSeasonEpisodesWatched(user.id, tvId, seasonNumber, nums, watched)
-                .catch((error) => {
-                    console.error('Error saving season state:', error);
-                    setWatchedEpisodes(prev);
-                });
-        } else {
-            persistLocal('user_watched_episodes', newState);
-        }
+        writeEpisodes(tvId, seasonNumber, episodeNumbers, watched);
     };
 
     const isSeasonWatched = (tvId, seasonNumber, episodeNumbers) => {
@@ -430,28 +429,8 @@ export const UserProvider = ({ children }) => {
         // representation the app's completion checks already assume.
         const episodeNumbersFor = (count) => Array.from({ length: count }, (_, i) => i + 1);
 
-        const tvIdStr = String(movie.id);
-        const prev = watchedEpisodes;
-        const newState = JSON.parse(JSON.stringify(watchedEpisodes));
-        if (!newState[tvIdStr]) newState[tvIdStr] = {};
-        seasons.forEach(([seasonNum, count]) => {
-            const existing = newState[tvIdStr][seasonNum] || [];
-            newState[tvIdStr][seasonNum] = Array.from(new Set([...existing, ...episodeNumbersFor(count)]));
-        });
-        setWatchedEpisodes(newState);
-
-        if (isAuthed) {
-            try {
-                await Promise.all(seasons.map(([seasonNum, count]) =>
-                    userData.setSeasonEpisodesWatched(user.id, movie.id, seasonNum, episodeNumbersFor(count), true)
-                ));
-            } catch (error) {
-                console.error('Error saving series episodes:', error);
-                setWatchedEpisodes(prev);
-            }
-        } else {
-            persistLocal('user_watched_episodes', newState);
-        }
+        seasons.forEach(([seasonNum, count]) =>
+            writeEpisodes(movie.id, seasonNum, episodeNumbersFor(count), true));
     };
 
     // --- Reminders ("Notify Me") ---
