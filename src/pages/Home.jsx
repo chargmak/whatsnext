@@ -12,9 +12,10 @@ import { TRENDING_MOVIES } from '../data/mockData'; // Fallback
 const Home = () => {
     const { user, watchlist, watched } = useUser();
     const navigate = useNavigate();
-    // Initialize from session storage if available, otherwise default to 'movie'
+    // Initialize from session storage if available, otherwise default to 'tv'
+    // so a fresh visit lands on the first tab, TV Shows.
     const [mediaType, setMediaType] = useState(() => {
-        return sessionStorage.getItem('homeMediaType') || 'movie';
+        return sessionStorage.getItem('homeMediaType') || 'tv';
     });
     const [mediaItems, setMediaItems] = useState([]);
     const [loading, setLoading] = useState(true);
