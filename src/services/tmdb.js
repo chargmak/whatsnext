@@ -1,5 +1,6 @@
 import {
     deviceTimeZone,
+    isValidZone,
     getShowReleaseRule,
     releaseInstant,
     resolveReleaseTime,
@@ -313,10 +314,14 @@ const GENRE_NAMES_BY_ID = {
 
 // Unified Data Mapper.
 // `viewerZone` decides what "upcoming" means: a title is upcoming until its
-// release date arrives where the viewer is. Defaults to the device's zone, since
-// most callers are rendering for whoever is holding the phone.
-export const mapMediaData = (item, viewerZone = deviceTimeZone()) => {
+// release date arrives where the viewer is. Anything that isn't a usable IANA
+// zone falls back to the device's zone — most callers are rendering for whoever
+// is holding the phone, and a mapper used as a bare `list.map(mapMediaData)`
+// callback is handed the array index as its second argument, which Intl would
+// throw on rather than ignore.
+export const mapMediaData = (item, viewerZone) => {
     if (!item) return null;
+    const zone = isValidZone(viewerZone) ? viewerZone : deviceTimeZone();
     const isTv = item.media_type === 'tv' || item.type === 'tv' || item.first_air_date; // Robust check
     // TV payloads carry first_air_date, movies release_date — pick whichever
     // exists so `upcoming` and `releaseDate` work for both (and never build an
@@ -345,7 +350,7 @@ export const mapMediaData = (item, viewerZone = deviceTimeZone()) => {
         // comparing the raw string against `new Date()` would parse it as UTC
         // midnight and flip the answer for anyone not on UTC.
         upcoming: releaseDate
-            ? releaseInstant(releaseDate, viewerDayRule(viewerZone)) > new Date()
+            ? releaseInstant(releaseDate, viewerDayRule(zone)) > new Date()
             : false,
         releaseDate
     };

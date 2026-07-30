@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { searchMulti, mapMediaData, discoverByGenre } from '../services/tmdb';
 import { MovieCard } from '../components/MovieCard';
 import { BrowseCategories } from '../components/BrowseCategories';
+import { useUser } from '../context/UserContext';
 
 function useDebounce(value, delay) {
     const [debouncedValue, setDebouncedValue] = useState(value);
@@ -16,6 +17,7 @@ function useDebounce(value, delay) {
 
 const Search = () => {
     const navigate = useNavigate();
+    const { timeZone } = useUser();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [selectedGenre, setSelectedGenre] = useState(null);
@@ -38,7 +40,7 @@ const Search = () => {
                 if (data && data.results) {
                     // Filter for only movies and tv (skip people)
                     const filtered = data.results.filter(item => item.media_type === 'movie' || item.media_type === 'tv');
-                    setResults(filtered.map(mapMediaData));
+                    setResults(filtered.map((item) => mapMediaData(item, timeZone)));
                 }
                 setSelectedGenre(null); // Clear genre when searching
             };
@@ -48,7 +50,7 @@ const Search = () => {
             // eslint-disable-next-line react-hooks/set-state-in-effect
             setResults([]);
         }
-    }, [debouncedQuery]);
+    }, [debouncedQuery, timeZone]);
 
     const handleGenreClick = async (genre) => {
         setSelectedGenre(genre);
@@ -57,7 +59,7 @@ const Search = () => {
         // Fetch movies/TV shows by genre
         const data = await discoverByGenre(genre);
         if (data && data.results) {
-            setResults(data.results.map(mapMediaData));
+            setResults(data.results.map((item) => mapMediaData(item, timeZone)));
         }
     };
 

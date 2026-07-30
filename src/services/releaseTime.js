@@ -66,8 +66,12 @@ export const deviceTimeZone = () => {
     }
 };
 
-const isValidZone = (zone) => {
-    if (!zone) return false;
+// Whether a value can actually be handed to Intl as a `timeZone`. Exported
+// because every zone that reaches this module comes from somewhere loose — a
+// profile field, a device setting, a function argument — and an unusable one
+// makes Intl throw rather than degrade.
+export const isValidZone = (zone) => {
+    if (typeof zone !== 'string' || !zone) return false;
     try {
         new Intl.DateTimeFormat('en-US', { timeZone: zone });
         return true;
