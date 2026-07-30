@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Film, Mail, Lock, User, Eye, EyeOff, Globe, Calendar } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUser } from '../context/UserContext';
+import { deviceTimeZone } from '../services/releaseTime';
 
 // Countries for streaming services (sorted alphabetically)
 const COUNTRIES = [
@@ -136,6 +137,9 @@ const Register = () => {
                 country: formData.country,
                 avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(formData.name)}`,
                 bio: 'Movie and TV enthusiast',
+                // Detected, not asked: release times need the viewer's real
+                // clock, and the push jobs have no device to read it from.
+                timezone: deviceTimeZone(),
             });
 
             if (result?.needsConfirmation) {

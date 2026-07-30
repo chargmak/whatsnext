@@ -12,6 +12,7 @@
 
 import webpush from 'npm:web-push@3.6.7';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { daysUntilInZone, zoneForUser } from '../_shared/air-time.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -25,13 +26,6 @@ const json = (body: unknown, status = 200) =>
         status,
         headers: { 'Content-Type': 'application/json' },
     });
-
-// Whole days from `todayMs` (UTC midnight) to a YYYY-MM-DD release date.
-const daysUntil = (releaseDate: string, todayMs: number): number => {
-    const [y, m, d] = releaseDate.split('-').map(Number);
-    const releaseMs = Date.UTC(y, m - 1, d);
-    return Math.round((releaseMs - todayMs) / 86_400_000);
-};
 
 const releaseCopy = (title: string, days: number) => {
     if (days <= 0) return { title, body: `${title} is out now — tap to see where to watch.` };
@@ -64,10 +58,14 @@ Deno.serve(async (req) => {
     webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-    // "Today" at UTC midnight; horizon includes tomorrow so users get a day's warning.
+    // Candidates are pulled two days out in UTC terms, then filtered per user
+    // against *their* calendar: a viewer in Auckland or Honolulu is up to a day
+    // off UTC, so "releases tomorrow" has to be decided in their own zone or the
+    // alert lands on the wrong day. Anything still too far out is left alone and
+    // picked up by a later run.
     const now = new Date();
     const todayMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-    const horizon = new Date(todayMs + 86_400_000).toISOString().slice(0, 10);
+    const horizon = new Date(todayMs + 2 * 86_400_000).toISOString().slice(0, 10);
 
     const { data: reminders, error } = await supabase
         .from('reminders')
@@ -83,7 +81,17 @@ Deno.serve(async (req) => {
 
     let sent = 0;
     let failed = 0;
+    let notYet = 0;
     const notifiedIds: number[] = [];
+
+    // Each owner's zone — their pinned setting, else the country on their profile.
+    const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, country, timezone')
+        .in('id', [...new Set(reminders.map((r) => r.user_id))]);
+    const zoneByUser = new Map<string, string>(
+        (profiles ?? []).map((p) => [p.id as string, zoneForUser(p.timezone, p.country)]),
+    );
 
     for (const reminder of reminders) {
         const { data: subs, error: subErr } = await supabase
@@ -93,7 +101,13 @@ Deno.serve(async (req) => {
 
         if (subErr || !subs || subs.length === 0) continue;
 
-        const days = daysUntil(reminder.release_date, todayMs);
+        const zone = zoneByUser.get(reminder.user_id) ?? 'UTC';
+        const days = daysUntilInZone(reminder.release_date, zone, now);
+        // Still more than a day away where they are — not this run's business.
+        if (days === null || days > 1) {
+            notYet += 1;
+            continue;
+        }
         const copy = releaseCopy(reminder.title, days);
         const payload = JSON.stringify({
             title: copy.title,
@@ -139,6 +153,7 @@ Deno.serve(async (req) => {
     return json({
         ok: true,
         candidates: reminders.length,
+        notYet,
         sent,
         failed,
         notified: notifiedIds.length,

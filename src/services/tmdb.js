@@ -1,3 +1,11 @@
+import {
+    deviceTimeZone,
+    getShowReleaseRule,
+    releaseInstant,
+    resolveReleaseTime,
+    viewerDayRule,
+} from './releaseTime';
+
 const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const BASE_URL = "https://api.themoviedb.org/3";
 const IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
@@ -303,8 +311,11 @@ const GENRE_NAMES_BY_ID = {
     10765: 'Sci-Fi & Fantasy', 10766: 'Soap', 10767: 'Talk', 10768: 'War & Politics',
 };
 
-// Unified Data Mapper
-export const mapMediaData = (item) => {
+// Unified Data Mapper.
+// `viewerZone` decides what "upcoming" means: a title is upcoming until its
+// release date arrives where the viewer is. Defaults to the device's zone, since
+// most callers are rendering for whoever is holding the phone.
+export const mapMediaData = (item, viewerZone = deviceTimeZone()) => {
     if (!item) return null;
     const isTv = item.media_type === 'tv' || item.type === 'tv' || item.first_air_date; // Robust check
     // TV payloads carry first_air_date, movies release_date — pick whichever
@@ -330,8 +341,73 @@ export const mapMediaData = (item) => {
         // Movie Specific
         runtime: item.runtime ? `${Math.floor(item.runtime / 60)}h ${item.runtime % 60}m` : null,
 
-        upcoming: releaseDate ? new Date(releaseDate) > new Date() : false,
+        // A date-only release "arrives" at midnight in the viewer's zone —
+        // comparing the raw string against `new Date()` would parse it as UTC
+        // midnight and flip the answer for anyone not on UTC.
+        upcoming: releaseDate
+            ? releaseInstant(releaseDate, viewerDayRule(viewerZone)) > new Date()
+            : false,
         releaseDate
+    };
+};
+
+// --- Movie release dates by country -----------------------------------------
+
+// TMDB release types, in the order we'd rather report them: a viewer cares first
+// about when they can watch it at all (theatrical), then digital.
+const MOVIE_RELEASE_TYPE_LABELS = {
+    1: 'Premiere',
+    2: 'In theaters (limited)',
+    3: 'In theaters',
+    4: 'Streaming / digital',
+    5: 'Physical release',
+    6: 'On TV',
+};
+const RELEASE_TYPE_PREFERENCE = [3, 2, 1, 4, 6, 5];
+
+// Release dates a country actually gets, normalized. TMDB reports each entry as
+// an ISO string whose clock is *local to that country* (with a misleading Z), so
+// the date and any non-midnight hour are read as wall time, not UTC.
+const pickCountryRelease = (entries) => {
+    for (const type of RELEASE_TYPE_PREFERENCE) {
+        const match = (entries || []).find((e) => e.type === type && e.release_date);
+        if (!match) continue;
+        const [datePart, timePart] = match.release_date.split('T');
+        const [hour, minute] = (timePart || '').split(':').map(Number);
+        const hasHour = Boolean(timePart) && (hour > 0 || minute > 0);
+        return {
+            date: datePart,
+            type,
+            typeLabel: MOVIE_RELEASE_TYPE_LABELS[type] || 'Release',
+            hour: hasHour ? hour : null,
+            minute: hasHour ? minute : null,
+            note: match.note || null,
+        };
+    }
+    return null;
+};
+
+// When a movie opens where the viewer lives. Release dates differ by country by
+// days (sometimes weeks), so the global `release_date` on the detail payload is
+// the wrong thing to count down to. Falls back to the US date, then to whatever
+// country TMDB lists first, and reports which one it used.
+export const getMovieReleaseForCountry = async (movieId, country = 'US') => {
+    const data = await fetchFromTMDB(`/movie/${movieId}/release_dates`);
+    const results = data?.results || [];
+    if (!results.length) return null;
+
+    const byCountry = (code) => results.find((r) => r.iso_3166_1 === code);
+    const local = byCountry(country);
+    const chosen = local || byCountry('US') || results[0];
+    const release = pickCountryRelease(chosen?.release_dates);
+    if (!release) return null;
+
+    return {
+        ...release,
+        country: chosen.iso_3166_1,
+        // True when we're showing some other country's date because the viewer's
+        // isn't listed — the UI says so rather than implying a local date.
+        isFallback: chosen.iso_3166_1 !== country,
     };
 };
 
@@ -371,11 +447,15 @@ export const getTVWatchStatus = async (tvId) => {
 // { [seasonNumber]: [episodeNumbers] }. Returns null when the viewer is caught
 // up (no aired, unseen episode) — including shows they've finished or not
 // started but whose next episode hasn't aired.
-export const getNextUnwatchedEpisode = async (tvId, watchedForShow = {}) => {
+export const getNextUnwatchedEpisode = async (tvId, watchedForShow = {}, viewerZone = deviceTimeZone()) => {
     const details = await fetchFromTMDB(`/tv/${tvId}`);
     if (!details) return null;
 
     const now = new Date();
+    // Where and when this show goes out (Netflix's global midnight Pacific, HBO's
+    // 21:00 Eastern, a local broadcaster's prime time…), so "has it aired?" is
+    // asked against the real moment rather than UTC midnight of the air date.
+    const rule = getShowReleaseRule(details);
     const seasons = (details.seasons || [])
         .filter((s) => s.season_number !== 0 && s.episode_count > 0)
         .sort((a, b) => a.season_number - b.season_number);
@@ -390,10 +470,10 @@ export const getNextUnwatchedEpisode = async (tvId, watchedForShow = {}) => {
         const episodes = seasonData?.episodes || [];
 
         for (const ep of episodes) {
-            const aired = ep.air_date && new Date(ep.air_date) <= now;
+            const air = resolveReleaseTime({ dateStr: ep.air_date, rule, viewerZone, now });
             // Episodes air in order, so nothing beyond an unaired one is
             // available yet — the viewer is caught up on what exists.
-            if (!aired) return null;
+            if (!air?.hasAired) return null;
             if (watchedSet.includes(ep.episode_number)) continue;
 
             return {
@@ -406,6 +486,8 @@ export const getNextUnwatchedEpisode = async (tvId, watchedForShow = {}) => {
                 episodeName: ep.name,
                 still: ep.still_path ? `${BACKDROP_BASE_URL}${ep.still_path}` : null,
                 airDate: ep.air_date,
+                // The resolved moment it aired, in the viewer's own clock.
+                air,
                 overview: ep.overview,
                 totalSeasons: seasons.length,
             };
@@ -416,20 +498,18 @@ export const getNextUnwatchedEpisode = async (tvId, watchedForShow = {}) => {
     return null;
 };
 
-// Get TV shows with upcoming episodes
+// Get TV shows with upcoming episodes. `releaseRule` travels with the payload so
+// callers can turn this show's date-only air dates into real instants without
+// re-deriving the network/origin-country rule per episode.
 export const getTVShowWithEpisodes = async (tvId) => {
     const details = await fetchFromTMDB(`/tv/${tvId}`);
     if (!details) return null;
 
-    // Get current season details if available
-    if (details.next_episode_to_air) {
-        return {
-            ...details,
-            nextEpisode: details.next_episode_to_air
-        };
-    }
-
-    return details;
+    return {
+        ...details,
+        releaseRule: getShowReleaseRule(details),
+        nextEpisode: details.next_episode_to_air || null,
+    };
 };
 
 // Genre name to ID mapping

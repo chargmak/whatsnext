@@ -11,19 +11,21 @@ import {
     subscribeToPush,
     unsubscribeFromPush,
 } from '../services/push';
+import { startOfZonedDay, todayKey } from '../services/releaseTime';
 
-const daysUntil = (dateStr) => {
+// Whole days from today to a release date, both read in the viewer's zone — a
+// reminder must not flip to "Released" while it's still yesterday where they are.
+const daysUntil = (dateStr, zone) => {
     if (!dateStr) return null;
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const release = new Date(y, m - 1, d);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return Math.round((release - today) / (1000 * 60 * 60 * 24));
+    const start = startOfZonedDay(dateStr, zone);
+    const todayStart = startOfZonedDay(todayKey(zone), zone);
+    if (!start || !todayStart) return null;
+    return Math.round((start - todayStart) / 86400000);
 };
 
 const Notifications = () => {
     const navigate = useNavigate();
-    const { status, user, reminders, toggleReminder } = useUser();
+    const { status, user, reminders, toggleReminder, timeZone } = useUser();
 
     const [push, setPush] = useState({
         supported: true,
@@ -171,7 +173,7 @@ const Notifications = () => {
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         {sortedReminders.map((reminder) => {
-                            const days = daysUntil(reminder.releaseDate);
+                            const days = daysUntil(reminder.releaseDate, timeZone);
                             const released = days !== null && days <= 0;
                             return (
                                 <div
@@ -200,7 +202,7 @@ const Notifications = () => {
                                             {days === null
                                                 ? 'Release date unknown'
                                                 : released
-                                                    ? 'Released! 🎬'
+                                                    ? days === 0 ? 'Out today 🎬' : 'Released! 🎬'
                                                     : days === 1
                                                         ? 'Releases tomorrow'
                                                         : `Releases in ${days} days (${reminder.releaseDate})`}

@@ -4,13 +4,14 @@ import { motion } from 'framer-motion';
 import { Check, Play, Tv } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { getNextUnwatchedEpisode } from '../services/tmdb';
+import { PRECISION, describeRelease } from '../services/releaseTime';
 
-// Human-friendly air date, e.g. "Jul 1, 2026". Falls back to the raw value.
-const formatAirDate = (dateStr) => {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    if (Number.isNaN(date.getTime())) return dateStr;
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+// "Aired today at 9:00 PM" — the resolved moment in the viewer's own clock, with
+// a ~ when the hour is a prime-time estimate rather than a published drop time.
+const formatAired = (ep) => {
+    if (!ep.air) return ep.airDate || '';
+    const text = describeRelease(ep.air, { verb: 'air' });
+    return ep.air.precision === PRECISION.ESTIMATED ? text.replace(' at ', ' at ~') : text;
 };
 
 // "Up Next": for every TV show passed in, resolve the next episode the viewer
@@ -19,7 +20,7 @@ const formatAirDate = (dateStr) => {
 // advances that show to its following episode in place.
 const UpNext = ({ series }) => {
     const navigate = useNavigate();
-    const { watchedEpisodes, toggleEpisodeWatched } = useUser();
+    const { watchedEpisodes, toggleEpisodeWatched, timeZone } = useUser();
     const [nextByShow, setNextByShow] = useState({}); // tvId -> episode | null
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState(null);
@@ -34,7 +35,7 @@ const UpNext = ({ series }) => {
 
         const load = async () => {
             const entries = await Promise.all(series.map(async (show) => {
-                const next = await getNextUnwatchedEpisode(show.id, watchedEpisodes[String(show.id)] || {});
+                const next = await getNextUnwatchedEpisode(show.id, watchedEpisodes[String(show.id)] || {}, timeZone);
                 // Fall back to the poster we already have saved if TMDB omitted one.
                 if (next && !next.poster && show.poster) next.poster = show.poster;
                 return [show.id, next];
@@ -47,7 +48,7 @@ const UpNext = ({ series }) => {
         load();
         return () => { active = false; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [seriesKey]);
+    }, [seriesKey, timeZone]);
 
     // Mark the shown episode watched, then resolve that one show's next episode
     // so the card advances (or drops out when the viewer is caught up).
@@ -63,7 +64,7 @@ const UpNext = ({ series }) => {
             [seasonKey]: [...(current[seasonKey] || []), ep.episodeNumber],
         };
 
-        const next = await getNextUnwatchedEpisode(show.id, updated);
+        const next = await getNextUnwatchedEpisode(show.id, updated, timeZone);
         if (next && !next.poster && show.poster) next.poster = show.poster;
         setNextByShow((prev) => ({ ...prev, [show.id]: next }));
         setBusyId(null);
@@ -167,7 +168,7 @@ const UpNext = ({ series }) => {
                         </div>
                         {ep.airDate && (
                             <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                                Aired {formatAirDate(ep.airDate)}
+                                {formatAired(ep)}
                             </div>
                         )}
                     </div>
