@@ -475,10 +475,15 @@ export const getNextUnwatchedEpisode = async (tvId, watchedForShow = {}, viewerZ
         const episodes = seasonData?.episodes || [];
 
         for (const ep of episodes) {
-            const air = resolveReleaseTime({ dateStr: ep.air_date, rule, viewerZone, now });
+            // Scanning only needs to know whether the episode is out, which is a
+            // date comparison. Resolving the full picture — day and time labels,
+            // zone abbreviation, countdown — for every episode we're about to
+            // skip cost far more than the scan itself, so that's left until we
+            // know which episode we're actually returning.
+            const instant = releaseInstant(ep.air_date, rule);
             // Episodes air in order, so nothing beyond an unaired one is
             // available yet — the viewer is caught up on what exists.
-            if (!air?.hasAired) return null;
+            if (!instant || instant.getTime() > now.getTime()) return null;
             if (watchedSet.includes(ep.episode_number)) continue;
 
             return {
@@ -492,7 +497,7 @@ export const getNextUnwatchedEpisode = async (tvId, watchedForShow = {}, viewerZ
                 still: ep.still_path ? `${BACKDROP_BASE_URL}${ep.still_path}` : null,
                 airDate: ep.air_date,
                 // The resolved moment it aired, in the viewer's own clock.
-                air,
+                air: resolveReleaseTime({ dateStr: ep.air_date, rule, viewerZone, now }),
                 overview: ep.overview,
                 totalSeasons: seasons.length,
             };

@@ -56,6 +56,26 @@ export const COUNTRY_TIME_ZONES = {
 
 const UTC = 'UTC';
 
+// --- Formatter cache --------------------------------------------------------
+
+// Building an Intl.DateTimeFormat is expensive — it resolves a locale and loads
+// timezone data, and it measures ~150µs on a desktop, several times that on a
+// phone. Formatters are immutable and reusable, but the functions below are
+// called per title and per episode, so constructing one each time turns a screen
+// full of dates into hundreds of milliseconds of blocked main thread. Keyed on
+// the arguments, so callers just ask for the formatter they want.
+const formatterCache = new Map();
+
+const formatter = (locale, options) => {
+    const key = `${locale}|${JSON.stringify(options)}`;
+    let cached = formatterCache.get(key);
+    if (!cached) {
+        cached = new Intl.DateTimeFormat(locale, options);
+        formatterCache.set(key, cached);
+    }
+    return cached;
+};
+
 // The zone the device is set to — the most accurate read on where the viewer
 // actually is, since it follows them when they travel.
 export const deviceTimeZone = () => {
@@ -70,14 +90,23 @@ export const deviceTimeZone = () => {
 // because every zone that reaches this module comes from somewhere loose — a
 // profile field, a device setting, a function argument — and an unusable one
 // makes Intl throw rather than degrade.
+// Memoized: this is asked once per title mapped, and the answer for a given
+// string never changes within a session.
+const zoneValidity = new Map();
+
 export const isValidZone = (zone) => {
     if (typeof zone !== 'string' || !zone) return false;
-    try {
-        new Intl.DateTimeFormat('en-US', { timeZone: zone });
-        return true;
-    } catch {
-        return false;
+    let known = zoneValidity.get(zone);
+    if (known === undefined) {
+        try {
+            new Intl.DateTimeFormat('en-US', { timeZone: zone });
+            known = true;
+        } catch {
+            known = false;
+        }
+        zoneValidity.set(zone, known);
     }
+    return known;
 };
 
 // The zone to show release times in. An explicit profile setting wins (a viewer
@@ -95,7 +124,7 @@ export const resolveViewerZone = (user) => {
 // formatting the instant in that zone and reading the wall clock back — the
 // standard no-dependency trick, and it picks up DST automatically.
 const zoneOffsetMinutes = (zone, instant) => {
-    const parts = new Intl.DateTimeFormat('en-US', {
+    const parts = formatter('en-US', {
         timeZone: zone,
         hour12: false,
         year: 'numeric', month: '2-digit', day: '2-digit',
@@ -264,7 +293,7 @@ export const releaseInstant = (dateStr, rule) => {
 // on, so a 21:00 Sunday US episode lands on Monday for a viewer in Athens,
 // which is when they can actually watch it.
 export const zonedDateKey = (instant, zone) => {
-    const parts = new Intl.DateTimeFormat('en-CA', {
+    const parts = formatter('en-CA', {
         timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit',
     }).formatToParts(instant);
     const get = (type) => parts.find((p) => p.type === type)?.value;
@@ -281,17 +310,17 @@ export const startOfZonedDay = (dateStr, zone) => {
 export const todayKey = (zone, now = new Date()) => zonedDateKey(now, zone);
 
 export const formatZonedTime = (instant, zone) =>
-    new Intl.DateTimeFormat(undefined, { timeZone: zone, hour: 'numeric', minute: '2-digit' })
+    formatter(undefined, { timeZone: zone, hour: 'numeric', minute: '2-digit' })
         .format(instant);
 
 export const formatZonedDate = (instant, zone, options) =>
-    new Intl.DateTimeFormat(undefined, {
+    formatter(undefined, {
         timeZone: zone, weekday: 'short', month: 'short', day: 'numeric', ...options,
     }).format(instant);
 
 // "EEST", "GMT+3" — whatever the platform calls the zone at that moment.
 export const zoneAbbreviation = (instant, zone) => {
-    const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'short' })
+    const parts = formatter('en-US', { timeZone: zone, timeZoneName: 'short' })
         .formatToParts(instant);
     return parts.find((p) => p.type === 'timeZoneName')?.value || '';
 };
