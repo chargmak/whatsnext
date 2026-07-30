@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+/* Fonts are loaded via <link> in index.html — see the note there. */
 
 :root {
   /* Untitled UI - Dark Mode Palette Inspection & Adaptation */
@@ -438,6 +438,19 @@ p {
   50% {
     opacity: 0.8;
   }
+}
+
+/* One placeholder card in a poster row. Sized like the real thing (2:3 poster
+   plus the title/genre block) so the row doesn't resize when titles land. */
+.poster-skeleton {
+  height: calc(150px * 1.5 + 62px);
+  border-radius: var(--radius-md, 12px);
+  background: rgba(255, 255, 255, 0.05);
+  animation: pulse-fade 1.4s ease-in-out infinite;
+}
+
+[data-theme="light"] .poster-skeleton {
+  background: rgba(0, 0, 0, 0.06);
 }
 
 /* Layout Utilities - Added for Consistency */
