@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useMemo 
 import { supabase } from '../services/supabase';
 import * as userData from '../services/userData';
 import { getTVWatchStatus } from '../services/tmdb';
+import { resolveViewerZone } from '../services/releaseTime';
 
 const UserContext = createContext();
 
@@ -43,6 +44,9 @@ const createGuestUser = () => {
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
         country: '',
         bio: '',
+        // Left unset so release times follow this device — guest data never
+        // leaves it, so there's nothing that needs a zone written down.
+        timezone: null,
         joinDate: new Date().toISOString(),
     };
 };
@@ -107,6 +111,7 @@ export const UserProvider = ({ children }) => {
                 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${authUser.id}`,
             country: profile?.country || meta.country || '',
             bio: profile?.bio || meta.bio || '',
+            timezone: profile?.timezone || meta.timezone || null,
             joinDate: authUser.created_at,
         });
         setWatchlist(data.watchlist);
@@ -491,6 +496,7 @@ export const UserProvider = ({ children }) => {
                 avatar_url: merged.avatar,
                 country: merged.country || null,
                 bio: merged.bio || null,
+                timezone: merged.timezone || null,
             }).catch((error) => console.error('Error saving profile:', error));
         } else {
             localStorage.setItem('user_data', JSON.stringify(merged));
@@ -528,10 +534,18 @@ export const UserProvider = ({ children }) => {
         return { moviesWatched, showsWatched, episodesWatched, hoursWatched, favoriteGenre, rank };
     }, [watched, watchedEpisodes]);
 
+    // The zone every release time in the app is rendered in: the viewer's pinned
+    // setting, else this device, else the country on their profile.
+    const timeZone = useMemo(
+        () => resolveViewerZone({ timezone: user?.timezone, country: user?.country }),
+        [user?.timezone, user?.country],
+    );
+
     return (
         <UserContext.Provider value={{
             status,
             user,
+            timeZone,
             loading: status === 'loading',
             recoveryMode,
             stats,

@@ -1,16 +1,48 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Film, Tv } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Film, Tv } from 'lucide-react';
 import { useUser } from '../context/UserContext';
-import { getTVShowWithEpisodes, getTVSeasonDetails } from '../services/tmdb';
+import { getTVShowWithEpisodes, getTVSeasonDetails, getMovieReleaseForCountry } from '../services/tmdb';
+import {
+    PRECISION,
+    describeRelease,
+    formatZonedDate,
+    getShowReleaseRule,
+    movieReleaseRule,
+    resolveReleaseTime,
+    todayKey,
+    viewerDayRule,
+    zoneAbbreviation,
+} from '../services/releaseTime';
 import { motion } from 'framer-motion';
+
+// How far back the grid keeps already-aired entries, so browsing the current or
+// previous month shows what has happened rather than an empty page.
+const PAST_WINDOW_DAYS = 60;
+
+// The gap until a release, at whatever granularity still says something useful.
+const countdownLabel = (air) => {
+    const { days, hours, minutes, passed } = air.countdown;
+    if (passed) return '';
+    if (days > 0) return `· in ${days} day${days === 1 ? '' : 's'}`;
+    if (hours > 0) return `· in ${hours}h ${minutes}m`;
+    return `· in ${minutes}m`;
+};
 
 const Calendar = () => {
     const navigate = useNavigate();
-    const { watchlist } = useUser();
+    const { watchlist, user, timeZone } = useUser();
+    const country = user?.country || 'US';
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [upcomingReleases, setUpcomingReleases] = useState([]);
+    // Every dated release in range, aired or not; the list below shows only the
+    // ones still to come.
+    const [releases, setReleases] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    const upcomingReleases = releases.filter((r) => !r.air.hasAired);
+    // True when at least one time on screen is a prime-time guess rather than a
+    // known platform drop, which the footnote then explains.
+    const hasEstimates = releases.some((r) => r.air.precision === PRECISION.ESTIMATED);
 
     // Get calendar data
     const getCalendarDays = () => {
@@ -36,32 +68,37 @@ const Calendar = () => {
         return days;
     };
 
-    // Get releases for a specific date
-    // Compare dates as local yyyy-mm-dd strings; toISOString() shifts the day
-    // for viewers west of UTC.
-    const toLocalDateStr = (date) =>
+    // The grid's cells are plain calendar arithmetic, so a cell's key is just its
+    // own y-m-d. Entries carry the day they land on *in the viewer's zone*, which
+    // is what makes a 21:00 Sunday US episode show up on Monday in Athens.
+    const toDateKey = (date) =>
         `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
     const getReleasesForDate = (date) => {
         if (!date) return [];
-
-        const dateStr = toLocalDateStr(date);
-        // TMDB dates are already yyyy-mm-dd strings
-        return upcomingReleases.filter(release => release.releaseDate === dateStr);
+        const dateStr = toDateKey(date);
+        return releases.filter((release) => release.air.dateKey === dateStr);
     };
 
-    // Process watchlist for upcoming releases including TV episodes
+    // Resolve every dated release in the watchlist to a real moment, in the
+    // viewer's own clock.
     useEffect(() => {
-        const fetchUpcomingReleases = async () => {
+        let active = true;
+
+        const load = async () => {
             setLoading(true);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            const now = new Date();
+            const earliest = now.getTime() - PAST_WINDOW_DAYS * 86400000;
 
             const processTvItem = async (item) => {
-                const releases = [];
+                const out = [];
                 try {
                     const tvDetails = await getTVShowWithEpisodes(item.id);
-                    if (!tvDetails?.seasons) return releases;
+                    if (!tvDetails?.seasons) return out;
+
+                    // When the show goes out — Netflix's global midnight Pacific,
+                    // HBO's 21:00 Eastern, a local broadcaster's prime time.
+                    const rule = tvDetails.releaseRule || getShowReleaseRule(tvDetails);
 
                     // Only the latest 2 real seasons to keep request volume sane
                     const relevantSeasons = [...tvDetails.seasons]
@@ -80,41 +117,69 @@ const Calendar = () => {
 
                     for (const seasonData of seasonResults) {
                         for (const episode of seasonData?.episodes || []) {
-                            if (episode.air_date && new Date(episode.air_date) >= today) {
-                                releases.push({
-                                    ...item,
-                                    title: `${item.title} - S${episode.season_number}E${episode.episode_number}`,
-                                    episodeTitle: episode.name,
-                                    releaseDate: episode.air_date,
-                                    isEpisode: true,
-                                    seasonNumber: episode.season_number,
-                                    episodeNumber: episode.episode_number
-                                });
-                            }
+                            const air = resolveReleaseTime({
+                                dateStr: episode.air_date, rule, viewerZone: timeZone, now,
+                            });
+                            if (!air || air.instant.getTime() < earliest) continue;
+                            out.push({
+                                ...item,
+                                title: `${item.title} - S${episode.season_number}E${episode.episode_number}`,
+                                showTitle: item.title,
+                                episodeTitle: episode.name,
+                                releaseDate: episode.air_date,
+                                air,
+                                isEpisode: true,
+                                seasonNumber: episode.season_number,
+                                episodeNumber: episode.episode_number
+                            });
                         }
                     }
                 } catch (error) {
                     console.error('Error fetching TV details:', error);
                 }
-                return releases;
+                return out;
             };
 
-            const results = await Promise.all(watchlist.map(async (item) => {
-                if (item.type === 'tv') return processTvItem(item);
-                if (item.type === 'movie' && item.releaseDate && new Date(item.releaseDate) >= today) {
-                    return [{ ...item, isUpcoming: true }];
+            const processMovieItem = async (item) => {
+                if (!item.releaseDate) return [];
+                // Opening dates differ by country, so ask for the viewer's before
+                // counting down to the global one.
+                let release = null;
+                try {
+                    release = await getMovieReleaseForCountry(item.id, country);
+                } catch (error) {
+                    console.error('Error fetching movie release dates:', error);
                 }
+                const dateStr = release?.date || item.releaseDate;
+                const rule = release ? movieReleaseRule(release, timeZone) : viewerDayRule(timeZone);
+                const air = resolveReleaseTime({ dateStr, rule, viewerZone: timeZone, now });
+                if (!air || air.instant.getTime() < earliest) return [];
+                return [{
+                    ...item,
+                    releaseDate: dateStr,
+                    air,
+                    releaseKind: release?.typeLabel || null,
+                    releaseCountry: release?.isFallback ? release.country : null,
+                    isUpcoming: !air.hasAired,
+                }];
+            };
+
+            const results = await Promise.all(watchlist.map((item) => {
+                if (item.type === 'tv') return processTvItem(item);
+                if (item.type === 'movie') return processMovieItem(item);
                 return [];
             }));
 
-            const releases = results.flat();
-            releases.sort((a, b) => new Date(a.releaseDate) - new Date(b.releaseDate));
-            setUpcomingReleases(releases);
+            if (!active) return;
+            const all = results.flat();
+            all.sort((a, b) => a.air.instant - b.air.instant);
+            setReleases(all);
             setLoading(false);
         };
 
-        fetchUpcomingReleases();
-    }, [watchlist]);
+        load();
+        return () => { active = false; };
+    }, [watchlist, timeZone, country]);
 
     const monthNames = [
         'January', 'February', 'March', 'April', 'May', 'June',
@@ -131,13 +196,13 @@ const Calendar = () => {
         setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
     };
 
-    const isToday = (date) => {
-        if (!date) return false;
-        const today = new Date();
-        return date.toDateString() === today.toDateString();
-    };
+    // "Today" belongs to the viewer's zone, not the device's, so a pinned zone
+    // highlights the right cell.
+    const today = todayKey(timeZone);
+    const isToday = (date) => Boolean(date) && toDateKey(date) === today;
 
     const calendarDays = getCalendarDays();
+    const zoneLabel = zoneAbbreviation(new Date(), timeZone);
 
     return (
         <div className="container" style={{ paddingBottom: '100px' }}>
@@ -148,6 +213,19 @@ const Calendar = () => {
                     Release Calendar
                 </h1>
             </header>
+
+            {/* Which clock everything on this page is in */}
+            <p style={{
+                margin: '-8px 0 20px 0',
+                fontSize: '0.85rem',
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+            }}>
+                <Clock size={14} />
+                Times shown for {timeZone.replace(/_/g, ' ')}{zoneLabel ? ` (${zoneLabel})` : ''}
+            </p>
 
             {/* Month Navigation */}
             <div className="flex-between" style={{ marginBottom: '24px' }}>
@@ -198,8 +276,8 @@ const Calendar = () => {
 
                 {/* Calendar days */}
                 {calendarDays.map((date, index) => {
-                    const releases = getReleasesForDate(date);
-                    const hasReleases = releases.length > 0;
+                    const dayReleases = getReleasesForDate(date);
+                    const hasReleases = dayReleases.length > 0;
 
                     return (
                         <motion.div
@@ -245,7 +323,7 @@ const Calendar = () => {
                                             gap: '4px',
                                             marginTop: '4px'
                                         }}>
-                                            {releases.slice(0, 4).map((release, idx) => (
+                                            {dayReleases.slice(0, 4).map((release, idx) => (
                                                 <div
                                                     key={idx}
                                                     onClick={(e) => {
@@ -254,14 +332,17 @@ const Calendar = () => {
                                                     }}
                                                     style={{
                                                         position: 'relative',
-                                                        width: releases.length === 1 ? '100%' : 'calc(50% - 2px)',
+                                                        width: dayReleases.length === 1 ? '100%' : 'calc(50% - 2px)',
                                                         aspectRatio: '2/3',
                                                         borderRadius: '4px',
                                                         overflow: 'hidden',
                                                         cursor: 'pointer',
                                                         border: '1px solid rgba(255,255,255,0.1)'
                                                     }}
-                                                    title={release.title}
+                                                    title={`${release.title} — ${describeRelease(release.air, {
+                                                        verb: release.isEpisode ? 'air' : 'release',
+                                                        zone: timeZone,
+                                                    })}`}
                                                 >
                                                     <img
                                                         src={release.poster}
@@ -269,9 +350,30 @@ const Calendar = () => {
                                                         style={{
                                                             width: '100%',
                                                             height: '100%',
-                                                            objectFit: 'cover'
+                                                            objectFit: 'cover',
+                                                            // Already out — the grid shouldn't make a past
+                                                            // episode look like something still to come.
+                                                            filter: release.air.hasAired ? 'grayscale(0.7)' : 'none',
+                                                            opacity: release.air.hasAired ? 0.55 : 1
                                                         }}
                                                     />
+                                                    {release.air.timeLabel && !release.air.hasAired && (
+                                                        <div style={{
+                                                            position: 'absolute',
+                                                            bottom: 0,
+                                                            left: 0,
+                                                            right: 0,
+                                                            background: 'rgba(0,0,0,0.72)',
+                                                            color: 'white',
+                                                            fontSize: '0.55rem',
+                                                            fontWeight: 600,
+                                                            textAlign: 'center',
+                                                            padding: '1px 0',
+                                                            letterSpacing: '0.02em'
+                                                        }}>
+                                                            {release.air.timeLabel}
+                                                        </div>
+                                                    )}
                                                     {/* Type indicator badge */}
                                                     <div style={{
                                                         position: 'absolute',
@@ -292,7 +394,7 @@ const Calendar = () => {
                                                     </div>
                                                 </div>
                                             ))}
-                                            {releases.length > 4 && (
+                                            {dayReleases.length > 4 && (
                                                 <div style={{
                                                     width: 'calc(50% - 2px)',
                                                     aspectRatio: '2/3',
@@ -304,7 +406,7 @@ const Calendar = () => {
                                                     fontSize: '0.7rem',
                                                     color: 'var(--text-secondary)'
                                                 }}>
-                                                    +{releases.length - 4}
+                                                    +{dayReleases.length - 4}
                                                 </div>
                                             )}
                                         </div>
@@ -334,11 +436,11 @@ const Calendar = () => {
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                        {/* Group items by date */}
+                        {/* Group by the day each release lands on where the viewer is */}
                         {(() => {
                             const groupedReleases = {};
                             upcomingReleases.forEach(item => {
-                                const dateKey = new Date(item.releaseDate).toLocaleDateString('en-US', {
+                                const dateKey = formatZonedDate(item.air.instant, timeZone, {
                                     weekday: 'long',
                                     month: 'long',
                                     day: 'numeric',
@@ -403,7 +505,7 @@ const Calendar = () => {
                                                             "{item.episodeTitle}"
                                                         </p>
                                                     )}
-                                                    {/* Date removed from here as it's in the header now */}
+                                                    {/* The day is in the header; this is the hour */}
                                                     <p style={{
                                                         fontSize: '0.85rem',
                                                         color: 'var(--text-secondary)',
@@ -411,6 +513,40 @@ const Calendar = () => {
                                                     }}>
                                                         {item.isEpisode ? `Season ${item.seasonNumber} • Episode ${item.episodeNumber}` : item.year}
                                                     </p>
+
+                                                    <p style={{
+                                                        fontSize: '0.85rem',
+                                                        color: 'var(--brand-600)',
+                                                        fontWeight: 600,
+                                                        margin: '4px 0 0 0',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '6px',
+                                                        flexWrap: 'wrap'
+                                                    }}>
+                                                        <Clock size={13} />
+                                                        {item.air.timeLabel
+                                                            ? `${item.air.precision === PRECISION.ESTIMATED ? '~' : ''}${item.air.timeLabel} ${item.air.zoneLabel}`
+                                                            : 'Time not announced'}
+                                                        <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>
+                                                            {countdownLabel(item.air)}
+                                                        </span>
+                                                    </p>
+
+                                                    {/* Where the time comes from, so an odd-looking hour makes sense */}
+                                                    {(item.air.sourceLabel || item.releaseKind) && (
+                                                        <p style={{
+                                                            fontSize: '0.75rem',
+                                                            color: 'var(--text-tertiary)',
+                                                            margin: '3px 0 0 0'
+                                                        }}>
+                                                            {item.isEpisode
+                                                                ? item.air.global
+                                                                    ? `${item.air.sourceLabel} — worldwide drop`
+                                                                    : `${item.air.sourceLabel} — ${item.air.sourceDate} local broadcast`
+                                                                : `${item.releaseKind || 'Release'}${item.releaseCountry ? ` (${item.releaseCountry} date)` : ''}`}
+                                                        </p>
+                                                    )}
 
                                                     {!item.isEpisode && (
                                                         <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
@@ -429,6 +565,19 @@ const Calendar = () => {
                             ));
                         })()}
                     </div>
+                )}
+
+                {/* Say which times are guesses rather than letting them read as fact */}
+                {!loading && hasEstimates && (
+                    <p style={{
+                        marginTop: '20px',
+                        fontSize: '0.78rem',
+                        color: 'var(--text-tertiary)',
+                        lineHeight: 1.5
+                    }}>
+                        Times marked ~ are estimated from the channel's usual prime-time slot —
+                        the streaming services publish a fixed drop time, local broadcasters don't.
+                    </p>
                 )}
             </section>
         </div>

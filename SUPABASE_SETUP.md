@@ -22,7 +22,7 @@ To make your app fully operational with a real backend, follow these steps:
 ## 3. Run Database SQL
 1.  Go to the **SQL Editor** tab in the left sidebar.
 2.  Click **New Query**.
-3.  Run the entire content of `supabase_schema.sql` (base tables), then run each file in `supabase/migrations/` **in order** (cascade deletes, profile columns, payload columns, `watched_episodes`, `reminders`, and the `delete_user` RPC).
+3.  Run the entire content of `supabase_schema.sql` (base tables), then run each file in `supabase/migrations/` **in order** (cascade deletes, profile columns, payload columns, `watched_episodes`, `reminders`, the `delete_user` RPC, and `profiles.timezone`).
 
 This creates the tables (`profiles`, `watchlists`, `history`, `watched_episodes`, `reminders`), row-level-security policies, the signup trigger that fills in the profile, and the self-serve account-deletion function.
 

@@ -2,7 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Play, Plus, Check, Share2, Bell, Star, Film, Layers } from 'lucide-react';
-import { getDetails, mapMediaData, getTVSeasonDetails, getCollection } from '../services/tmdb';
+import { getDetails, mapMediaData, getTVSeasonDetails, getCollection, getMovieReleaseForCountry } from '../services/tmdb';
+import {
+    PRECISION,
+    describeRelease,
+    getShowReleaseRule,
+    movieReleaseRule,
+    resolveReleaseTime,
+    viewerDayRule,
+    zoneAbbreviation,
+} from '../services/releaseTime';
 import { TRENDING_MOVIES } from '../data/mockData';
 import { TrailerModal } from '../components/TrailerModal';
 import { useUser } from '../context/UserContext';
@@ -19,6 +28,10 @@ const MediaDetail = ({ type }) => {
     const [selectedSeason, setSelectedSeason] = useState(1);
     const [loadingEpisodes, setLoadingEpisodes] = useState(false);
     const [collection, setCollection] = useState(null);
+    // Where and when this title goes out, so air/release times are real instants
+    // rather than a bare date parsed as UTC midnight.
+    const [airRule, setAirRule] = useState(null);
+    const [movieRelease, setMovieRelease] = useState(null);
 
     // React reuses this component when navigating detail→detail (a franchise
     // link, a same-type recommendation, or movie↔tv), so per-title state would
@@ -34,10 +47,12 @@ const MediaDetail = ({ type }) => {
         setSeasons({});
         setSelectedSeason(1);
         setCollection(null);
+        setAirRule(null);
+        setMovieRelease(null);
     }
 
     const {
-        status, user,
+        status, user, timeZone,
         addToWatchlist, removeFromWatchlist, watchlist,
         markAsWatched, watched, removeFromWatched,
         toggleEpisodeWatched, isEpisodeWatched,
@@ -95,17 +110,29 @@ const MediaDetail = ({ type }) => {
             const tmdbData = await getDetails(id, type, userCountry);
 
             if (tmdbData) {
-                const mapped = mapMediaData({ ...tmdbData, media_type: type });
+                const mapped = mapMediaData({ ...tmdbData, media_type: type }, timeZone);
                 setItem({
                     ...mapped,
                     trailerKey: tmdbData.trailerKey,
                     credits: tmdbData.credits,
                     belongsToCollection: tmdbData.belongs_to_collection || null,
+                    // For a returning series the meaningful countdown is the next
+                    // episode, not the premiere date years ago.
+                    nextEpisode: tmdbData.next_episode_to_air || null,
                     streaming: tmdbData.providers?.flatrate?.map(p => ({
                         name: p.provider_name,
                         logo: `https://image.tmdb.org/t/p/original${p.logo_path}`
                     })) || []
                 });
+
+                if (type === 'tv') {
+                    setAirRule(getShowReleaseRule(tmdbData));
+                } else {
+                    // Opening dates differ by country — count down to the viewer's.
+                    const release = await getMovieReleaseForCountry(id, userCountry);
+                    setMovieRelease(release);
+                    setAirRule(release ? movieReleaseRule(release, timeZone) : viewerDayRule(timeZone));
+                }
             } else {
                 // Fallback
                 const mock = TRENDING_MOVIES.find(m => m.id === parseInt(id));
@@ -115,7 +142,7 @@ const MediaDetail = ({ type }) => {
         };
 
         fetchDetail();
-    }, [id, type, user?.country]);
+    }, [id, type, user?.country, timeZone]);
 
     // Load franchise/collection details for movies that belong to one.
     useEffect(() => {
@@ -141,19 +168,24 @@ const MediaDetail = ({ type }) => {
     const isInWatchlist = watchlist.some(m => m.id === item.id && (m.type || 'movie') === type);
     const isWatched = watched.some(m => m.id === item.id && (m.type || 'movie') === type);
 
-    const calculateTimeLeft = () => {
-        if (!item.upcoming || !item.releaseDate) return null;
-        const difference = +new Date(item.releaseDate) - +new Date();
-        if (difference > 0) {
-            return {
-                days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-                hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-            };
+    // What we're counting down to: a series' next episode, or a movie's opening
+    // day in the viewer's country. Resolved to a real instant in their zone, so
+    // the countdown can't claim something is out before it is.
+    const resolveCountdownTarget = () => {
+        const rule = airRule || viewerDayRule(timeZone);
+        if (type === 'tv') {
+            if (!item.nextEpisode?.air_date) return null;
+            return resolveReleaseTime({ dateStr: item.nextEpisode.air_date, rule, viewerZone: timeZone });
         }
-        return null;
+        const dateStr = movieRelease?.date || item.releaseDate;
+        return resolveReleaseTime({ dateStr, rule, viewerZone: timeZone });
     };
 
-    const timeLeft = calculateTimeLeft();
+    const release = resolveCountdownTarget();
+    const timeLeft = release && !release.hasAired ? release.countdown : null;
+    // Movies gate "Mark Watched" on actually being out. Fall back to the mapped
+    // flag while the country-specific date is still loading.
+    const notOutYet = type === 'movie' && (release ? !release.hasAired : item.upcoming);
 
     const franchiseParts = collection?.parts || [];
     const franchiseWatchedCount = franchiseParts.filter(
@@ -237,7 +269,7 @@ const MediaDetail = ({ type }) => {
                     {/* Action Grid */}
                     <div className="action-grid" style={{ gridTemplateColumns: type === 'tv' ? '1fr 1fr 1fr' : '2fr 1fr 1fr 1fr' }}>
                         {type === 'movie' && (
-                            item.upcoming ? (
+                            notOutYet ? (
                                 <button className="action-btn secondary" disabled style={{ opacity: 0.5, cursor: 'not-allowed' }}>
                                     Not Released
                                 </button>
@@ -417,7 +449,19 @@ const MediaDetail = ({ type }) => {
                                 <h3>Episodes</h3>
                                 <div className="episodes-actions">
                                     {seasons[selectedSeason] && seasons[selectedSeason].length > 0 && (() => {
-                                        const episodeNumbers = seasons[selectedSeason].map(ep => ep.episode_number);
+                                        // Only episodes that have actually aired — marking
+                                        // a season seen shouldn't tick off next month's.
+                                        const episodeNumbers = seasons[selectedSeason]
+                                            .filter((ep) => {
+                                                const air = resolveReleaseTime({
+                                                    dateStr: ep.air_date,
+                                                    rule: airRule || viewerDayRule(timeZone),
+                                                    viewerZone: timeZone,
+                                                });
+                                                return air ? air.hasAired : true;
+                                            })
+                                            .map(ep => ep.episode_number);
+                                        if (episodeNumbers.length === 0) return null;
                                         const seasonSeen = isSeasonWatched(item.id, selectedSeason, episodeNumbers);
                                         return (
                                             <button
@@ -455,19 +499,31 @@ const MediaDetail = ({ type }) => {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                     {seasons[selectedSeason].map((episode) => {
                                         const isWatchedEp = isEpisodeWatched(item.id, selectedSeason, episode.episode_number);
+                                        // The real moment this episode airs, in the
+                                        // viewer's clock. Episodes with no date at all
+                                        // stay markable — TMDB omits dates for some
+                                        // long-aired specials.
+                                        const air = resolveReleaseTime({
+                                            dateStr: episode.air_date,
+                                            rule: airRule || viewerDayRule(timeZone),
+                                            viewerZone: timeZone,
+                                        });
+                                        const aired = air ? air.hasAired : true;
                                         return (
                                             <div
                                                 key={episode.id}
                                                 onClick={(e) => {
                                                     e.preventDefault();
                                                     e.stopPropagation();
+                                                    // Nothing to mark watched before it airs.
+                                                    if (!aired) return;
                                                     withUser(() => toggleEpisodeWatched(item.id, selectedSeason, episode.episode_number));
                                                 }}
                                                 className="glass-panel"
                                                 style={{
                                                     padding: '12px 16px',
                                                     borderRadius: 'var(--radius-md)',
-                                                    cursor: 'pointer',
+                                                    cursor: aired ? 'pointer' : 'default',
                                                     display: 'flex',
                                                     alignItems: 'flex-start',
                                                     gap: '12px',
@@ -480,7 +536,7 @@ const MediaDetail = ({ type }) => {
                                                     width: '24px',
                                                     height: '24px',
                                                     borderRadius: '50%',
-                                                    border: `2px solid ${isWatchedEp ? 'var(--brand-600)' : 'var(--text-secondary)'}`,
+                                                    border: `2px solid ${isWatchedEp ? 'var(--brand-600)' : aired ? 'var(--text-secondary)' : 'rgba(255,255,255,0.15)'}`,
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
@@ -499,6 +555,17 @@ const MediaDetail = ({ type }) => {
                                                     }}>
                                                         {episode.episode_number}. {episode.name}
                                                     </div>
+                                                    {air && (
+                                                        <div style={{
+                                                            fontSize: '0.78rem',
+                                                            fontWeight: aired ? 400 : 600,
+                                                            color: aired ? 'var(--text-tertiary)' : 'var(--brand-600)',
+                                                            marginBottom: '4px'
+                                                        }}>
+                                                            {describeRelease(air, { verb: 'air', zone: timeZone })}
+                                                            {air.precision === PRECISION.ESTIMATED && air.timeLabel ? ' (est.)' : ''}
+                                                        </div>
+                                                    )}
                                                     {episode.overview && (
                                                         <div style={{
                                                             fontSize: '0.85rem',
@@ -537,15 +604,17 @@ const MediaDetail = ({ type }) => {
                         </div>
                     )}
 
-                    {/* Streaming & Countdown */}
-                    {item.upcoming && timeLeft ? (
+                    {/* Countdown to the next episode / the local opening day */}
+                    {timeLeft && (
                         <div className="glass-panel" style={{
                             padding: '24px', borderRadius: 'var(--radius-lg)',
                             border: '1px solid var(--brand-600)', marginTop: '20px', textAlign: 'center',
                             boxShadow: '0 4px 20px rgba(220, 38, 38, 0.2)'
                         }}>
                             <h3 style={{ color: 'var(--brand-600)' }}>
-                                {item.type === 'tv' ? 'New Episode Airs In' : 'Movie Premiere In'}
+                                {item.type === 'tv'
+                                    ? `Season ${item.nextEpisode?.season_number} Episode ${item.nextEpisode?.episode_number} Airs In`
+                                    : 'Movie Premiere In'}
                             </h3>
                             <div className="flex-center" style={{ gap: '24px', marginTop: '16px', marginBottom: '16px' }}>
                                 <div>
@@ -557,7 +626,29 @@ const MediaDetail = ({ type }) => {
                                     <span style={{ fontSize: '2.5rem', fontWeight: '800', lineHeight: 1 }}>{timeLeft.hours}</span>
                                     <p style={{ fontSize: '0.9rem', margin: 0, color: 'var(--text-secondary)' }}>HOURS</p>
                                 </div>
+                                <div style={{ width: '1px', height: '40px', background: 'var(--bg-tertiary)' }}></div>
+                                <div>
+                                    <span style={{ fontSize: '2.5rem', fontWeight: '800', lineHeight: 1 }}>{timeLeft.minutes}</span>
+                                    <p style={{ fontSize: '0.9rem', margin: 0, color: 'var(--text-secondary)' }}>MINS</p>
+                                </div>
                             </div>
+
+                            {/* The actual moment, in the viewer's own clock */}
+                            <p style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: 600 }}>
+                                {describeRelease(release, { verb: item.type === 'tv' ? 'air' : 'release', zone: timeZone })}
+                                {release.timeLabel ? ` ${zoneAbbreviation(release.instant, timeZone)}` : ''}
+                            </p>
+                            <p style={{ margin: '0 0 16px 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                                {release.precision === PRECISION.ESTIMATED
+                                    ? `Estimated from ${release.sourceLabel || 'the channel'}'s usual slot — local broadcasters don't publish an exact time`
+                                    : release.precision === PRECISION.DAY
+                                        ? 'Exact time not announced yet'
+                                        : release.global
+                                            ? `${release.sourceLabel} drops worldwide at this moment`
+                                            : movieRelease?.isFallback
+                                                ? `${movieRelease.typeLabel} — ${movieRelease.country} date (no date listed for your country yet)`
+                                                : `${release.sourceLabel || 'Release'}${type === 'movie' ? ` in ${movieRelease?.country || user?.country || 'your country'}` : ''}`}
+                            </p>
                             <button
                                 className="btn"
                                 style={{
@@ -573,8 +664,12 @@ const MediaDetail = ({ type }) => {
                                 )}
                             </button>
                         </div>
-                    ) : (
-                        <div style={{ marginTop: '0px' }}>
+                    )}
+
+                    {/* A series between episodes is still streamable, so it gets both
+                        the countdown and this; an unreleased movie gets neither. */}
+                    {(!timeLeft || type === 'tv') && (
+                        <div style={{ marginTop: timeLeft ? '20px' : '0px' }}>
                             <h3 style={{ marginBottom: '16px' }}>Where to Watch</h3>
 
                             {item.streaming && item.streaming.length > 0 ? (

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Camera, User, Mail, Calendar as CalendarIcon, Save, Globe } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { ArrowLeft, Camera, User, Mail, Calendar as CalendarIcon, Save, Globe, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
+import { deviceTimeZone, formatZonedTime, timeZoneOptions } from '../services/releaseTime';
 
 // Countries for streaming services (sorted alphabetically)
 const COUNTRIES = [
@@ -66,9 +67,18 @@ const EditProfile = () => {
         email: user?.email || '',
         bio: user?.bio || '',
         country: user?.country || 'US',
+        // '' means "follow this device" — release times then track the viewer as
+        // they travel instead of being pinned to a zone they set once.
+        timezone: user?.timezone || '',
         avatar: user?.avatar
     });
     const [saved, setSaved] = useState(false);
+
+    const detectedZone = deviceTimeZone();
+    const activeZone = formData.timezone || detectedZone;
+    // Same clock the release calendar uses, so the label doubles as a preview.
+    const zoneNow = formatZonedTime(new Date(), activeZone);
+    const zoneOptions = useMemo(() => timeZoneOptions(), []);
 
     const memberSince = user?.joinDate
         ? new Date(user.joinDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
@@ -356,6 +366,57 @@ const EditProfile = () => {
                             marginBottom: 0
                         }}>
                             This affects which streaming services are shown
+                        </p>
+                    </div>
+
+                    {/* Time zone — decides what clock release times are shown in */}
+                    <div>
+                        <label style={{
+                            display: 'block',
+                            marginBottom: '8px',
+                            fontSize: '0.9rem',
+                            color: 'var(--text-secondary)',
+                            fontWeight: '500'
+                        }}>
+                            <Clock size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                            Time zone
+                        </label>
+                        <select
+                            name="timezone"
+                            value={formData.timezone}
+                            onChange={handleInputChange}
+                            className="glass-panel"
+                            style={{
+                                width: '100%',
+                                padding: '12px 16px',
+                                borderRadius: 'var(--radius-md)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                background: 'rgba(255,255,255,0.05)',
+                                color: 'var(--text-primary)',
+                                fontSize: '1rem',
+                                outline: 'none',
+                                transition: 'all 0.2s',
+                                cursor: 'pointer'
+                            }}
+                            onFocus={(e) => e.target.style.border = '1px solid var(--brand-600)'}
+                            onBlur={(e) => e.target.style.border = '1px solid rgba(255,255,255,0.1)'}
+                        >
+                            <option value="" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+                                Use this device ({detectedZone})
+                            </option>
+                            {zoneOptions.map((zone) => (
+                                <option key={zone} value={zone} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+                                    {zone.replace(/_/g, ' ')}
+                                </option>
+                            ))}
+                        </select>
+                        <p style={{
+                            fontSize: '0.8rem',
+                            color: 'var(--text-tertiary)',
+                            marginTop: '6px',
+                            marginBottom: 0
+                        }}>
+                            Release and episode times are shown in this zone — it's {zoneNow} there now.
                         </p>
                     </div>
 

@@ -1,11 +1,17 @@
 // send-episode-alerts
 //
-// Daily job (invoked by a scheduled cron) that alerts users when a new episode
-// of a TV show *in their watchlist* airs today. For every distinct TV show a
-// push-subscribed user has watchlisted, it asks TMDB for `next_episode_to_air`
-// and, if that episode's air date is today (UTC), delivers a Web Push to each of
-// the user's devices. Each (user, show, season, episode) is recorded in
-// `episode_notifications` so it fires only once.
+// Twice-daily job (invoked by a scheduled cron) that alerts users when a new
+// episode of a TV show *in their watchlist* has aired. For every distinct TV
+// show a push-subscribed user has watchlisted, it asks TMDB for the show's
+// latest and next episode, works out the moment each actually airs — the air
+// date joined to the platform's release hour, in the platform's timezone — and
+// pushes only once that moment has passed. Each (user, show, season, episode) is
+// recorded in `episode_notifications` so it fires only once.
+//
+// "Out now" used to mean "TMDB's air_date equals today in UTC", which announced
+// episodes that hadn't aired: an evening broadcast was called out ~21 hours
+// early, and viewers east of UTC got told a day ahead. Air times are also
+// phrased in each recipient's own zone (profile timezone, else their country).
 //
 // Auth: shares CRON_SECRET with send-release-reminders — the caller must send
 // `Authorization: Bearer <CRON_SECRET>` when that secret is set.
@@ -15,6 +21,7 @@
 
 import webpush from 'npm:web-push@3.6.7';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { airInstant, formatZonedTime, releaseRuleForShow, zoneForUser } from '../_shared/air-time.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -30,24 +37,34 @@ const json = (body: unknown, status = 200) =>
         headers: { 'Content-Type': 'application/json' },
     });
 
-// Today at UTC as YYYY-MM-DD, to compare against TMDB's date-only air_date.
-const todayUTC = () => new Date().toISOString().slice(0, 10);
+// How long after an episode airs we'll still announce it. The cron runs every
+// ~12h, so a day's grace covers a missed run without resurfacing stale episodes.
+const FRESH_WINDOW_MS = 36 * 60 * 60 * 1000;
 
-const episodeCopy = (season: number, episode: number, name?: string) => {
+const episodeCopy = (season: number, episode: number, name: string | undefined, airedAt: string) => {
     const label = `S${season}E${episode}`;
+    const when = `Aired ${airedAt} your time.`;
     return name
-        ? `New episode — ${label}: “${name}” is out now.`
-        : `New episode ${label} is out now.`;
+        ? `New episode — ${label}: “${name}” is out now. ${when}`
+        : `New episode ${label} is out now. ${when}`;
 };
 
-interface NextEpisode {
+interface Episode {
     air_date?: string;
     season_number?: number;
     episode_number?: number;
     name?: string;
 }
 
-const tmdbTv = async (id: number): Promise<{ name?: string; next_episode_to_air?: NextEpisode } | null> => {
+interface TvShow {
+    name?: string;
+    networks?: { name?: string }[];
+    origin_country?: string[];
+    last_episode_to_air?: Episode | null;
+    next_episode_to_air?: Episode | null;
+}
+
+const tmdbTv = async (id: number): Promise<TvShow | null> => {
     const qs = new URLSearchParams({ api_key: TMDB_API_KEY ?? '', language: 'en-US' });
     const res = await fetch(`https://api.themoviedb.org/3/tv/${id}?${qs}`);
     if (!res.ok) return null;
@@ -81,7 +98,7 @@ Deno.serve(async (req) => {
 
     webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-    const today = todayUTC();
+    const now = new Date();
 
     // Devices to push to, grouped by user. No subscriptions → nothing to do.
     const { data: subs, error: subErr } = await supabase
@@ -89,7 +106,7 @@ Deno.serve(async (req) => {
         .select('user_id, endpoint, p256dh, auth');
     if (subErr) return json({ error: subErr.message }, 500);
     if (!subs || subs.length === 0) {
-        return json({ ok: true, shows: 0, airingToday: 0, sent: 0, failed: 0, notified: 0 });
+        return json({ ok: true, shows: 0, justAired: 0, sent: 0, failed: 0, notified: 0 });
     }
 
     const subsByUser = new Map<string, { endpoint: string; p256dh: string; auth: string }[]>();
@@ -100,6 +117,16 @@ Deno.serve(async (req) => {
     }
     const subscribedUserIds = [...subsByUser.keys()];
 
+    // Each recipient's zone, so the alert can say when the episode aired in their
+    // own clock. Missing profiles fall back to UTC.
+    const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, country, timezone')
+        .in('id', subscribedUserIds);
+    const zoneByUser = new Map<string, string>(
+        (profiles ?? []).map((p) => [p.id as string, zoneForUser(p.timezone, p.country)]),
+    );
+
     // TV shows those users have in their watchlist.
     const { data: rows, error: wlErr } = await supabase
         .from('watchlists')
@@ -108,7 +135,7 @@ Deno.serve(async (req) => {
         .in('user_id', subscribedUserIds);
     if (wlErr) return json({ error: wlErr.message }, 500);
     if (!rows || rows.length === 0) {
-        return json({ ok: true, shows: 0, airingToday: 0, sent: 0, failed: 0, notified: 0 });
+        return json({ ok: true, shows: 0, justAired: 0, sent: 0, failed: 0, notified: 0 });
     }
 
     // tv_id -> watchers (deduped per user, since TMDB is fetched once per show).
@@ -122,20 +149,50 @@ Deno.serve(async (req) => {
     let sent = 0;
     let failed = 0;
     let notified = 0;
-    let airingToday = 0;
+    let justAired = 0;
 
     for (const [tvId, watchers] of watchersByShow) {
         const tv = await tmdbTv(tvId);
-        const ep = tv?.next_episode_to_air;
-        if (!ep || ep.air_date !== today || ep.season_number == null || ep.episode_number == null) {
-            continue;
+        if (!tv) continue;
+
+        // Where and when this show goes out. TMDB rotates an episode from
+        // next_episode_to_air to last_episode_to_air around its air date, and
+        // which side it's on depends on when the cron happens to run — so both
+        // are candidates, and the air instant decides.
+        const rule = releaseRuleForShow(
+            (tv.networks ?? []).map((n) => n?.name),
+            tv.origin_country?.[0] ?? null,
+        );
+
+        const candidates = [tv.last_episode_to_air, tv.next_episode_to_air].filter(
+            (ep): ep is Episode => Boolean(ep && ep.season_number != null && ep.episode_number != null),
+        );
+
+        // The most recent episode that has genuinely aired, and recently enough
+        // to be news.
+        let ep: Episode | null = null;
+        let airedAt: Date | null = null;
+        for (const candidate of candidates) {
+            const instant = airInstant(candidate.air_date, rule);
+            if (!instant) continue;
+            const age = now.getTime() - instant.getTime();
+            if (age < 0 || age > FRESH_WINDOW_MS) continue;
+            if (!airedAt || instant > airedAt) {
+                ep = candidate;
+                airedAt = instant;
+            }
         }
-        airingToday += 1;
-        const season = ep.season_number;
-        const episode = ep.episode_number;
-        const payloadBody = episodeCopy(season, episode, ep.name);
+        if (!ep || !airedAt) continue;
+
+        justAired += 1;
+        const season = ep.season_number as number;
+        const episode = ep.episode_number as number;
 
         for (const [userId, watchlistTitle] of watchers) {
+            const payloadBody = episodeCopy(
+                season, episode, ep.name,
+                formatZonedTime(airedAt, zoneByUser.get(userId) ?? 'UTC'),
+            );
             // Dedup: skip users already notified for this episode.
             const { data: existing } = await supabase
                 .from('episode_notifications')
@@ -189,7 +246,7 @@ Deno.serve(async (req) => {
     return json({
         ok: true,
         shows: watchersByShow.size,
-        airingToday,
+        justAired,
         sent,
         failed,
         notified,

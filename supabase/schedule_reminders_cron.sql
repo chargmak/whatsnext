@@ -2,10 +2,12 @@
 --
 -- Two edge functions are scheduled here:
 --   send-release-reminders  — "Notify Me" titles releasing today/tomorrow (14:00 UTC).
---   send-episode-alerts     — new episodes of watchlisted TV shows airing today.
---                             Run twice a day (03:00 and 15:00 UTC) so alerts land
---                             within ~12h of an episode dropping; the
---                             episode_notifications table dedupes, so no double sends.
+--   send-episode-alerts     — new episodes of watchlisted TV shows that have
+--                             actually aired (air date + the platform's release
+--                             hour, in the platform's zone). Run twice a day
+--                             (03:00 and 15:00 UTC) so alerts land within ~12h of
+--                             an episode dropping; the episode_notifications
+--                             table dedupes, so no double sends.
 --
 -- Prerequisites (Dashboard → Database → Extensions): enable `pg_cron` and `pg_net`.
 -- Replace <CRON_SECRET> below with the SAME value you set via

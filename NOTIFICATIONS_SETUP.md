@@ -52,8 +52,9 @@ VITE_VAPID_PUBLIC_KEY=BEiuMR6fPv2p9L2n712L-PTP6Eot_iOiWAk8wrIcZ-54C9SX1aDFfVZZ9V
 
 ### 3. Database
 
-Apply the migrations that add `push_subscriptions`, `reminders.notified_at`, and
-`episode_notifications`:
+Apply the migrations that add `push_subscriptions`, `reminders.notified_at`,
+`episode_notifications`, and `profiles.timezone` (the alerts phrase air times in
+each recipient's own zone, falling back to their country):
 
 ```bash
 supabase db push
