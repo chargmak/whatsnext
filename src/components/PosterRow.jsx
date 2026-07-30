@@ -73,3 +73,17 @@ export const PosterRow = ({ children }) => {
         </div>
     );
 };
+
+/**
+ * Placeholder cards shown while a row's titles are still loading. Same footprint
+ * as the real row, so the page doesn't jump when the posters arrive.
+ */
+export const PosterRowSkeleton = ({ count = 6 }) => (
+    <div className="poster-row-wrapper" aria-hidden="true">
+        <div className="poster-row">
+            {Array.from({ length: count }, (_, i) => (
+                <div key={i} className="poster-skeleton" />
+            ))}
+        </div>
+    </div>
+);

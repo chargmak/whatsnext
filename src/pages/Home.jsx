@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { getTrendingMovies, getTrendingTV, getRecommendationsFromSeeds, mapMediaData } from '../services/tmdb';
 import { MovieCard } from '../components/MovieCard';
-import { PosterRow } from '../components/PosterRow';
+import { PosterRow, PosterRowSkeleton } from '../components/PosterRow';
 import { WhatsNextSpotlight } from '../components/WhatsNextSpotlight';
 import UpNext from '../components/UpNext';
 import { useUser } from '../context/UserContext';
@@ -94,7 +94,11 @@ const Home = () => {
         loadMedia();
     }, [mediaType, timeZone]);
 
-    if (loading && mediaItems.length === 0) return <div className="container flex-center" style={{ height: '100vh' }}>Loading...</div>;
+    // No full-page loading gate: the header, the tab toggle and the spotlight
+    // don't depend on the trending request, so blocking the whole page behind it
+    // left visitors staring at "Loading..." for the length of a network round
+    // trip. Only the trending row itself waits, and it waits as a skeleton.
+    const trendingPending = loading && mediaItems.length === 0;
 
     return (
         <div className="container" style={{ paddingBottom: '160px' }}>
@@ -200,15 +204,19 @@ const Home = () => {
                     </button>
                 </div>
 
-                <PosterRow>
-                    {mediaItems.map((item) => (
-                        <MovieCard
-                            key={item.id}
-                            movie={item}
-                            onClick={(id) => navigate(`/${item.type}/${id}`)}
-                        />
-                    ))}
-                </PosterRow>
+                {trendingPending ? (
+                    <PosterRowSkeleton />
+                ) : (
+                    <PosterRow>
+                        {mediaItems.map((item) => (
+                            <MovieCard
+                                key={item.id}
+                                movie={item}
+                                onClick={(id) => navigate(`/${item.type}/${id}`)}
+                            />
+                        ))}
+                    </PosterRow>
+                )}
             </section>
 
             {/* Recommended For You - built from the user's saved list for this tab */}

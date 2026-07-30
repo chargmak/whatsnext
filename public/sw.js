@@ -1,4 +1,4 @@
-const CACHE_NAME = 'whatsnext-v7';
+const CACHE_NAME = 'whatsnext-v8';
 const IMAGE_CACHE = 'whatsnext-images-v1';
 const API_CACHE = 'whatsnext-tmdb-v1';
 
@@ -105,6 +105,15 @@ self.addEventListener('fetch', (event) => {
     }
 
     if (url.hostname === 'api.themoviedb.org') {
+        // The trending lists gate the home screen, and they turn over weekly —
+        // making a returning visitor wait on the network for them is the whole
+        // reason the app felt slow to open. Serve the cached copy immediately
+        // and refresh it in the background; everything else (episode air dates,
+        // watch providers) still prefers fresh data.
+        if (url.pathname.startsWith('/3/trending/')) {
+            event.respondWith(staleWhileRevalidate(request, API_CACHE));
+            return;
+        }
         event.respondWith(networkFirst(request, API_CACHE));
         return;
     }
