@@ -6,6 +6,7 @@ import {
 import { discoverByGenre, mapMediaData } from '../services/tmdb';
 import { MovieCard } from './MovieCard';
 import { GENRES } from '../data/mockData';
+import { useUser } from '../context/UserContext';
 
 // Genre -> icon + accent colour. Keyed by the names in GENRES (mockData.js);
 // anything unmapped falls back to Film + the brand red, so this stays robust
@@ -45,21 +46,31 @@ const PosterSkeleton = () => (
 
 const CategoryRow = ({ genre, onOpenGenre, onOpenItem }) => {
     const { icon: Icon, accent } = GENRE_META[genre] || FALLBACK_META;
+    const { timeZone } = useUser();
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         let active = true;
         const load = async () => {
-            const data = await discoverByGenre(genre);
-            if (!active) return;
-            const mapped = (data?.results || []).map(mapMediaData).slice(0, 12);
-            setItems(mapped);
-            setLoading(false);
+            try {
+                const data = await discoverByGenre(genre);
+                if (!active) return;
+                setItems((data?.results || [])
+                    .slice(0, 12)
+                    .map((item) => mapMediaData(item, timeZone)));
+            } catch (error) {
+                console.error(`Error loading ${genre} titles:`, error);
+            } finally {
+                // The row shows skeletons while this is up, so it has to clear
+                // even on failure — an empty row is honest, a permanent
+                // shimmer isn't.
+                if (active) setLoading(false);
+            }
         };
         load();
         return () => { active = false; };
-    }, [genre]);
+    }, [genre, timeZone]);
 
     return (
         <section style={{ marginBottom: '28px' }}>

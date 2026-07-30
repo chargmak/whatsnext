@@ -10,7 +10,7 @@ import { useUser } from '../context/UserContext';
 import { TRENDING_MOVIES } from '../data/mockData'; // Fallback
 
 const Home = () => {
-    const { user, watchlist, watched } = useUser();
+    const { user, watchlist, watched, timeZone } = useUser();
     const navigate = useNavigate();
     // Initialize from session storage if available, otherwise default to 'tv'
     // so a fresh visit lands on the first tab, TV Shows.
@@ -71,24 +71,28 @@ const Home = () => {
     useEffect(() => {
         const loadMedia = async () => {
             setLoading(true);
-            let data;
-            if (mediaType === 'tv') {
-                data = await getTrendingTV();
-            } else {
-                data = await getTrendingMovies();
-            }
+            // Whatever happens in here, the loading flag has to come back down:
+            // this is the gate on the whole page, so an error that leaves it up
+            // strands the visitor on "Loading..." with no way forward.
+            try {
+                const data = mediaType === 'tv' ? await getTrendingTV() : await getTrendingMovies();
 
-            if (data && data.results) {
-                // Ensure we tag them correctly before mapping
-                const taggedResults = data.results.map(item => ({ ...item, media_type: mediaType }));
-                setMediaItems(taggedResults.map(mapMediaData));
-            } else {
+                if (data && data.results) {
+                    // Ensure we tag them correctly before mapping
+                    const taggedResults = data.results.map(item => ({ ...item, media_type: mediaType }));
+                    setMediaItems(taggedResults.map((item) => mapMediaData(item, timeZone)));
+                } else {
+                    setMediaItems(TRENDING_MOVIES);
+                }
+            } catch (error) {
+                console.error('Error loading trending titles:', error);
                 setMediaItems(TRENDING_MOVIES);
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         };
         loadMedia();
-    }, [mediaType]);
+    }, [mediaType, timeZone]);
 
     if (loading && mediaItems.length === 0) return <div className="container flex-center" style={{ height: '100vh' }}>Loading...</div>;
 
