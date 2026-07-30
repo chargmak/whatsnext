@@ -14,13 +14,35 @@ const formatAired = (ep) => {
     return ep.air.precision === PRECISION.ESTIMATED ? text.replace(' at ', ' at ~') : text;
 };
 
+// Has the viewer ticked off any episode of this show at all?
+const hasStarted = (episodes) =>
+    Object.values(episodes || {}).some((eps) => eps.length > 0);
+
+// Order the list the way the viewer moves through it: the show watched most
+// recently first, then back through their history, and finally the shows they
+// have in the list but have never started. Shows started before the app kept
+// timestamps (legacy guest data) have no stamp to place them by, so they sit
+// between the two — after the datable history, ahead of the untouched shows.
+const activityRank = (started, lastWatchedAt) => {
+    if (lastWatchedAt) return 0;
+    return started ? 1 : 2;
+};
+
+const byRecency = (a, b) => {
+    const rank = activityRank(a.started, a.lastWatchedAt) - activityRank(b.started, b.lastWatchedAt);
+    if (rank !== 0) return rank;
+    if (a.lastWatchedAt && b.lastWatchedAt) return b.lastWatchedAt - a.lastWatchedAt;
+    return (a.show.title || '').localeCompare(b.show.title || '');
+};
+
 // "Up Next": for every TV show passed in, resolve the next episode the viewer
 // should watch — the earliest aired episode they haven't marked as seen — and
 // list only the shows that actually have one waiting. Marking an episode here
-// advances that show to its following episode in place.
-const UpNext = ({ series }) => {
+// advances that show to its following episode in place. `limit` trims the list
+// to its first N entries (the homepage shows a preview, the Library shows all).
+const UpNext = ({ series, limit }) => {
     const navigate = useNavigate();
-    const { watchedEpisodes, toggleEpisodeWatched, timeZone } = useUser();
+    const { watchedEpisodes, episodeActivity, toggleEpisodeWatched, timeZone } = useUser();
     const [nextByShow, setNextByShow] = useState({}); // tvId -> episode | null
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState(null);
@@ -90,9 +112,17 @@ const UpNext = ({ series }) => {
         );
     }
 
-    const upNext = series
-        .map((show) => ({ show, ep: nextByShow[show.id] }))
-        .filter((entry) => entry.ep);
+    const ordered = series
+        .map((show) => ({
+            show,
+            ep: nextByShow[show.id],
+            started: hasStarted(watchedEpisodes[String(show.id)]),
+            lastWatchedAt: episodeActivity?.[String(show.id)] || null,
+        }))
+        .filter((entry) => entry.ep)
+        .sort(byRecency);
+
+    const upNext = limit ? ordered.slice(0, limit) : ordered;
 
     if (upNext.length === 0) {
         return (

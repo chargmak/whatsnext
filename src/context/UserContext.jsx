@@ -6,7 +6,7 @@ import { resolveViewerZone } from '../services/releaseTime';
 
 const UserContext = createContext();
 
-const GUEST_DATA_KEYS = ['user_watchlist', 'user_watched', 'user_watched_episodes', 'user_reminders', 'user_data'];
+const GUEST_DATA_KEYS = ['user_watchlist', 'user_watched', 'user_watched_episodes', 'user_episode_activity', 'user_reminders', 'user_data'];
 const LEGACY_KEYS = ['app_users', 'current_user', 'is_authenticated', 'user_profile'];
 
 const readLocal = (key, fallback) => {
@@ -60,6 +60,9 @@ export const UserProvider = ({ children }) => {
     const [watchlist, setWatchlist] = useState([]);
     const [watched, setWatched] = useState([]);
     const [watchedEpisodes, setWatchedEpisodes] = useState({});
+    // tvId -> epoch ms of the last episode this viewer ticked for that show.
+    // Drives the "most recently watched first" order in Up Next.
+    const [episodeActivity, setEpisodeActivity] = useState({});
     const [reminders, setReminders] = useState([]);
 
     const loadedUserIdRef = useRef(null);
@@ -69,6 +72,7 @@ export const UserProvider = ({ children }) => {
         setWatchlist([]);
         setWatched([]);
         setWatchedEpisodes({});
+        setEpisodeActivity({});
         setReminders([]);
     };
 
@@ -83,6 +87,7 @@ export const UserProvider = ({ children }) => {
         setWatchlist(readLocal('user_watchlist', []));
         setWatched(readLocal('user_watched', []));
         setWatchedEpisodes(readLocal('user_watched_episodes', {}));
+        setEpisodeActivity(readLocal('user_episode_activity', {}));
         setReminders(readLocal('user_reminders', []));
         setStatus('guest');
     };
@@ -93,7 +98,7 @@ export const UserProvider = ({ children }) => {
 
         const meta = authUser.user_metadata || {};
         let profile = null;
-        let data = { watchlist: [], watched: [], episodes: {}, reminders: [] };
+        let data = { watchlist: [], watched: [], episodes: {}, episodeActivity: {}, reminders: [] };
         try {
             [profile, data] = await Promise.all([
                 userData.fetchProfile(authUser.id),
@@ -117,6 +122,7 @@ export const UserProvider = ({ children }) => {
         setWatchlist(data.watchlist);
         setWatched(data.watched);
         setWatchedEpisodes(data.episodes);
+        setEpisodeActivity(data.episodeActivity || {});
         setReminders(data.reminders);
         setStatus('authed');
         localStorage.removeItem('guest_mode');
@@ -171,6 +177,7 @@ export const UserProvider = ({ children }) => {
             watchlist: readLocal('user_watchlist', []),
             watched: readLocal('user_watched', []),
             episodes: readLocal('user_watched_episodes', {}),
+            episodeActivity: readLocal('user_episode_activity', {}),
             reminders: readLocal('user_reminders', []),
         };
         const hasData = local.watchlist.length || local.watched.length
@@ -275,6 +282,12 @@ export const UserProvider = ({ children }) => {
         if (status === 'guest') persistLocal('user_watched_episodes', watchedEpisodes);
     }, [status, watchedEpisodes]);
 
+    // Same story for the per-show "last watched" stamps: the server keeps its own
+    // (watched_episodes.watched_at), so only guests need this mirror.
+    useEffect(() => {
+        if (status === 'guest') persistLocal('user_episode_activity', episodeActivity);
+    }, [status, episodeActivity]);
+
     // Movies and TV shows live in separate TMDB id namespaces, so a movie and a
     // show can share the same numeric id. Every match must compare type too, or
     // one masks the other (e.g. a watched movie makes a same-id show look seen).
@@ -373,6 +386,10 @@ export const UserProvider = ({ children }) => {
                 : nums.filter((ep) => existing.includes(ep));
             return applyEpisodes(current, tvId, seasonNumber, applied, watched);
         });
+
+        // Ticking an episode is what makes a show "recently watched"; unticking
+        // is a correction, so it leaves the show's position alone.
+        if (watched) setEpisodeActivity((current) => ({ ...current, [String(tvId)]: Date.now() }));
 
         if (!isAuthed) return; // guest data is mirrored to localStorage by effect
         userData.setSeasonEpisodesWatched(user.id, tvId, seasonNumber, nums, watched)
@@ -552,6 +569,7 @@ export const UserProvider = ({ children }) => {
             watchlist,
             watched,
             watchedEpisodes,
+            episodeActivity,
             reminders,
             addToWatchlist,
             removeFromWatchlist,

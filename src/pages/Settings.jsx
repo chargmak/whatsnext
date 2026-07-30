@@ -22,7 +22,7 @@ const panelButtonStyle = (danger = false) => ({
 const Settings = () => {
     const navigate = useNavigate();
     const { theme, toggleTheme } = useTheme();
-    const { status, user, watchlist, watched, watchedEpisodes, changePassword, deleteAccount } = useUser();
+    const { status, user, watchlist, watched, watchedEpisodes, episodeActivity, changePassword, deleteAccount } = useUser();
     const isAuthed = status === 'authed';
 
     const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -35,6 +35,9 @@ const Settings = () => {
             watchlist,
             watched,
             watchedEpisodes,
+            // Per-show "last watched" stamps, so a restored backup keeps Up
+            // Next in the same most-recent-first order.
+            episodeActivity,
             exportDate: new Date().toISOString()
         };
 
@@ -62,6 +65,7 @@ const Settings = () => {
                         watchlist: data.watchlist || [],
                         watched: data.watched || [],
                         episodes: data.watchedEpisodes || {},
+                        episodeActivity: data.episodeActivity || {},
                     };
                     if (isAuthed) {
                         await userData.migrateLocalData(user.id, payload);
@@ -69,6 +73,7 @@ const Settings = () => {
                         if (data.watchlist) localStorage.setItem('user_watchlist', JSON.stringify(data.watchlist));
                         if (data.watched) localStorage.setItem('user_watched', JSON.stringify(data.watched));
                         if (data.watchedEpisodes) localStorage.setItem('user_watched_episodes', JSON.stringify(data.watchedEpisodes));
+                        if (data.episodeActivity) localStorage.setItem('user_episode_activity', JSON.stringify(data.episodeActivity));
                     }
                     window.location.reload();
                 } catch (error) {
