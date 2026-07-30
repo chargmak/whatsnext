@@ -156,9 +156,11 @@ const Home = () => {
             {/* "What's Next?" spotlight — answers the app's namesake question */}
             <WhatsNextSpotlight mediaType={mediaType} />
 
-            {/* Up Next — the next unwatched episode of every series in the list.
-                TV-only by nature, so it rides the TV tab, and it stays hidden
-                until there is at least one show to resolve an episode for. */}
+            {/* Up Next — the next unwatched episode of every series in the list,
+                most recently watched show first. TV-only by nature, so it rides
+                the TV tab, and it stays hidden until there is at least one show
+                to resolve an episode for. Only the top 5 show here; "See All"
+                leads to the Library's full list. */}
             {mediaType === 'tv' && tvWatchlist.length > 0 && (
                 <section style={{ marginBottom: '40px' }}>
                     <div className="flex-between" style={{ marginBottom: '4px' }}>
@@ -181,7 +183,7 @@ const Home = () => {
                         Pick up where you left off in the shows you follow
                     </p>
 
-                    <UpNext series={tvWatchlist} />
+                    <UpNext series={tvWatchlist} limit={5} />
                 </section>
             )}
 

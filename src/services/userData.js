@@ -94,23 +94,32 @@ export const fetchAllUserData = async (userId) => {
     const [wl, hist, eps, rems] = await Promise.all([
         fetchAllRows('watchlists', '*', userId, 'added_at'),
         fetchAllRows('history', '*', userId, 'watched_at'),
-        fetchAllRows('watched_episodes', 'tv_id,season_number,episode_number', userId),
+        fetchAllRows('watched_episodes', 'tv_id,season_number,episode_number,watched_at', userId),
         fetchAllRows('reminders', '*', userId, 'release_date'),
     ]);
 
     const episodes = {};
+    // tvId -> when this viewer last ticked an episode of that show. "Up Next"
+    // orders on it, so the show watched most recently sits at the top.
+    const episodeActivity = {};
     eps.forEach((row) => {
         const tv = String(row.tv_id);
         const season = String(row.season_number);
         if (!episodes[tv]) episodes[tv] = {};
         if (!episodes[tv][season]) episodes[tv][season] = [];
         episodes[tv][season].push(row.episode_number);
+
+        const at = row.watched_at ? Date.parse(row.watched_at) : NaN;
+        if (!Number.isNaN(at) && (episodeActivity[tv] === undefined || at > episodeActivity[tv])) {
+            episodeActivity[tv] = at;
+        }
     });
 
     return {
         watchlist: wl.map(fromDbRow),
         watched: hist.map(fromDbRow),
         episodes,
+        episodeActivity,
         reminders: rems.map(fromReminderRow),
     };
 };
@@ -211,7 +220,7 @@ const chunk = (arr, size) => {
 };
 
 // One-time import of guest/localStorage data into a freshly signed-in account.
-export const migrateLocalData = async (userId, { watchlist = [], watched = [], episodes = {}, reminders = [] }) => {
+export const migrateLocalData = async (userId, { watchlist = [], watched = [], episodes = {}, episodeActivity = {}, reminders = [] }) => {
     for (const batch of chunk(watchlist.map((m) => toDbRow(userId, m)), 100)) {
         orThrow(await supabase.from('watchlists').upsert(batch, { onConflict: 'user_id,movie_id,media_type' }));
     }
@@ -221,12 +230,18 @@ export const migrateLocalData = async (userId, { watchlist = [], watched = [], e
 
     const episodeRows = [];
     Object.entries(episodes).forEach(([tvId, seasons]) => {
+        // Carry the device's "last watched" stamp over instead of letting every
+        // imported row default to now() — otherwise the import flattens the
+        // history and Up Next loses its most-recent-first order.
+        const stamp = Number(episodeActivity[String(tvId)]);
+        const watchedAt = Number.isFinite(stamp) ? new Date(stamp).toISOString() : null;
         Object.entries(seasons).forEach(([season, eps]) => {
             eps.forEach((ep) => episodeRows.push({
                 user_id: userId,
                 tv_id: Number(tvId),
                 season_number: Number(season),
                 episode_number: Number(ep),
+                ...(watchedAt ? { watched_at: watchedAt } : {}),
             }));
         });
     });
