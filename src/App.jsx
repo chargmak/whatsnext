@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import BottomNav from './components/BottomNav';
 import InstallPrompt from './components/InstallPrompt';
+import PushSync from './components/PushSync';
 import ErrorBoundary from './components/ErrorBoundary';
 import { RequireUser, RedirectIfAuthed } from './components/RouteGuards';
 import Home from './pages/Home';
@@ -62,6 +63,9 @@ function AppShell() {
       </ErrorBoundary>
       <ErrorBoundary resetKey={location.pathname} fallback={null}>
         <InstallPrompt />
+      </ErrorBoundary>
+      <ErrorBoundary resetKey={location.pathname} fallback={null}>
+        <PushSync />
       </ErrorBoundary>
       <BottomNav />
     </div>
