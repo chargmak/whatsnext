@@ -7,7 +7,8 @@ import {
     pushSupported,
     pushConfigured,
     getPermission,
-    isSubscribed,
+    pushStatus,
+    syncPushSubscription,
     subscribeToPush,
     unsubscribeFromPush,
 } from '../services/push';
@@ -30,6 +31,10 @@ const Notifications = () => {
     const [push, setPush] = useState({
         supported: true,
         subscribed: false,
+        // Whether the server actually has a row to push to. A device can be
+        // subscribed in the browser while the row is gone (endpoint rotated,
+        // pruned as dead), and then no scheduled alert ever arrives.
+        serverLinked: false,
         permission: 'default',
         busy: false,
         error: null,
@@ -42,26 +47,42 @@ const Notifications = () => {
                 if (active) setPush((p) => ({ ...p, supported: false }));
                 return;
             }
-            const subscribed = await isSubscribed();
+            // Repair a missing subscription row before reading the state, so
+            // opening this page is enough to get alerts flowing again.
+            await syncPushSubscription(user?.id).catch(() => {});
+            const state = await pushStatus(user?.id);
             if (active) {
-                setPush((p) => ({ ...p, subscribed, permission: getPermission() }));
+                setPush((p) => ({
+                    ...p,
+                    supported: state.supported,
+                    subscribed: state.subscribed,
+                    serverLinked: state.serverLinked,
+                    permission: state.permission,
+                }));
             }
         })();
         return () => {
             active = false;
         };
-    }, []);
+    }, [user?.id]);
 
     const handlePushToggle = useCallback(async () => {
         setPush((p) => ({ ...p, busy: true, error: null }));
         try {
             if (push.subscribed) {
                 await unsubscribeFromPush(user?.id);
-                setPush((p) => ({ ...p, subscribed: false, busy: false, permission: getPermission() }));
+                setPush((p) => ({ ...p, subscribed: false, serverLinked: false, busy: false, permission: getPermission() }));
                 setPreferences((prev) => ({ ...prev, pushNotifications: false }));
             } else {
                 await subscribeToPush(user?.id);
-                setPush((p) => ({ ...p, subscribed: true, busy: false, permission: getPermission() }));
+                const state = await pushStatus(user?.id);
+                setPush((p) => ({
+                    ...p,
+                    subscribed: true,
+                    serverLinked: state.serverLinked,
+                    busy: false,
+                    permission: getPermission(),
+                }));
                 setPreferences((prev) => ({ ...prev, pushNotifications: true }));
             }
         } catch (err) {
@@ -368,6 +389,15 @@ const Notifications = () => {
                                     {isPush && push.subscribed && status !== 'authed' && (
                                         <p style={{ margin: '6px 0 0 0', fontSize: '0.8rem', color: '#FBBF24' }}>
                                             Sign in to receive scheduled release alerts — guest reminders are tracked on this device only.
+                                        </p>
+                                    )}
+                                    {/* Subscribed here, but the server has no endpoint for this
+                                        device — every scheduled alert would go nowhere. Say so
+                                        instead of showing a reassuring "on". */}
+                                    {isPush && push.subscribed && !push.serverLinked && status === 'authed' && (
+                                        <p style={{ margin: '6px 0 0 0', fontSize: '0.8rem', color: '#F87171' }}>
+                                            This device isn't linked to your account for alerts. Turn Push
+                                            Notifications off and back on to reconnect it.
                                         </p>
                                     )}
                                 </div>

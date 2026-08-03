@@ -1,4 +1,4 @@
-const CACHE_NAME = 'whatsnext-v8';
+const CACHE_NAME = 'whatsnext-v9';
 const IMAGE_CACHE = 'whatsnext-images-v1';
 const API_CACHE = 'whatsnext-tmdb-v1';
 
@@ -158,6 +158,38 @@ self.addEventListener('push', (event) => {
     };
 
     event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// The browser can retire a push subscription on its own — a rotated endpoint, an
+// expired one, a push service that dropped it. It fires this instead of push,
+// and if nobody re-subscribes the device goes quiet for good: the old endpoint
+// starts returning 404/410, the delivery jobs prune its row, and every scheduled
+// alert lands nowhere while the app still shows push as "on".
+//
+// Re-subscribe with the same application server key, then tell any open page so
+// it can persist the new endpoint (the worker has no session to write with).
+// Pages also re-sync on load, so a closed app catches up on next open.
+const VAPID_PUBLIC_KEY = 'BEiuMR6fPv2p9L2n712L-PTP6Eot_iOiWAk8wrIcZ-54C9SX1aDFfVZZ9VB_-cTzRSuUjjZ3ww5lybJem75rogI';
+
+const applicationServerKey = (oldSubscription) =>
+    // Prefer the key the dead subscription was made with, so a rotated VAPID key
+    // doesn't get replaced by this file's baked-in default.
+    oldSubscription?.options?.applicationServerKey || VAPID_PUBLIC_KEY;
+
+self.addEventListener('pushsubscriptionchange', (event) => {
+    event.waitUntil((async () => {
+        try {
+            await self.registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: applicationServerKey(event.oldSubscription),
+            });
+        } catch (err) {
+            console.error('re-subscribe after pushsubscriptionchange failed:', err);
+            return;
+        }
+        const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const client of clients) client.postMessage({ type: 'push-subscription-changed' });
+    })());
 });
 
 self.addEventListener('notificationclick', (event) => {

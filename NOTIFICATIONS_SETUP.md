@@ -118,6 +118,26 @@ add a matching `cron.schedule(...)` call targeting `send-episode-alerts`).
 
    You should get `{"ok":true,...,"sent":1,...}` and receive a notification.
 
+## Troubleshooting: alerts stopped arriving
+
+First check whether the server still has a device to push to:
+
+```sql
+select user_id, user_agent, created_at from push_subscriptions;
+```
+
+**No rows** means the pipeline is fine and simply has nowhere to deliver — the
+crons will keep succeeding with `sent: 0`. Push endpoints aren't permanent: the
+browser rotates them, push services expire them, and any endpoint that comes
+back 404/410 is pruned here as dead.
+
+The app repairs this on its own — opening it while signed in re-mints the
+subscription and re-upserts the row (`syncPushSubscription`, run from
+`PushSync` on load and from the Notifications page), and `sw.js` re-subscribes
+on `pushsubscriptionchange`. If a device still shows Push Notifications on
+while the row is missing, the Notifications page flags it and toggling off/on
+relinks it.
+
 ## Notes
 
 - iOS delivers Web Push only to apps **installed to the Home Screen** (Add to Home
