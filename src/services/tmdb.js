@@ -67,8 +67,8 @@ export const getRecommendationsFromSeeds = async (seeds, type, excludeIds = new 
     const validSeeds = (seeds || []).filter((s) => s && s.id);
     if (!validSeeds.length) return [];
 
-    // Cap the number of requests; the most recently saved titles are the
-    // strongest signal, so sample from the end of the list.
+    // Cap the number of requests; the most recent seeds are the strongest
+    // signal, so sample from the end of the list.
     const sampled = validSeeds.slice(-8);
     const lists = await Promise.all(sampled.map((s) => getTitleRecommendations(s.id, type)));
 

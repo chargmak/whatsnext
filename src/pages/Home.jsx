@@ -27,16 +27,19 @@ const Home = () => {
         sessionStorage.setItem('homeMediaType', mediaType);
     }, [mediaType]);
 
-    // Seeds for personalized recommendations: the titles the user has saved for
-    // the active tab. Titles already saved or watched are excluded from results.
-    // Match media type the way the rest of the app does — legacy items saved
-    // before `type` was stored default to 'movie' — so a watched movie or series
-    // is reliably skipped from the recommendations instead of slipping through.
+    // Seeds for personalized recommendations: what the user has actually
+    // *watched* on the active tab — a finished title says far more about taste
+    // than one merely queued up, which may be an aspiration or someone else's
+    // suggestion. Titles already watched or saved are excluded from results, so
+    // the row only ever proposes something new. Match media type the way the
+    // rest of the app does — legacy items saved before `type` was stored default
+    // to 'movie' — so a watched movie or series is reliably skipped from the
+    // recommendations instead of slipping through.
     const recInputs = useMemo(() => {
-        const seeds = watchlist.filter((item) => (item.type || 'movie') === mediaType);
+        const seeds = watched.filter((item) => (item.type || 'movie') === mediaType);
         const excludeIds = new Set([
             ...seeds.map((item) => item.id),
-            ...watched.filter((item) => (item.type || 'movie') === mediaType).map((item) => item.id),
+            ...watchlist.filter((item) => (item.type || 'movie') === mediaType).map((item) => item.id),
         ]);
         return { seeds, excludeIds };
     }, [watchlist, watched, mediaType]);
@@ -221,14 +224,14 @@ const Home = () => {
                 )}
             </section>
 
-            {/* Recommended For You - built from the user's saved list for this tab */}
+            {/* Recommended For You - built from what the user has watched on this tab */}
             {recInputs.seeds.length > 0 && (recsLoading || recommendations.length > 0) && (
                 <section style={{ marginBottom: '40px' }}>
                     <div className="flex-between" style={{ marginBottom: '4px' }}>
                         <h3>Recommended For You</h3>
                     </div>
                     <p style={{ margin: '0 0 16px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                        Based on the {mediaType === 'movie' ? 'movies' : 'shows'} in your list
+                        Based on the {mediaType === 'movie' ? 'movies' : 'shows'} you&apos;ve watched
                     </p>
 
                     {recsLoading && recommendations.length === 0 ? (
