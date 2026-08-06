@@ -80,7 +80,7 @@ const extrasCache = new Map();
  * save it, mark it seen, or veto it forever.
  */
 export const WhatsNextSpotlight = ({ mediaType }) => {
-    const { status, user, watched, watchlist, addToWatchlist, markTitleWatched } = useUser();
+    const { status, user, watched, watchlist, watchedTvIds, addToWatchlist, markTitleWatched } = useUser();
     const navigate = useNavigate();
     const [reloadKey, setReloadKey] = useState(0);
     // The loaded queue is tagged with the request it answers; while the tag
@@ -97,20 +97,23 @@ export const WhatsNextSpotlight = ({ mediaType }) => {
     // stay out of its deps: tapping "Seen it" updates `watched` but must
     // advance the queue, not rebuild it back to a skeleton. The sync effect
     // is declared first so the ref is fresh before any rebuild runs.
-    const dataRef = useRef({ watched, watchlist });
+    const dataRef = useRef({ watched, watchlist, watchedTvIds });
     useEffect(() => {
-        dataRef.current = { watched, watchlist };
+        dataRef.current = { watched, watchlist, watchedTvIds };
     });
 
     useEffect(() => {
         let active = true;
         const load = async () => {
-            const { watched: seen, watchlist: saved } = dataRef.current;
+            const { watched: seen, watchlist: saved, watchedTvIds: seenShows } = dataRef.current;
             const history = seen.filter((item) => item.type === mediaType);
             const list = saved.filter((item) => item.type === mediaType);
+            // Shows with ticked-off episodes count as seen here too — they never
+            // needed an explicit "mark watched" to be watched.
             const excludeIds = new Set([
                 ...history.map((item) => item.id),
                 ...list.map((item) => item.id),
+                ...(mediaType === 'tv' ? seenShows : []),
                 ...getExcludedIds(mediaType),
             ]);
             const items = await getSpotlightQueue({

@@ -551,6 +551,20 @@ export const UserProvider = ({ children }) => {
         return { moviesWatched, showsWatched, episodesWatched, hoursWatched, favoriteGenre, rank };
     }, [watched, watchedEpisodes]);
 
+    // Series the user has actually seen episodes of. Ticking episodes is the
+    // usual way a show gets watched here — no explicit "mark watched" is ever
+    // required — so `watched` alone misses shows someone has worked all the way
+    // through. Recommendation rows use this to keep those shows out. Ids are
+    // numbers, matching TMDB payloads (the episode map is keyed by string).
+    const watchedTvIds = useMemo(() => {
+        const ids = new Set();
+        Object.entries(watchedEpisodes).forEach(([tvId, seasons]) => {
+            const seen = Object.values(seasons || {}).some((eps) => eps.length > 0);
+            if (seen) ids.add(Number(tvId));
+        });
+        return ids;
+    }, [watchedEpisodes]);
+
     // The zone every release time in the app is rendered in: the viewer's pinned
     // setting, else this device, else the country on their profile.
     const timeZone = useMemo(
@@ -569,6 +583,7 @@ export const UserProvider = ({ children }) => {
             watchlist,
             watched,
             watchedEpisodes,
+            watchedTvIds,
             episodeActivity,
             reminders,
             addToWatchlist,

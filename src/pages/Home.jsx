@@ -10,7 +10,7 @@ import { useUser } from '../context/UserContext';
 import { TRENDING_MOVIES } from '../data/mockData'; // Fallback
 
 const Home = () => {
-    const { user, watchlist, watched, timeZone } = useUser();
+    const { user, watchlist, watched, watchedTvIds, timeZone } = useUser();
     const navigate = useNavigate();
     // Initialize from session storage if available, otherwise default to 'tv'
     // so a fresh visit lands on the first tab, TV Shows.
@@ -32,14 +32,18 @@ const Home = () => {
     // Match media type the way the rest of the app does — legacy items saved
     // before `type` was stored default to 'movie' — so a watched movie or series
     // is reliably skipped from the recommendations instead of slipping through.
+    // A series counts as watched from its episode ticks too, not just an explicit
+    // "mark watched": someone who has worked through every season of a show has
+    // clearly seen it, and proposing it back to them is noise.
     const recInputs = useMemo(() => {
         const seeds = watchlist.filter((item) => (item.type || 'movie') === mediaType);
         const excludeIds = new Set([
             ...seeds.map((item) => item.id),
             ...watched.filter((item) => (item.type || 'movie') === mediaType).map((item) => item.id),
+            ...(mediaType === 'tv' ? watchedTvIds : []),
         ]);
         return { seeds, excludeIds };
-    }, [watchlist, watched, mediaType]);
+    }, [watchlist, watched, watchedTvIds, mediaType]);
 
     // Shows we can compute a "next episode" for — same source the Library's
     // Up Next tab uses: the TV entries saved to the watchlist.
