@@ -8,8 +8,10 @@ import {
     pushConfigured,
     getPermission,
     isSubscribed,
+    isRegisteredOnServer,
     subscribeToPush,
     unsubscribeFromPush,
+    syncPushSubscription,
 } from '../services/push';
 import { startOfZonedDay, todayKey } from '../services/releaseTime';
 
@@ -27,9 +29,17 @@ const Notifications = () => {
     const navigate = useNavigate();
     const { status, user, reminders, toggleReminder, timeZone } = useUser();
 
+    // Guest ids ("guest-12345") are local-only and never key a server row, so
+    // anything that talks to push_subscriptions has to see null for them.
+    const accountId = status === 'authed' ? user?.id : null;
+
     const [push, setPush] = useState({
         supported: true,
         subscribed: false,
+        // Whether the server actually holds this device's subscription. The
+        // browser saying "subscribed" isn't enough — that's the state alerts
+        // die in, and it's what this page has to be honest about.
+        registered: true,
         permission: 'default',
         busy: false,
         error: null,
@@ -42,34 +52,39 @@ const Notifications = () => {
                 if (active) setPush((p) => ({ ...p, supported: false }));
                 return;
             }
+            // Someone opening this page is often here because alerts stopped —
+            // repair a retired subscription before reporting on it.
+            if (accountId) await syncPushSubscription(accountId);
             const subscribed = await isSubscribed();
+            const registered = await isRegisteredOnServer(accountId);
             if (active) {
-                setPush((p) => ({ ...p, subscribed, permission: getPermission() }));
+                setPush((p) => ({ ...p, subscribed, registered, permission: getPermission() }));
             }
         })();
         return () => {
             active = false;
         };
-    }, []);
+    }, [accountId]);
 
     const handlePushToggle = useCallback(async () => {
         setPush((p) => ({ ...p, busy: true, error: null }));
         try {
             if (push.subscribed) {
-                await unsubscribeFromPush(user?.id);
-                setPush((p) => ({ ...p, subscribed: false, busy: false, permission: getPermission() }));
+                await unsubscribeFromPush(accountId);
+                setPush((p) => ({ ...p, subscribed: false, registered: false, busy: false, permission: getPermission() }));
                 setPreferences((prev) => ({ ...prev, pushNotifications: false }));
             } else {
-                await subscribeToPush(user?.id);
-                setPush((p) => ({ ...p, subscribed: true, busy: false, permission: getPermission() }));
+                await subscribeToPush(accountId);
+                const registered = await isRegisteredOnServer(accountId);
+                setPush((p) => ({ ...p, subscribed: true, registered, busy: false, permission: getPermission() }));
                 setPreferences((prev) => ({ ...prev, pushNotifications: true }));
             }
         } catch (err) {
             setPush((p) => ({ ...p, busy: false, error: err.message, permission: getPermission() }));
         }
-        // setPreferences is stable (usePersistentState); user?.id / push.subscribed are the real deps
+        // setPreferences is stable (usePersistentState); accountId / push.subscribed are the real deps
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [push.subscribed, user?.id]);
+    }, [push.subscribed, accountId]);
 
     const [preferences, setPreferences] = usePersistentState(
         `prefs:${user?.id || 'guest'}:notifications`,
@@ -328,12 +343,20 @@ const Notifications = () => {
                         const disabled = isPush && (push.busy || !push.supported || !pushConfigured());
                         const onToggle = isPush ? handlePushToggle : () => togglePreference(method.id);
 
+                        // The subscription registered for this account on this
+                        // device — the thing scheduled alerts are actually sent
+                        // to. Only meaningful once signed in; guests have none.
+                        const pushBroken = isPush && push.subscribed && !push.registered
+                            && status === 'authed';
+
                         let description = method.description;
                         if (isPush) {
                             if (!push.supported) description = 'Not supported on this device or browser';
                             else if (!pushConfigured()) description = 'Not enabled for this deployment yet';
                             else if (push.permission === 'denied') description = 'Blocked — enable notifications for this site in your browser settings';
                             else if (push.busy) description = 'Working…';
+                            else if (pushBroken) description = 'This device needs re-registering';
+                            else if (push.subscribed && status === 'authed') description = 'On — alerts are registered for this device';
                         }
 
                         return (
@@ -363,6 +386,12 @@ const Notifications = () => {
                                     {isPush && push.error && (
                                         <p style={{ margin: '6px 0 0 0', fontSize: '0.8rem', color: '#F87171' }}>
                                             {push.error}
+                                        </p>
+                                    )}
+                                    {pushBroken && (
+                                        <p style={{ margin: '6px 0 0 0', fontSize: '0.8rem', color: '#FBBF24' }}>
+                                            Your browser dropped its subscription, so alerts stopped arriving.
+                                            Turn this off and on again to restore them.
                                         </p>
                                     )}
                                     {isPush && push.subscribed && status !== 'authed' && (
