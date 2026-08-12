@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import * as userData from '../services/userData';
 import { getTVWatchStatus } from '../services/tmdb';
 import { resolveViewerZone } from '../services/releaseTime';
+import { syncPushSubscription } from '../services/push';
 
 const UserContext = createContext();
 
@@ -169,6 +170,16 @@ export const UserProvider = ({ children }) => {
 
         return () => subscription.unsubscribe();
     }, []);
+
+    // Re-register this device for push on every signed-in load. A subscription
+    // is not permanent — the push service can retire it, and the delivery job
+    // prunes the row once it starts returning 410 — so without this the alerts
+    // stop for good and the Notifications toggle keeps claiming they're on.
+    // No-ops unless notification permission is already granted.
+    useEffect(() => {
+        if (status !== 'authed' || !user?.id) return;
+        syncPushSubscription(user.id);
+    }, [status, user?.id]);
 
     // --- Local data migration (guest → account) ---
 

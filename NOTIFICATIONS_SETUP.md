@@ -118,6 +118,49 @@ add a matching `cron.schedule(...)` call targeting `send-episode-alerts`).
 
    You should get `{"ok":true,...,"sent":1,...}` and receive a notification.
 
+## Troubleshooting: alerts stopped arriving
+
+Start at the `push_subscriptions` table. **If it's empty, nothing can be
+delivered** — the crons will keep running and returning `{"ok":true,...,"sent":0}`,
+because there's no device to send to:
+
+```sql
+select user_id, user_agent, created_at from push_subscriptions;
+```
+
+A Web Push subscription is **not permanent**. The push service retires it on its
+own after a browser update, a reinstalled PWA, storage pressure, or a long idle
+stretch. The old endpoint then returns 410 and the delivery job prunes the row —
+correctly, but that used to be the end of it: the row was only ever written at
+the moment the toggle was flipped, so nothing recreated it. Meanwhile the
+Notifications toggle kept reading "on", because it reflected the *browser's*
+subscription, not the server's row.
+
+That gap is now closed on three fronts:
+
+- `syncPushSubscription()` (`src/services/push.js`) re-registers the device on
+  every signed-in app load. Permission is already granted in this case, so it
+  resubscribes silently — no prompt.
+- `sw.js` handles `pushsubscriptionchange` and resubscribes the moment the push
+  service retires an endpoint; the app persists the replacement on next open.
+- The Notifications page checks the *server* row, not just the browser, and says
+  so when a device needs re-registering instead of showing a toggle that lies.
+
+A subscription created against a **different VAPID key** (a rotation, or one left
+over from an older deployment) is also detected and replaced — the push service
+refuses those sends with `403 VapidPkHashMismatch`, which is equally invisible
+from the app.
+
+Other things worth checking, in order:
+
+1. `select * from cron.job` — both jobs present and `active`.
+2. `select * from cron.job_run_details order by start_time desc limit 5` — the
+   jobs are firing (this only proves the HTTP request was *made*).
+3. Dashboard → Edge Functions → Logs — the invocation returned 200, not 401
+   (`CRON_SECRET` mismatch) or 500 (missing VAPID / TMDB secrets).
+4. `select id, title, release_date, notified_at from reminders` — an alert that
+   already fired has `notified_at` set and will never fire again.
+
 ## Notes
 
 - iOS delivers Web Push only to apps **installed to the Home Screen** (Add to Home

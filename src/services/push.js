@@ -66,6 +66,85 @@ const saveSubscription = async (userId, subscription) => {
     if (error) throw error;
 };
 
+// Does an existing subscription belong to the VAPID key we push with today?
+// A subscription is bound to the applicationServerKey it was created with, so
+// after a key rotation (or one left over from an older deployment) the push
+// service rejects our sends with 403 VapidPkHashMismatch — silently, from the
+// user's side. Such a subscription has to be replaced, not reused.
+const matchesServerKey = (subscription) => {
+    const raw = subscription.options?.applicationServerKey;
+    // Some browsers don't expose the key back; nothing to check against.
+    if (!raw) return true;
+    const current = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+    const existing = new Uint8Array(raw);
+    return existing.length === current.length && existing.every((b, i) => b === current[i]);
+};
+
+const subscribeBrowser = (reg) =>
+    reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+
+// Is the browser's current subscription the one the server would push to?
+// The toggle reflects the browser, which can say "on" long after the server-side
+// row is gone — that gap is exactly how delivery dies unnoticed.
+export const isRegisteredOnServer = async (userId) => {
+    if (!pushSupported() || !supabase || !userId) return false;
+    const reg = await getRegistration();
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub) return false;
+    const { data, error } = await supabase
+        .from('push_subscriptions')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('endpoint', sub.endpoint)
+        .maybeSingle();
+    if (error) return false;
+    return Boolean(data);
+};
+
+// Re-assert this device's subscription, idempotently. Called on every app load
+// for a signed-in user, because a subscription granted once does NOT stay
+// registered on its own:
+//
+//   * Push services retire endpoints by themselves (browser update, PWA
+//     reinstall, storage pressure, weeks idle). The edge functions prune the
+//     dead row on the resulting 404/410, and nothing ever wrote a new one — the
+//     toggle still reads "on" while no notification can ever arrive again.
+//   * Subscribing as a guest leaves the browser subscribed with no row to
+//     attach it to; signing in later never revisited it.
+//   * A rotated VAPID key leaves a subscription we're no longer allowed to push to.
+//
+// Permission is already granted in all of these cases, so re-subscribing is
+// silent — no prompt, nothing for the user to do. Failures are logged, never
+// thrown: this runs in the background and must not break app startup.
+export const syncPushSubscription = async (userId) => {
+    if (!pushSupported() || !pushConfigured()) return false;
+    if (!supabase || !userId) return false;
+    if (getPermission() !== 'granted') return false;
+
+    try {
+        const reg = await getRegistration();
+        let subscription = await reg.pushManager.getSubscription();
+
+        if (subscription && !matchesServerKey(subscription)) {
+            const stale = subscription.endpoint;
+            await subscription.unsubscribe().catch(() => {});
+            await supabase.from('push_subscriptions').delete().eq('endpoint', stale);
+            subscription = null;
+        }
+
+        if (!subscription) subscription = await subscribeBrowser(reg);
+
+        await saveSubscription(userId, subscription);
+        return true;
+    } catch (err) {
+        console.error('Push subscription sync failed:', err);
+        return false;
+    }
+};
+
 export const subscribeToPush = async (userId) => {
     if (!pushSupported()) {
         throw new Error('Push notifications are not supported on this device or browser.');
@@ -85,12 +164,13 @@ export const subscribeToPush = async (userId) => {
 
     const reg = await getRegistration();
     let subscription = await reg.pushManager.getSubscription();
-    if (!subscription) {
-        subscription = await reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-        });
+    // Reusing a subscription bound to a different VAPID key would leave the
+    // toggle on while every send is refused — replace it instead.
+    if (subscription && !matchesServerKey(subscription)) {
+        await subscription.unsubscribe().catch(() => {});
+        subscription = null;
     }
+    if (!subscription) subscription = await subscribeBrowser(reg);
     await saveSubscription(userId, subscription);
     return subscription;
 };

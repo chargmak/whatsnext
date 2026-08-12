@@ -160,6 +160,46 @@ self.addEventListener('push', (event) => {
     event.waitUntil(self.registration.showNotification(title, options));
 });
 
+// The push service can retire this device's subscription on its own — a browser
+// update, storage pressure, a reinstalled PWA, or simply weeks of inactivity.
+// Without this handler the device just stops receiving notifications, forever
+// and silently: the old endpoint starts returning 410, the cron prunes the row,
+// and nothing ever creates a replacement.
+//
+// Resubscribe immediately with the same key. Persisting it needs a signed-in
+// Supabase session, which a worker doesn't have, so the new subscription is
+// stored server-side by syncPushSubscription() the next time the app is opened.
+const VAPID_PUBLIC_KEY =
+    'BEiuMR6fPv2p9L2n712L-PTP6Eot_iOiWAk8wrIcZ-54C9SX1aDFfVZZ9VB_-cTzRSuUjjZ3ww5lybJem75rogI';
+
+const vapidKeyBytes = (base64String) => {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    const output = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i += 1) output[i] = raw.charCodeAt(i);
+    return output;
+};
+
+self.addEventListener('pushsubscriptionchange', (event) => {
+    event.waitUntil((async () => {
+        // Prefer the key the expiring subscription was created with: this file
+        // is served unbuilt, so it can't read a VITE_ override, and reusing the
+        // old key keeps a rotated deployment working. The app corrects any
+        // genuine mismatch on its next sync.
+        const key = event.oldSubscription?.options?.applicationServerKey
+            || vapidKeyBytes(VAPID_PUBLIC_KEY);
+        try {
+            await self.registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: key,
+            });
+        } catch (err) {
+            console.error('SW resubscribe failed:', err);
+        }
+    })());
+});
+
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
     const targetUrl = event.notification.data?.url || '/notifications';
