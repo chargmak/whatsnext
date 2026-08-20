@@ -53,7 +53,10 @@ const NETWORK_RULES: NetworkRule[] = [
     { match: ['netflix'], zone: PACIFIC, hour: 0, minute: 0, global: true },
     { match: ['disney+', 'disney plus'], zone: PACIFIC, hour: 0, minute: 0, global: true },
     { match: ['prime video', 'amazon'], zone: PACIFIC, hour: 0, minute: 0, global: true },
-    { match: ['apple tv+', 'apple tv plus'], zone: PACIFIC, hour: 0, minute: 0, global: true },
+    // Apple drops at 21:00 Pacific — midnight Eastern the next day — and TMDB
+    // dates episodes by that Pacific evening. Matching on 'apple tv' also covers
+    // the 2025 rename that took the "+" off the service.
+    { match: ['apple tv'], zone: PACIFIC, hour: 21, minute: 0, global: true },
     { match: ['hulu'], zone: PACIFIC, hour: 0, minute: 0, global: true },
     { match: ['max', 'hbo max'], zone: PACIFIC, hour: 0, minute: 0, global: true },
     { match: ['paramount+', 'paramount plus'], zone: PACIFIC, hour: 0, minute: 0, global: true },

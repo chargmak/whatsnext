@@ -1,17 +1,21 @@
 // send-episode-alerts
 //
-// Twice-daily job (invoked by a scheduled cron) that alerts users when a new
-// episode of a TV show *in their watchlist* has aired. For every distinct TV
-// show a push-subscribed user has watchlisted, it asks TMDB for the show's
-// latest and next episode, works out the moment each actually airs — the air
-// date joined to the platform's release hour, in the platform's timezone — and
-// pushes only once that moment has passed. Each (user, show, season, episode) is
+// Recurring job (invoked by a scheduled cron every few hours) that alerts users
+// when a new episode of a TV show *in their watchlist* has aired. For every
+// distinct TV show a push-subscribed user has watchlisted, it asks TMDB for the
+// show's latest and next episode, works out the moment each actually airs — the
+// air date joined to the platform's release hour, in the platform's timezone —
+// and pushes only once that moment has passed. Each (user, show, season, episode) is
 // recorded in `episode_notifications` so it fires only once.
 //
 // "Out now" used to mean "TMDB's air_date equals today in UTC", which announced
 // episodes that hadn't aired: an evening broadcast was called out ~21 hours
 // early, and viewers east of UTC got told a day ahead. Air times are also
 // phrased in each recipient's own zone (profile timezone, else their country).
+//
+// Note the air date is the platform's own calendar day, not the viewer's: Apple
+// drops at 21:00 Pacific, so a show TMDB dates Thursday reaches most of Europe
+// on Friday morning — and an alert sent on Thursday is a day early there.
 //
 // Auth: shares CRON_SECRET with send-release-reminders — the caller must send
 // `Authorization: Bearer <CRON_SECRET>` when that secret is set.
@@ -38,7 +42,8 @@ const json = (body: unknown, status = 200) =>
     });
 
 // How long after an episode airs we'll still announce it. The cron runs every
-// ~12h, so a day's grace covers a missed run without resurfacing stale episodes.
+// few hours, so a day and a half's grace covers a missed run or two without
+// resurfacing stale episodes.
 const FRESH_WINDOW_MS = 36 * 60 * 60 * 1000;
 
 const episodeCopy = (season: number, episode: number, name: string | undefined, airedAt: string) => {

@@ -151,7 +151,12 @@ const NETWORK_RULES = [
     { match: ['netflix'], zone: PACIFIC, hour: 0, minute: 0, global: true },
     { match: ['disney+', 'disney plus'], zone: PACIFIC, hour: 0, minute: 0, global: true },
     { match: ['prime video', 'amazon'], zone: PACIFIC, hour: 0, minute: 0, global: true },
-    { match: ['apple tv+', 'apple tv plus'], zone: PACIFIC, hour: 0, minute: 0, global: true },
+    // Apple is the exception among the streamers: it drops at 21:00 Pacific —
+    // midnight Eastern, the *next* day — and TMDB dates each episode by that
+    // Pacific evening, which is why an Apple show marketed as "Fridays" carries
+    // Thursday air dates. Matching on 'apple tv' also survives the 2025 rename
+    // that took the "+" off the service (TMDB now reports plain "Apple TV").
+    { match: ['apple tv'], zone: PACIFIC, hour: 21, minute: 0, global: true },
     { match: ['hulu'], zone: PACIFIC, hour: 0, minute: 0, global: true },
     { match: ['max', 'hbo max'], zone: PACIFIC, hour: 0, minute: 0, global: true },
     { match: ['paramount+', 'paramount plus'], zone: PACIFIC, hour: 0, minute: 0, global: true },

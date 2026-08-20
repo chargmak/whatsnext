@@ -1,13 +1,15 @@
--- Schedule the daily push-notification jobs.
+-- Schedule the push-notification jobs.
 --
 -- Two edge functions are scheduled here:
 --   send-release-reminders  — "Notify Me" titles releasing today/tomorrow (14:00 UTC).
 --   send-episode-alerts     — new episodes of watchlisted TV shows that have
 --                             actually aired (air date + the platform's release
---                             hour, in the platform's zone). Run twice a day
---                             (03:00 and 15:00 UTC) so alerts land within ~12h of
---                             an episode dropping; the episode_notifications
---                             table dedupes, so no double sends.
+--                             hour, in the platform's zone). Run every 3 hours:
+--                             platforms drop at their own hour (Netflix 00:00
+--                             Pacific, Apple 21:00 Pacific, HBO 21:00 Eastern),
+--                             so a twice-daily job could sit on an episode for
+--                             half a day. The episode_notifications table
+--                             dedupes, so the extra runs never double-send.
 --
 -- Prerequisites (Dashboard → Database → Extensions): enable `pg_cron` and `pg_net`.
 -- Replace <CRON_SECRET> below with the SAME value you set via
@@ -34,10 +36,10 @@ select cron.schedule(
   $$
 );
 
--- New-episode alerts: twice daily, ~12h apart (03:00 and 15:00 UTC).
+-- New-episode alerts: every 3 hours, so an alert lands within 3h of the drop.
 select cron.schedule(
-  'send-episode-alerts-daily',
-  '0 15 * * *',
+  'send-episode-alerts-3h',
+  '0 */3 * * *',
   $$
   select net.http_post(
     url     := 'https://vtftqdsltwernbjvewqm.functions.supabase.co/send-episode-alerts',
@@ -50,20 +52,19 @@ select cron.schedule(
   $$
 );
 
-select cron.schedule(
-  'send-episode-alerts-daily-2',
-  '0 3 * * *',
-  $$
-  select net.http_post(
-    url     := 'https://vtftqdsltwernbjvewqm.functions.supabase.co/send-episode-alerts',
-    headers := jsonb_build_object(
-      'Content-Type',  'application/json',
-      'Authorization', 'Bearer <CRON_SECRET>'
-    ),
-    body    := '{}'::jsonb
-  );
-  $$
-);
+-- Retire the twice-daily jobs this replaces. cron.unschedule raises on a job
+-- that isn't there, so a fresh project doesn't trip over these.
+do $$
+declare
+  stale text;
+begin
+  foreach stale in array array['send-episode-alerts-daily', 'send-episode-alerts-daily-2'] loop
+    begin
+      perform cron.unschedule(stale);
+    exception when others then null;
+    end;
+  end loop;
+end $$;
 
 -- To change a schedule, re-run cron.schedule with the same job name.
--- To remove one:  select cron.unschedule('send-episode-alerts-daily-2');
+-- To remove one:  select cron.unschedule('send-episode-alerts-3h');
