@@ -3,21 +3,25 @@
 This app can send **Web Push notifications** — even when the app is closed — for:
 
 - **Release reminders**: a movie or show you tapped **Notify Me** on is released.
-- **New episodes**: a new episode of a TV show **in your watchlist** airs today.
+- **New episodes**: a new episode of a TV show **in your watchlist** has aired.
 
 ## How it works
 
 1. On the Notifications page, **Push Notifications** asks for permission and
    subscribes the browser's service worker (`public/sw.js`) using a VAPID key.
 2. The subscription is saved to the `push_subscriptions` table (per signed-in user).
-3. Two daily crons deliver alerts:
+3. Two scheduled crons deliver alerts:
    - **`send-release-reminders`** finds reminders releasing today/tomorrow that
      haven't been notified, pushes to each of the user's devices, and stamps
      `reminders.notified_at` so it fires once.
    - **`send-episode-alerts`** looks at every TV show in each subscribed user's
-     watchlist, asks TMDB whether the show's next episode airs today, and pushes a
-     "new episode" alert. Each `(user, show, season, episode)` is recorded in
-     `episode_notifications` so it fires only once.
+     watchlist and works out the *instant* its latest episode actually drops —
+     TMDB's date-only `air_date` joined to the platform's release hour, in the
+     platform's own timezone (Netflix 00:00 Pacific, Apple 21:00 Pacific — which
+     is midnight Eastern the next day — HBO 21:00 Eastern, and so on). The alert
+     goes out only once that instant has passed, so nobody is told an episode is
+     out the day before they can watch it. Each `(user, show, season, episode)`
+     is recorded in `episode_notifications` so it fires only once.
 
 > Scheduled alerts require a **signed-in account** — guest reminders and watchlists
 > live only in `localStorage`, which the server never sees. Episode alerts also
@@ -93,8 +97,10 @@ supabase secrets set \
 
 **Easiest:** Dashboard → Integrations → **Cron** → create a job for each function
 (`send-release-reminders`, `send-episode-alerts`), add header
-`Authorization: Bearer <CRON_SECRET>`, and schedule them (e.g. `0 14 * * *` and
-`0 15 * * *`).
+`Authorization: Bearer <CRON_SECRET>`, and schedule them: `0 14 * * *` for
+`send-release-reminders`, and `0 */3 * * *` for `send-episode-alerts` (platforms
+drop at their own hour, so a less frequent job can sit on an episode for hours
+after it lands).
 
 **Or via SQL:** enable `pg_cron` + `pg_net` (Dashboard → Database → Extensions),
 then run `supabase/schedule_reminders_cron.sql` with `<CRON_SECRET>` filled in (and
@@ -160,6 +166,35 @@ Other things worth checking, in order:
    (`CRON_SECRET` mismatch) or 500 (missing VAPID / TMDB secrets).
 4. `select id, title, release_date, notified_at from reminders` — an alert that
    already fired has `notified_at` set and will never fire again.
+
+## Troubleshooting: an alert arrived on the wrong day
+
+An episode alert that lands before the episode does means the job resolved the
+wrong air *instant*. Two things to check, in this order:
+
+1. **Is the deployed function the one in this repo?** Edge functions ship
+   separately from the app — a merged fix changes nothing until
+   `supabase functions deploy send-episode-alerts` runs. Dashboard → Edge
+   Functions shows each function's version and last deploy; compare that against
+   the commit that last touched `supabase/functions/`. An older build compared
+   `air_date` with today's UTC date and announced evening drops up to a day
+   early.
+2. **Does the show's platform still match a release rule?** The rules live in
+   `supabase/functions/_shared/air-time.ts` (mirroring `src/services/releaseTime.js`
+   — keep the two in sync) and are matched against TMDB's `networks[].name`.
+   Platforms get renamed: TMDB reports Apple's service as plain **"Apple TV"**
+   since the 2025 rebrand, so a rule written for `apple tv+` alone stops
+   matching and the show silently falls back to an origin-country prime-time
+   guess. Check what TMDB actually says:
+
+   ```bash
+   curl -s "https://api.themoviedb.org/3/tv/<id>?api_key=<key>" \
+     | jq '{networks: [.networks[].name], next: .next_episode_to_air.air_date}'
+   ```
+
+   Also remember TMDB dates each episode by the **platform's** calendar day, not
+   the viewer's: Apple drops at 21:00 Pacific, so an episode dated Thursday is a
+   Friday morning release across Europe.
 
 ## Notes
 
