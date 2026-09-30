@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { getTrendingMovies, getTrendingTV, getRecommendationsFromSeeds, mapMediaData } from '../services/tmdb';
+import { getTrendingMovies, getTrendingTV, getTopRated, getRecommendationsFromSeeds, mapMediaData } from '../services/tmdb';
 import { MovieCard } from '../components/MovieCard';
 import { PosterRow, PosterRowSkeleton } from '../components/PosterRow';
 import { WhatsNextSpotlight } from '../components/WhatsNextSpotlight';
@@ -19,6 +19,8 @@ const Home = () => {
     });
     const [mediaItems, setMediaItems] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [topRated, setTopRated] = useState([]);
+    const [topRatedLoading, setTopRatedLoading] = useState(true);
     const [recommendations, setRecommendations] = useState([]);
     const [recsLoading, setRecsLoading] = useState(false);
 
@@ -96,6 +98,29 @@ const Home = () => {
             }
         };
         loadMedia();
+    }, [mediaType, timeZone]);
+
+    // Highest rated titles for the active tab. Kept separate from the trending
+    // request so a slow or failed call only affects its own row.
+    useEffect(() => {
+        let active = true;
+        const loadTopRated = async () => {
+            // Drop the other tab's titles so they never flash under this tab.
+            setTopRated([]);
+            setTopRatedLoading(true);
+            try {
+                const data = await getTopRated(mediaType);
+                if (!active) return;
+                const results = data?.results || [];
+                setTopRated(results.map((item) => mapMediaData({ ...item, media_type: mediaType }, timeZone)));
+            } catch (error) {
+                console.error('Error loading top rated titles:', error);
+            } finally {
+                if (active) setTopRatedLoading(false);
+            }
+        };
+        loadTopRated();
+        return () => { active = false; };
     }, [mediaType, timeZone]);
 
     // No full-page loading gate: the header, the tab toggle and the spotlight
@@ -224,6 +249,33 @@ const Home = () => {
                     </PosterRow>
                 )}
             </section>
+
+            {/* Top Rated Section - all-time highest rated titles for the active tab.
+                Hidden once loading finishes with nothing to show. */}
+            {(topRatedLoading || topRated.length > 0) && (
+                <section style={{ marginBottom: '40px' }}>
+                    <div className="flex-between" style={{ marginBottom: '4px' }}>
+                        <h3>Top Rated {mediaType === 'movie' ? 'Movies' : 'TV Shows'}</h3>
+                    </div>
+                    <p style={{ margin: '0 0 16px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        The highest rated {mediaType === 'movie' ? 'movies' : 'shows'} of all time
+                    </p>
+
+                    {topRatedLoading && topRated.length === 0 ? (
+                        <PosterRowSkeleton />
+                    ) : (
+                        <PosterRow>
+                            {topRated.map((item) => (
+                                <MovieCard
+                                    key={item.id}
+                                    movie={item}
+                                    onClick={(id) => navigate(`/${item.type}/${id}`)}
+                                />
+                            ))}
+                        </PosterRow>
+                    )}
+                </section>
+            )}
 
             {/* Recommended For You - built from the user's saved list for this tab */}
             {recInputs.seeds.length > 0 && (recsLoading || recommendations.length > 0) && (

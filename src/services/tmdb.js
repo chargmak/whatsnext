@@ -47,6 +47,11 @@ export const getTrendingTV = async () => {
     return await fetchFromTMDB('/trending/tv/week');
 };
 
+// All-time highest rated titles for the given media type ('movie' or 'tv').
+export const getTopRated = async (type) => {
+    return await fetchFromTMDB(`/${type === 'tv' ? 'tv' : 'movie'}/top_rated`);
+};
+
 export const searchMulti = async (query) => {
     return await fetchFromTMDB('/search/multi', { query });
 };
