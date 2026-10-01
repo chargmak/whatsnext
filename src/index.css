@@ -440,6 +440,35 @@ p {
   color: var(--text-primary);
 }
 
+/* Narrow phones (360px and under): five icons plus the expanded "Calendar"
+   pill came to ~367px and made the page scroll sideways. Tighter padding and
+   gaps keep the dock inside the screen; the cap is a backstop for anything
+   narrower still. */
+.bottom-nav {
+  max-width: calc(100vw - 16px);
+}
+
+@media (max-width: 380px) {
+  .bottom-nav {
+    gap: 4px;
+    padding: 6px;
+  }
+
+  .nav-item {
+    padding: 10px;
+  }
+
+  .nav-item.active {
+    padding-left: 12px;
+    padding-right: 14px;
+    gap: 6px;
+  }
+
+  .nav-item span {
+    font-size: 0.875rem;
+  }
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -806,6 +835,119 @@ p {
   }
   .season-mark-btn {
     flex: 1 1 auto;
+  }
+}
+
+/* ===== Up Next cards (Home preview + Library tab) ===== */
+.upnext-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+}
+
+.upnext-still {
+  width: 128px;
+  height: 72px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--bg-tertiary);
+}
+
+/* No episode still from TMDB: fall back to the (portrait) show poster */
+.upnext-still.is-poster {
+  width: 60px;
+  height: 90px;
+}
+
+.upnext-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.upnext-show {
+  font-weight: 700;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.upnext-code {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--brand-600);
+  margin-bottom: 4px;
+}
+
+.upnext-episode {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.upnext-aired {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.upnext-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: var(--brand-600);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.upnext-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Phones: a smaller still and an icon-only button hand the width back to the
+   show and episode titles, which otherwise truncate after a few letters.
+   The button keeps its aria-label, so it still reads "Mark … watched". */
+@media (max-width: 480px) {
+  .upnext-card {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .upnext-still {
+    width: 96px;
+    height: 54px;
+  }
+
+  .upnext-still.is-poster {
+    width: 48px;
+    height: 72px;
+  }
+
+  .upnext-btn {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+  }
+
+  .upnext-btn span {
+    display: none;
   }
 }
 
