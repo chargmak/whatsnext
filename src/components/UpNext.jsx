@@ -169,64 +169,25 @@ const UpNext = ({ series, limit }) => {
                     key={show.id}
                     layout
                     whileHover={{ scale: 1.01 }}
-                    className="glass-panel"
+                    className="glass-panel upnext-card"
                     onClick={() => navigate(`/tv/${show.id}`)}
-                    style={{
-                        padding: '12px',
-                        borderRadius: 'var(--radius-md)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        gap: '14px',
-                        alignItems: 'center',
-                        border: '1px solid rgba(255,255,255,0.05)',
-                    }}
                 >
+                    {/* Layout lives in CSS (.upnext-*) so phones can shrink the
+                        still and collapse the button to its icon — inline, the
+                        128px still plus a labelled button left the titles
+                        truncated to a few letters on a 390px screen. */}
                     <img
                         src={ep.still || ep.poster}
                         alt={show.title}
                         loading="lazy"
-                        style={{
-                            width: ep.still ? '128px' : '60px',
-                            height: ep.still ? '72px' : '90px',
-                            borderRadius: 'var(--radius-sm)',
-                            objectFit: 'cover',
-                            flexShrink: 0,
-                            background: 'var(--bg-tertiary)',
-                        }}
+                        className={`upnext-still ${ep.still ? '' : 'is-poster'}`}
                     />
 
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                            fontWeight: 700,
-                            marginBottom: '2px',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                        }}>
-                            {ep.title}
-                        </div>
-                        <div style={{
-                            fontSize: '0.8rem',
-                            fontWeight: 600,
-                            color: 'var(--brand-600)',
-                            marginBottom: '4px',
-                        }}>
-                            S{ep.seasonNumber} · E{ep.episodeNumber}
-                        </div>
-                        <div style={{
-                            fontSize: '0.9rem',
-                            color: 'var(--text-primary)',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                        }}>
-                            {ep.episodeName}
-                        </div>
-                        {ep.airDate && (
-                            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                                {formatAired(ep)}
-                            </div>
-                        )}
+                    <div className="upnext-body">
+                        <div className="upnext-show">{ep.title}</div>
+                        <div className="upnext-code">S{ep.seasonNumber} · E{ep.episodeNumber}</div>
+                        <div className="upnext-episode">{ep.episodeName}</div>
+                        {ep.airDate && <div className="upnext-aired">{formatAired(ep)}</div>}
                     </div>
 
                     <button
@@ -238,21 +199,7 @@ const UpNext = ({ series, limit }) => {
                         disabled={busyId === show.id}
                         title="Mark this episode watched"
                         aria-label={`Mark ${show.title} S${ep.seasonNumber}E${ep.episodeNumber} watched`}
-                        style={{
-                            flexShrink: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '10px 14px',
-                            borderRadius: 'var(--radius-md)',
-                            border: 'none',
-                            background: 'var(--brand-600)',
-                            color: 'white',
-                            fontWeight: 600,
-                            fontSize: '0.85rem',
-                            cursor: busyId === show.id ? 'default' : 'pointer',
-                            opacity: busyId === show.id ? 0.6 : 1,
-                        }}
+                        className="upnext-btn"
                     >
                         {busyId === show.id ? <Check size={16} /> : <Play size={16} fill="white" />}
                         <span>Watched</span>
