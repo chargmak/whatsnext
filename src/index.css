@@ -280,6 +280,9 @@ p {
 
 .card img {
   width: 100%;
+  /* Explicit so a stray width/height attribute can never override the
+     2:3 box — only the aspect ratio decides the height. */
+  height: auto;
   aspect-ratio: 2/3;
   object-fit: cover;
   transition: transform 0.5s ease;

@@ -42,14 +42,15 @@ export const MovieCard = ({ movie, onClick }) => {
         >
             <div style={{ position: 'relative' }}>
                 {/* Rows of posters sit mostly off-screen; lazy loading keeps the
-                    first paint to the handful that are actually visible. */}
+                    first paint to the handful that are actually visible. The
+                    2:3 box comes from `.card img { aspect-ratio }` in CSS — no
+                    width/height attributes here, since a height attribute
+                    would win over that rule and render the poster 750px tall. */}
                 <img
                     src={movie.poster || PLACEHOLDER_POSTER}
                     alt=""
                     loading="lazy"
                     decoding="async"
-                    width={500}
-                    height={750}
                     onError={handlePosterError}
                 />
                 {isWatched && (
