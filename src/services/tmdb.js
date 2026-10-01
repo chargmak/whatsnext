@@ -10,11 +10,48 @@ import {
 const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const BASE_URL = "https://api.themoviedb.org/3";
 const IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
-const BACKDROP_BASE_URL = "https://image.tmdb.org/t/p/original";
+// Backdrops are shown as hero images at most ~1280px wide; `original` can be a
+// 4K multi-megabyte file, which on mobile dwarfs everything else the page loads.
+const BACKDROP_BASE_URL = "https://image.tmdb.org/t/p/w1280";
+// Episode stills render as small thumbnails (Up Next card); w300 is plenty.
+const STILL_BASE_URL = "https://image.tmdb.org/t/p/w300";
+
+// Served from this origin, so it works offline and never 404s the way a
+// third-party placeholder service can.
+export const PLACEHOLDER_POSTER = '/poster-placeholder.svg';
 
 // Build a TMDB image URL for an arbitrary path/size, or a placeholder.
-export const imageUrl = (path, size = 'w500', fallback = 'https://via.placeholder.com/500x750?text=No+Image') =>
+export const imageUrl = (path, size = 'w500', fallback = PLACEHOLDER_POSTER) =>
     path ? `https://image.tmdb.org/t/p/${size}${path}` : fallback;
+
+// --- Request cache ---------------------------------------------------------
+//
+// Every page builds itself from TMDB on mount, and the same resources are asked
+// for over and over: /tv/{id} by Up Next, the Library, the Calendar and the
+// detail page; the trending lists every time the user comes back to Home; a
+// season's episodes by whichever of those happens to need them. Responses are
+// therefore memoised in memory for a short while, and identical requests that
+// overlap share one in-flight promise. The service worker still caches at the
+// network layer for offline use; this layer is about not waiting on the
+// network at all for data we fetched moments ago.
+const CACHE_TTL_MS = 5 * 60 * 1000;
+// Lists that turn over slowly can be kept longer than per-title detail.
+const LONG_TTL_MS = 30 * 60 * 1000;
+const LONG_TTL_PATTERN = /^\/(trending|movie\/top_rated|tv\/top_rated|discover|collection)\b/;
+const CACHE_MAX_ENTRIES = 400;
+
+const responseCache = new Map(); // url -> { promise, expires }
+
+const trimCache = () => {
+    while (responseCache.size > CACHE_MAX_ENTRIES) {
+        // Map iteration is insertion-ordered, so the first key is the oldest.
+        responseCache.delete(responseCache.keys().next().value);
+    }
+};
+
+// Drop everything we've memoised. Useful when the user explicitly retries after
+// an outage so a null (failed) answer doesn't linger.
+export const clearTmdbCache = () => responseCache.clear();
 
 // Helper to handle responses
 const fetchFromTMDB = async (endpoint, params = {}) => {
@@ -28,15 +65,30 @@ const fetchFromTMDB = async (endpoint, params = {}) => {
         language: 'en-US',
         ...params
     });
+    const url = `${BASE_URL}${endpoint}?${queryParams}`;
 
-    try {
-        const response = await fetch(`${BASE_URL}${endpoint}?${queryParams}`);
-        if (!response.ok) throw new Error('API Request Failed');
-        return await response.json();
-    } catch (error) {
-        console.error("TMDB API Error:", error);
-        return null;
-    }
+    const now = Date.now();
+    const hit = responseCache.get(url);
+    if (hit && hit.expires > now) return hit.promise;
+
+    const ttl = LONG_TTL_PATTERN.test(endpoint) ? LONG_TTL_MS : CACHE_TTL_MS;
+    const promise = (async () => {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`TMDB request failed (${response.status})`);
+            return await response.json();
+        } catch (error) {
+            console.error("TMDB API Error:", error);
+            // A failure must not be remembered as the answer — let the next
+            // caller try the network again.
+            responseCache.delete(url);
+            return null;
+        }
+    })();
+
+    responseCache.set(url, { promise, expires: now + ttl });
+    trimCache();
+    return promise;
 };
 
 export const getTrendingMovies = async () => {
@@ -299,6 +351,13 @@ export const getDetails = async (id, type, country = 'US') => {
         ...details,
         credits: credits?.cast?.slice(0, 10) || [],
         providers: userCountryProviders,
+        // Flat list ready for the "Where to Watch" grid. Logos render at 48px,
+        // so w92 is sharp on retina and a fraction of the `original` size.
+        streaming: (userCountryProviders.flatrate || []).map((p) => ({
+            id: p.provider_id,
+            name: p.provider_name,
+            logo: imageUrl(p.logo_path, 'w92', null),
+        })).filter((p) => p.logo),
         trailerKey: trailer?.key || null
     };
 };
@@ -337,7 +396,7 @@ export const mapMediaData = (item, viewerZone) => {
         id: item.id,
         type: isTv ? 'tv' : 'movie',
         title: item.title || item.name,
-        poster: item.poster_path ? `${IMAGE_BASE_URL}${item.poster_path}` : 'https://via.placeholder.com/500x750?text=No+Image',
+        poster: item.poster_path ? `${IMAGE_BASE_URL}${item.poster_path}` : PLACEHOLDER_POSTER,
         backdrop: item.backdrop_path ? `${BACKDROP_BASE_URL}${item.backdrop_path}` : null,
         rating: item.vote_average ? item.vote_average.toFixed(1) : 'N/A',
         year: (item.release_date || item.first_air_date)?.split('-')[0] || 'N/A',
@@ -494,7 +553,7 @@ export const getNextUnwatchedEpisode = async (tvId, watchedForShow = {}, viewerZ
                 seasonNumber,
                 episodeNumber: ep.episode_number,
                 episodeName: ep.name,
-                still: ep.still_path ? `${BACKDROP_BASE_URL}${ep.still_path}` : null,
+                still: ep.still_path ? `${STILL_BASE_URL}${ep.still_path}` : null,
                 airDate: ep.air_date,
                 // The resolved moment it aired, in the viewer's own clock.
                 air,

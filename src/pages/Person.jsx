@@ -173,7 +173,7 @@ const Person = () => {
                 {/* Header: photo + completion ring */}
                 <div style={{ display: 'flex', gap: '18px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <img
-                        src={imageUrl(person.profile_path, 'w300', 'https://via.placeholder.com/300x450?text=No+Photo')}
+                        src={imageUrl(person.profile_path, 'w300')}
                         alt={person.name}
                         style={{ width: '96px', height: '96px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--bg-tertiary)' }}
                     />

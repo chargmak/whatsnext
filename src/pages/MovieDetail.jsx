@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Play, Plus, Check, Share2, Bell, Star, Film, Layers } from 'lucide-react';
-import { getDetails, mapMediaData, getTVSeasonDetails, getCollection, getMovieReleaseForCountry } from '../services/tmdb';
+import { ArrowLeft, Play, Plus, Check, Share2, Bell, Star, Film, Layers, RefreshCw } from 'lucide-react';
+import { getDetails, mapMediaData, getTVSeasonDetails, getCollection, getMovieReleaseForCountry, clearTmdbCache } from '../services/tmdb';
 import {
     PRECISION,
     describeRelease,
@@ -12,7 +12,6 @@ import {
     viewerDayRule,
     zoneAbbreviation,
 } from '../services/releaseTime';
-import { TRENDING_MOVIES } from '../data/mockData';
 import { TrailerModal } from '../components/TrailerModal';
 import { useUser } from '../context/UserContext';
 
@@ -24,10 +23,13 @@ const MediaDetail = ({ type }) => {
     const [showTrailer, setShowTrailer] = useState(false);
     const [loading, setLoading] = useState(true);
     const [copied, setCopied] = useState(false);
-    const [seasons, setSeasons] = useState([]);
+    // seasonNumber -> that season's episode list, filled in as seasons are viewed.
+    const [seasons, setSeasons] = useState({});
     const [selectedSeason, setSelectedSeason] = useState(1);
     const [loadingEpisodes, setLoadingEpisodes] = useState(false);
     const [collection, setCollection] = useState(null);
+    // Bumped by the retry button after a failed load.
+    const [retryKey, setRetryKey] = useState(0);
     // Where and when this title goes out, so air/release times are real instants
     // rather than a bare date parsed as UTC midnight.
     const [airRule, setAirRule] = useState(null);
@@ -78,71 +80,94 @@ const MediaDetail = ({ type }) => {
                 // user cancelled the share sheet
             }
         } else {
-            await navigator.clipboard.writeText(url);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            try {
+                await navigator.clipboard.writeText(url);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+            } catch {
+                // Clipboard access can be refused (insecure context, permissions)
+            }
         }
     };
 
+    // Which title the loaded detail belongs to and how many seasons it has —
+    // the only parts of `item` the episode effect depends on, so a re-render of
+    // the same title doesn't refetch the season.
+    const seasonCount = type === 'tv' ? item?.seasons || 0 : 0;
+
     // Fetch episodes for TV shows
     useEffect(() => {
-        if (type === 'tv' && item && item.seasons > 0) {
-            const fetchEpisodes = async () => {
-                setLoadingEpisodes(true);
-                const seasonData = await getTVSeasonDetails(id, selectedSeason);
-                if (seasonData && seasonData.episodes) {
-                    setSeasons(prev => ({
-                        ...prev,
-                        [selectedSeason]: seasonData.episodes
-                    }));
-                }
-                setLoadingEpisodes(false);
-            };
-            fetchEpisodes();
-        }
-    }, [type, item, selectedSeason, id]);
+        if (seasonCount <= 0) return;
+        let active = true;
+        const fetchEpisodes = async () => {
+            setLoadingEpisodes(true);
+            const seasonData = await getTVSeasonDetails(id, selectedSeason);
+            // Changing season mid-flight must not let the old season's
+            // episodes land under the new season's number.
+            if (!active) return;
+            setSeasons(prev => ({
+                ...prev,
+                [selectedSeason]: seasonData?.episodes || [],
+            }));
+            setLoadingEpisodes(false);
+        };
+        fetchEpisodes();
+        return () => { active = false; };
+    }, [seasonCount, selectedSeason, id]);
 
     useEffect(() => {
+        let active = true;
         const fetchDetail = async () => {
             // Streaming providers are looked up for the user's country
             const userCountry = user?.country || 'US';
 
             const tmdbData = await getDetails(id, type, userCountry);
+            // Detail→detail navigation (a franchise link, a recommendation) can
+            // leave the previous title's response arriving after this one's.
+            if (!active) return;
 
-            if (tmdbData) {
-                const mapped = mapMediaData({ ...tmdbData, media_type: type }, timeZone);
-                setItem({
-                    ...mapped,
-                    trailerKey: tmdbData.trailerKey,
-                    credits: tmdbData.credits,
-                    belongsToCollection: tmdbData.belongs_to_collection || null,
-                    // For a returning series the meaningful countdown is the next
-                    // episode, not the premiere date years ago.
-                    nextEpisode: tmdbData.next_episode_to_air || null,
-                    streaming: tmdbData.providers?.flatrate?.map(p => ({
-                        name: p.provider_name,
-                        logo: `https://image.tmdb.org/t/p/original${p.logo_path}`
-                    })) || []
-                });
-
-                if (type === 'tv') {
-                    setAirRule(getShowReleaseRule(tmdbData));
-                } else {
-                    // Opening dates differ by country — count down to the viewer's.
-                    const release = await getMovieReleaseForCountry(id, userCountry);
-                    setMovieRelease(release);
-                    setAirRule(release ? movieReleaseRule(release, timeZone) : viewerDayRule(timeZone));
-                }
-            } else {
-                // Fallback
-                const mock = TRENDING_MOVIES.find(m => m.id === parseInt(id));
-                setItem(mock);
+            if (!tmdbData) {
+                setItem(null);
+                setLoading(false);
+                return;
             }
+
+            const mapped = mapMediaData({ ...tmdbData, media_type: type }, timeZone);
+            setItem({
+                ...mapped,
+                trailerKey: tmdbData.trailerKey,
+                credits: tmdbData.credits,
+                belongsToCollection: tmdbData.belongs_to_collection || null,
+                // For a returning series the meaningful countdown is the next
+                // episode, not the premiere date years ago.
+                nextEpisode: tmdbData.next_episode_to_air || null,
+                streaming: tmdbData.streaming || [],
+            });
+
+            if (type === 'tv') {
+                setAirRule(getShowReleaseRule(tmdbData));
+                setLoading(false);
+                return;
+            }
+
+            // Show the page as soon as the title is in; the country-specific
+            // opening date refines the countdown when it lands.
             setLoading(false);
+            const release = await getMovieReleaseForCountry(id, userCountry);
+            if (!active) return;
+            setMovieRelease(release);
+            setAirRule(release ? movieReleaseRule(release, timeZone) : viewerDayRule(timeZone));
         };
 
         fetchDetail();
-    }, [id, type, user?.country, timeZone]);
+        return () => { active = false; };
+    }, [id, type, user?.country, timeZone, retryKey]);
+
+    const retry = () => {
+        clearTmdbCache();
+        setLoading(true);
+        setRetryKey((k) => k + 1);
+    };
 
     // Load franchise/collection details for movies that belong to one.
     useEffect(() => {
@@ -160,8 +185,31 @@ const MediaDetail = ({ type }) => {
         return () => { active = false; };
     }, [type, item?.belongsToCollection?.id]);
 
-    if (loading) return <div className="container flex-center" style={{ height: '100vh' }}>Loading...</div>;
-    if (!item) return <div className="container flex-center" style={{ height: '100vh' }}>Media not found</div>;
+    if (loading) {
+        return (
+            <div className="container" style={{ paddingTop: '100px', textAlign: 'center' }}>
+                <div className="spinner"></div>
+            </div>
+        );
+    }
+    if (!item) {
+        return (
+            <div className="container" style={{ paddingTop: '100px', textAlign: 'center' }}>
+                <h2>Couldn't load this title</h2>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
+                    It may not exist, or the connection dropped.
+                </p>
+                <div className="flex-center" style={{ gap: '12px', flexWrap: 'wrap' }}>
+                    <button type="button" className="spotlight-btn primary" onClick={retry}>
+                        <RefreshCw size={16} /> Try again
+                    </button>
+                    <button type="button" className="spotlight-btn ghost" onClick={() => navigate(-1)}>
+                        <ArrowLeft size={16} /> Go back
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     // Movies and TV shows can share the same numeric TMDB id, so match on type
     // too — otherwise a watched movie makes a same-id show read as already seen.
@@ -207,6 +255,7 @@ const MediaDetail = ({ type }) => {
                 <img
                     src={item.backdrop || item.poster}
                     alt={item.title}
+                    fetchPriority="high"
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
                 <div style={{
@@ -343,9 +392,10 @@ const MediaDetail = ({ type }) => {
                                     >
                                         <img
                                             src={actor.profile_path
-                                                ? `https://image.tmdb.org/t/p/w200${actor.profile_path}`
-                                                : 'https://via.placeholder.com/200x300?text=No+Img'}
+                                                ? `https://image.tmdb.org/t/p/w185${actor.profile_path}`
+                                                : '/poster-placeholder.svg'}
                                             alt={actor.name}
+                                            loading="lazy"
                                             style={{
                                                 width: '100px',
                                                 height: '100px',
@@ -674,8 +724,8 @@ const MediaDetail = ({ type }) => {
 
                             {item.streaming && item.streaming.length > 0 ? (
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '16px' }}>
-                                    {item.streaming.map((service, idx) => (
-                                        <div key={idx} className="glass-panel" style={{
+                                    {item.streaming.map((service) => (
+                                        <div key={service.id || service.name} className="glass-panel" style={{
                                             display: 'flex', alignItems: 'center', gap: '16px',
                                             padding: '16px',
                                             borderRadius: '16px'
@@ -683,6 +733,7 @@ const MediaDetail = ({ type }) => {
                                             <img
                                                 src={service.logo}
                                                 alt={service.name}
+                                                loading="lazy"
                                                 style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover' }}
                                             />
                                             <span style={{ fontSize: '1.1rem', fontWeight: '600' }}>{service.name}</span>

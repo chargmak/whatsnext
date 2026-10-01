@@ -66,6 +66,18 @@ const Notifications = () => {
         };
     }, [accountId]);
 
+    const [preferences, setPreferences] = usePersistentState(
+        `prefs:${user?.id || 'guest'}:notifications`,
+        {
+            newEpisodes: true,
+            movieReleases: true,
+            upcomingReleases: true,
+            weeklyDigest: false,
+            pushNotifications: true,
+            emailNotifications: false
+        }
+    );
+
     const handlePushToggle = useCallback(async () => {
         setPush((p) => ({ ...p, busy: true, error: null }));
         try {
@@ -82,21 +94,7 @@ const Notifications = () => {
         } catch (err) {
             setPush((p) => ({ ...p, busy: false, error: err.message, permission: getPermission() }));
         }
-        // setPreferences is stable (usePersistentState); accountId / push.subscribed are the real deps
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [push.subscribed, accountId]);
-
-    const [preferences, setPreferences] = usePersistentState(
-        `prefs:${user?.id || 'guest'}:notifications`,
-        {
-            newEpisodes: true,
-            movieReleases: true,
-            upcomingReleases: true,
-            weeklyDigest: false,
-            pushNotifications: true,
-            emailNotifications: false
-        }
-    );
+    }, [push.subscribed, accountId, setPreferences]);
 
     const sortedReminders = [...reminders].sort((a, b) =>
         (a.releaseDate || '9999').localeCompare(b.releaseDate || '9999')

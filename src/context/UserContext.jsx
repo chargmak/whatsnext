@@ -100,14 +100,17 @@ export const UserProvider = ({ children }) => {
         const meta = authUser.user_metadata || {};
         let profile = null;
         let data = { watchlist: [], watched: [], episodes: {}, episodeActivity: {}, reminders: [] };
-        try {
-            [profile, data] = await Promise.all([
-                userData.fetchProfile(authUser.id),
-                userData.fetchAllUserData(authUser.id),
-            ]);
-        } catch (error) {
-            console.error('Error loading account data:', error);
-        }
+        // The two loads are independent: a failed profile read shouldn't throw
+        // away a library that fetched fine (or vice versa), so settle each on
+        // its own rather than letting one rejection discard both.
+        const [profileResult, dataResult] = await Promise.allSettled([
+            userData.fetchProfile(authUser.id),
+            userData.fetchAllUserData(authUser.id),
+        ]);
+        if (profileResult.status === 'fulfilled') profile = profileResult.value;
+        else console.error('Error loading profile:', profileResult.reason);
+        if (dataResult.status === 'fulfilled') data = dataResult.value;
+        else console.error('Error loading account data:', dataResult.reason);
 
         setUser({
             id: authUser.id,

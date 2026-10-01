@@ -5,10 +5,10 @@ import {
 } from 'lucide-react';
 import { discoverByGenre, mapMediaData } from '../services/tmdb';
 import { MovieCard } from './MovieCard';
-import { GENRES } from '../data/mockData';
+import { GENRES } from '../data/genres';
 import { useUser } from '../context/UserContext';
 
-// Genre -> icon + accent colour. Keyed by the names in GENRES (mockData.js);
+// Genre -> icon + accent colour. Keyed by the names in GENRES (data/genres.js);
 // anything unmapped falls back to Film + the brand red, so this stays robust
 // if the GENRES list changes.
 const GENRE_META = {

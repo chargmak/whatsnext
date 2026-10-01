@@ -35,6 +35,11 @@ const byRecency = (a, b) => {
     return (a.show.title || '').localeCompare(b.show.title || '');
 };
 
+// How many shows to resolve at once when only a preview is needed. Each
+// unresolved show costs two or more TMDB requests, so the home page works
+// through the list in recency order and stops as soon as it has enough.
+const PREVIEW_BATCH = 6;
+
 // "Up Next": for every TV show passed in, resolve the next episode the viewer
 // should watch — the earliest aired episode they haven't marked as seen — and
 // list only the shows that actually have one waiting. Marking an episode here
@@ -55,13 +60,34 @@ const UpNext = ({ series, limit }) => {
         let active = true;
         setLoading(true);
 
+        const resolve = async (show) => {
+            const next = await getNextUnwatchedEpisode(show.id, watchedEpisodes[String(show.id)] || {}, timeZone);
+            // Fall back to the poster we already have saved if TMDB omitted one.
+            if (next && !next.poster && show.poster) next.poster = show.poster;
+            return [show.id, next];
+        };
+
         const load = async () => {
-            const entries = await Promise.all(series.map(async (show) => {
-                const next = await getNextUnwatchedEpisode(show.id, watchedEpisodes[String(show.id)] || {}, timeZone);
-                // Fall back to the poster we already have saved if TMDB omitted one.
-                if (next && !next.poster && show.poster) next.poster = show.poster;
-                return [show.id, next];
-            }));
+            // The display order (most recently watched first) is known before
+            // any request is made, so when only a preview is wanted the shows
+            // can be resolved in that order and the rest left alone.
+            const ordered = [...series].sort((a, b) => byRecency(
+                { show: a, started: hasStarted(watchedEpisodes[String(a.id)]), lastWatchedAt: episodeActivity?.[String(a.id)] || null },
+                { show: b, started: hasStarted(watchedEpisodes[String(b.id)]), lastWatchedAt: episodeActivity?.[String(b.id)] || null },
+            ));
+
+            const entries = [];
+            if (limit) {
+                let found = 0;
+                for (let i = 0; i < ordered.length && found < limit; i += PREVIEW_BATCH) {
+                    const batch = await Promise.all(ordered.slice(i, i + PREVIEW_BATCH).map(resolve));
+                    if (!active) return;
+                    entries.push(...batch);
+                    found += batch.filter(([, next]) => next).length;
+                }
+            } else {
+                entries.push(...await Promise.all(ordered.map(resolve)));
+            }
             if (!active) return;
             setNextByShow(Object.fromEntries(entries));
             setLoading(false);
@@ -70,7 +96,7 @@ const UpNext = ({ series, limit }) => {
         load();
         return () => { active = false; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [seriesKey, timeZone]);
+    }, [seriesKey, timeZone, limit]);
 
     // Mark the shown episode watched, then resolve that one show's next episode
     // so the card advances (or drops out when the viewer is caught up).

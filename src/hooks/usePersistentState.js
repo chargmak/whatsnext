@@ -13,7 +13,12 @@ const usePersistentState = (key, defaultValue) => {
     });
 
     useEffect(() => {
-        localStorage.setItem(key, JSON.stringify(value));
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+        } catch {
+            // Storage can be full or disabled (private mode); the in-memory
+            // value still works for this session.
+        }
     }, [key, value]);
 
     return [value, setValue];

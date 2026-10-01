@@ -2,6 +2,14 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { useUser } from '../context/UserContext';
+import { PLACEHOLDER_POSTER } from '../services/tmdb';
+
+// A broken poster URL (TMDB pruned the file, a stale saved link) falls back to
+// the local placeholder instead of the browser's broken-image glyph.
+const handlePosterError = (e) => {
+    if (e.currentTarget.src.endsWith(PLACEHOLDER_POSTER)) return;
+    e.currentTarget.src = PLACEHOLDER_POSTER;
+};
 
 export const MovieCard = ({ movie, onClick }) => {
     const { watched } = useUser();
@@ -14,15 +22,36 @@ export const MovieCard = ({ movie, onClick }) => {
     // Get first genre for display
     const primaryGenre = movie.genres && movie.genres.length > 0 ? movie.genres[0] : null;
 
+    const open = () => onClick(movie.id);
+
     return (
         <motion.div
             whileTap={{ scale: 0.95 }}
             className="card"
-            onClick={() => onClick(movie.id)}
+            role="button"
+            tabIndex={0}
+            aria-label={`${movie.title}${isWatched ? ' (watched)' : ''}`}
+            onClick={open}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    open();
+                }
+            }}
             style={{ cursor: 'pointer', minWidth: '140px', position: 'relative' }}
         >
             <div style={{ position: 'relative' }}>
-                <img src={movie.poster} alt={movie.title} />
+                {/* Rows of posters sit mostly off-screen; lazy loading keeps the
+                    first paint to the handful that are actually visible. */}
+                <img
+                    src={movie.poster || PLACEHOLDER_POSTER}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    width={500}
+                    height={750}
+                    onError={handlePosterError}
+                />
                 {isWatched && (
                     <div style={{
                         position: 'absolute',
@@ -56,16 +85,7 @@ export const MovieCard = ({ movie, onClick }) => {
                 }}>{movie.title}</h4>
                 {primaryGenre && (
                     <div style={{ marginBottom: '4px' }}>
-                        <span style={{
-                            display: 'inline-block',
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            fontSize: '0.7rem',
-                            background: 'rgba(255, 255, 255, 0.1)',
-                            color: 'var(--text-secondary)',
-                            border: '1px solid rgba(255, 255, 255, 0.15)',
-                            fontWeight: '500'
-                        }}>
+                        <span className="card-genre">
                             {primaryGenre}
                         </span>
                     </div>

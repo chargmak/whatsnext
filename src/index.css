@@ -293,6 +293,41 @@ p {
   padding: 16px;
 }
 
+.card-genre {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Keyboard users get the same affordance the hover lift gives mouse users */
+.card:focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 2px;
+}
+
+/* Inline "couldn't load" panel for a single row, sized like its skeleton so
+   the page doesn't jump between the two. */
+.row-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 160px;
+  border-radius: var(--radius-md);
+  padding: 20px;
+  text-align: center;
+}
+
+.row-error p {
+  margin: 0 0 8px;
+}
+
 .input-field {
   width: 100%;
   background: rgba(39, 39, 42, 0.5);
@@ -1034,4 +1069,87 @@ p {
 
 [data-theme="light"] .spotlight-skeleton {
   background: rgba(0, 0, 0, 0.06);
+}
+
+/* ===== Light theme ===== */
+/* The glass surfaces above are tuned for the dark palette (dark translucent
+   fills, white hairlines). Re-tint them when the light theme is on so panels
+   don't render as dark slabs on a white page and secondary buttons don't
+   paint white text on a near-white fill. Photo-backed surfaces (the spotlight
+   card, the detail hero) deliberately keep their dark scrim in both themes. */
+[data-theme="light"] .glass-panel,
+[data-theme="light"] .card,
+[data-theme="light"] .modal-content {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .card:hover {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+[data-theme="light"] .card-genre {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .input-field {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .input-field:focus {
+  background: #fff;
+}
+
+[data-theme="light"] .action-btn {
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .action-btn.secondary {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .toggle-container {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .top-bar-btn {
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .bottom-nav {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .nav-item:not(.active):hover,
+[data-theme="light"] .settings-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .settings-item {
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .poster-row-arrow {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .spinner {
+  border-color: rgba(0, 0, 0, 0.1);
+  border-top-color: var(--brand-600);
+}
+
+[data-theme="light"] .profile-avatar {
+  background: var(--bg-tertiary);
+}
+
+[data-theme="light"] .spotlight-panel p {
+  color: var(--text-secondary);
 }

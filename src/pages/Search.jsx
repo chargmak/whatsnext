@@ -34,22 +34,25 @@ const Search = () => {
     }, [searchHistory]);
 
     useEffect(() => {
-        if (debouncedQuery) {
-            const fetchResults = async () => {
-                const data = await searchMulti(debouncedQuery);
-                if (data && data.results) {
-                    // Filter for only movies and tv (skip people)
-                    const filtered = data.results.filter(item => item.media_type === 'movie' || item.media_type === 'tv');
-                    setResults(filtered.map((item) => mapMediaData(item, timeZone)));
-                }
-                setSelectedGenre(null); // Clear genre when searching
-            };
-            fetchResults();
-        } else {
+        if (!debouncedQuery) {
             // Clearing results when the query empties — not a cascading render
             // eslint-disable-next-line react-hooks/set-state-in-effect
-            setResults([]);
+            setResults((prev) => (prev.length ? [] : prev));
+            return;
         }
+        let active = true;
+        const fetchResults = async () => {
+            const data = await searchMulti(debouncedQuery);
+            // Keystrokes outpace the network: a response for an earlier query
+            // must not replace the results of the one typed after it.
+            if (!active) return;
+            // Filter for only movies and tv (skip people)
+            const filtered = (data?.results || []).filter(item => item.media_type === 'movie' || item.media_type === 'tv');
+            setResults(filtered.map((item) => mapMediaData(item, timeZone)));
+            setSelectedGenre(null); // Clear genre when searching
+        };
+        fetchResults();
+        return () => { active = false; };
     }, [debouncedQuery, timeZone]);
 
     const handleGenreClick = async (genre) => {
@@ -58,9 +61,7 @@ const Search = () => {
 
         // Fetch movies/TV shows by genre
         const data = await discoverByGenre(genre);
-        if (data && data.results) {
-            setResults(data.results.map((item) => mapMediaData(item, timeZone)));
-        }
+        setResults((data?.results || []).map((item) => mapMediaData(item, timeZone)));
     };
 
     const handleResultClick = (id, type) => {
@@ -267,7 +268,7 @@ const Search = () => {
                         <MovieCard
                             key={`${item.type}-${item.id}`}
                             movie={item}
-                            onClick={(id) => handleResultClick(id, item.type, item.title)}
+                            onClick={(id) => handleResultClick(id, item.type)}
                         />
                     ))}
                 </div>
