@@ -89,28 +89,27 @@ const Library = () => {
 
     // Apply filtering and sorting
     const items = useMemo(() => {
-        let filtered = [...rawItems];
+        // Items are appended as they're added, so position doubles as "when".
+        // Remember it before filtering rather than calling indexOf inside the
+        // comparator, which made the default sort quadratic.
+        const indexed = rawItems.map((item, index) => ({ item, index }));
+        const filtered = filterType === 'all'
+            ? indexed
+            : indexed.filter(({ item }) => item.type === filterType);
 
-        // Filter by type
-        if (filterType !== 'all') {
-            filtered = filtered.filter(item => item.type === filterType);
-        }
-
-        // Sort
         filtered.sort((a, b) => {
             switch (sortBy) {
                 case 'title':
-                    return a.title.localeCompare(b.title);
+                    return (a.item.title || '').localeCompare(b.item.title || '');
                 case 'rating':
-                    return (b.rating || 0) - (a.rating || 0);
+                    return (Number(b.item.rating) || 0) - (Number(a.item.rating) || 0);
                 case 'dateAdded':
                 default:
-                    // Most recent first (assuming items are added to end of array)
-                    return rawItems.indexOf(b) - rawItems.indexOf(a);
+                    return b.index - a.index; // most recent first
             }
         });
 
-        return filtered;
+        return filtered.map(({ item }) => item);
     }, [rawItems, sortBy, filterType]);
 
     return (

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 750" width="500" height="750" role="img" aria-label="No poster available">
+  <rect width="500" height="750" fill="#1c1c1f"/>
+  <rect x="24" y="24" width="452" height="702" rx="20" fill="none" stroke="#2f2f34" stroke-width="3"/>
+  <g transform="translate(250 345)" fill="none" stroke="#5a5a62" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="-70" y="-56" width="140" height="112" rx="14"/>
+    <path d="M-70 -24h140M-70 24h140M-40 -56v112M40 -56v112"/>
+  </g>
+  <text x="250" y="470" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="30" font-weight="600" fill="#6b6b74">No poster</text>
+</svg>

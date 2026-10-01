@@ -118,10 +118,23 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // SPA navigations: network first, offline shell fallback
+    // SPA navigations: network first, offline shell fallback. A successful
+    // navigation also refreshes the cached shell: the copy precached at install
+    // references that build's asset hashes, so an offline fallback to a stale
+    // shell after a deploy would point at bundles that no longer exist.
     if (request.mode === 'navigate') {
         event.respondWith(
-            fetch(request).catch(() => caches.match('/index.html'))
+            fetch(request)
+                .then((response) => {
+                    if (response.ok) {
+                        const copy = response.clone();
+                        event.waitUntil(
+                            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy))
+                        );
+                    }
+                    return response;
+                })
+                .catch(() => caches.match('/index.html'))
         );
         return;
     }

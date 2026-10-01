@@ -1,7 +1,12 @@
 import { supabase } from './supabase';
+import { PLACEHOLDER_POSTER } from './tmdb';
 
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
-const PLACEHOLDER_POSTER = 'https://via.placeholder.com/500x750?text=No+Image';
+
+// Rows saved by earlier builds carry a third-party placeholder URL that no
+// longer resolves; swap it for ours when reading them back.
+const normalizePoster = (poster) =>
+    typeof poster === 'string' && !poster.includes('via.placeholder.com') ? poster : null;
 
 // Only the fields the list/calendar UIs need are persisted; bulky detail data
 // (credits, streaming, trailerKey) is refetched from TMDB on the detail page.
@@ -46,7 +51,7 @@ export const fromDbRow = (row) => {
         id: row.movie_id,
         type: row.media_type,
         title: row.title,
-        poster: payload.poster || (row.poster_path ? `${IMAGE_BASE_URL}${row.poster_path}` : PLACEHOLDER_POSTER),
+        poster: normalizePoster(payload.poster) || (row.poster_path ? `${IMAGE_BASE_URL}${row.poster_path}` : PLACEHOLDER_POSTER),
         rating: payload.rating || (row.vote_average != null ? Number(row.vote_average).toFixed(1) : 'N/A'),
         genres: payload.genres || [],
     };

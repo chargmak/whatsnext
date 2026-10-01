@@ -22,7 +22,7 @@ const panelButtonStyle = (danger = false) => ({
 const Settings = () => {
     const navigate = useNavigate();
     const { theme, toggleTheme } = useTheme();
-    const { status, user, watchlist, watched, watchedEpisodes, episodeActivity, changePassword, deleteAccount } = useUser();
+    const { status, user, watchlist, watched, watchedEpisodes, episodeActivity, reminders, changePassword, deleteAccount } = useUser();
     const isAuthed = status === 'authed';
 
     const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -38,6 +38,7 @@ const Settings = () => {
             // Per-show "last watched" stamps, so a restored backup keeps Up
             // Next in the same most-recent-first order.
             episodeActivity,
+            reminders,
             exportDate: new Date().toISOString()
         };
 
@@ -61,19 +62,24 @@ const Settings = () => {
             reader.onload = async (event) => {
                 try {
                     const data = JSON.parse(event.target.result);
+                    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+                        throw new Error('Not a What\'s Next? backup');
+                    }
                     const payload = {
-                        watchlist: data.watchlist || [],
-                        watched: data.watched || [],
-                        episodes: data.watchedEpisodes || {},
-                        episodeActivity: data.episodeActivity || {},
+                        watchlist: Array.isArray(data.watchlist) ? data.watchlist : [],
+                        watched: Array.isArray(data.watched) ? data.watched : [],
+                        episodes: data.watchedEpisodes && typeof data.watchedEpisodes === 'object' ? data.watchedEpisodes : {},
+                        episodeActivity: data.episodeActivity && typeof data.episodeActivity === 'object' ? data.episodeActivity : {},
+                        reminders: Array.isArray(data.reminders) ? data.reminders : [],
                     };
                     if (isAuthed) {
                         await userData.migrateLocalData(user.id, payload);
                     } else {
-                        if (data.watchlist) localStorage.setItem('user_watchlist', JSON.stringify(data.watchlist));
-                        if (data.watched) localStorage.setItem('user_watched', JSON.stringify(data.watched));
-                        if (data.watchedEpisodes) localStorage.setItem('user_watched_episodes', JSON.stringify(data.watchedEpisodes));
-                        if (data.episodeActivity) localStorage.setItem('user_episode_activity', JSON.stringify(data.episodeActivity));
+                        if (data.watchlist) localStorage.setItem('user_watchlist', JSON.stringify(payload.watchlist));
+                        if (data.watched) localStorage.setItem('user_watched', JSON.stringify(payload.watched));
+                        if (data.watchedEpisodes) localStorage.setItem('user_watched_episodes', JSON.stringify(payload.episodes));
+                        if (data.episodeActivity) localStorage.setItem('user_episode_activity', JSON.stringify(payload.episodeActivity));
+                        if (data.reminders) localStorage.setItem('user_reminders', JSON.stringify(payload.reminders));
                     }
                     window.location.reload();
                 } catch (error) {
@@ -92,7 +98,8 @@ const Settings = () => {
             if (isAuthed) {
                 await userData.clearAllUserData(user.id);
             } else {
-                ['user_watchlist', 'user_watched', 'user_watched_episodes', 'user_reminders'].forEach(k => localStorage.removeItem(k));
+                ['user_watchlist', 'user_watched', 'user_watched_episodes', 'user_episode_activity', 'user_reminders']
+                    .forEach(k => localStorage.removeItem(k));
             }
             window.location.reload();
         } catch (error) {

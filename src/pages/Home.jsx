@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { getTrendingMovies, getTrendingTV, getTopRated, getRecommendationsFromSeeds, mapMediaData } from '../services/tmdb';
+import { RefreshCw } from 'lucide-react';
+import { getTrendingMovies, getTrendingTV, getTopRated, getRecommendationsFromSeeds, mapMediaData, clearTmdbCache } from '../services/tmdb';
 import { MovieCard } from '../components/MovieCard';
 import { PosterRow, PosterRowSkeleton } from '../components/PosterRow';
 import { WhatsNextSpotlight } from '../components/WhatsNextSpotlight';
 import UpNext from '../components/UpNext';
 import { useUser } from '../context/UserContext';
-import { TRENDING_MOVIES } from '../data/mockData'; // Fallback
 
 const Home = () => {
     const { user, watchlist, watched, watchedTvIds, timeZone } = useUser();
@@ -19,6 +19,10 @@ const Home = () => {
     });
     const [mediaItems, setMediaItems] = useState([]);
     const [loading, setLoading] = useState(true);
+    // Set when the trending request came back empty-handed, so the row can say
+    // so and offer a retry instead of showing stand-in titles.
+    const [trendingFailed, setTrendingFailed] = useState(false);
+    const [retryKey, setRetryKey] = useState(0);
     const [topRated, setTopRated] = useState([]);
     const [topRatedLoading, setTopRatedLoading] = useState(true);
     const [recommendations, setRecommendations] = useState([]);
@@ -75,30 +79,43 @@ const Home = () => {
     }, [recInputs, mediaType]);
 
     useEffect(() => {
+        let active = true;
         const loadMedia = async () => {
             setLoading(true);
+            setTrendingFailed(false);
             // Whatever happens in here, the loading flag has to come back down:
-            // this is the gate on the whole page, so an error that leaves it up
-            // strands the visitor on "Loading..." with no way forward.
+            // an error that leaves it up strands the row on a skeleton forever.
             try {
                 const data = mediaType === 'tv' ? await getTrendingTV() : await getTrendingMovies();
+                // A quick tab switch can land the previous tab's response after
+                // this one's — never let the stale list overwrite the fresh one.
+                if (!active) return;
 
-                if (data && data.results) {
+                if (data?.results?.length) {
                     // Ensure we tag them correctly before mapping
                     const taggedResults = data.results.map(item => ({ ...item, media_type: mediaType }));
                     setMediaItems(taggedResults.map((item) => mapMediaData(item, timeZone)));
                 } else {
-                    setMediaItems(TRENDING_MOVIES);
+                    setMediaItems([]);
+                    setTrendingFailed(true);
                 }
             } catch (error) {
                 console.error('Error loading trending titles:', error);
-                setMediaItems(TRENDING_MOVIES);
+                if (!active) return;
+                setMediaItems([]);
+                setTrendingFailed(true);
             } finally {
-                setLoading(false);
+                if (active) setLoading(false);
             }
         };
         loadMedia();
-    }, [mediaType, timeZone]);
+        return () => { active = false; };
+    }, [mediaType, timeZone, retryKey]);
+
+    const retryTrending = () => {
+        clearTmdbCache();
+        setRetryKey((k) => k + 1);
+    };
 
     // Highest rated titles for the active tab. Kept separate from the trending
     // request so a slow or failed call only affects its own row.
@@ -237,6 +254,13 @@ const Home = () => {
 
                 {trendingPending ? (
                     <PosterRowSkeleton />
+                ) : trendingFailed ? (
+                    <div className="glass-panel row-error">
+                        <p>Couldn't load trending titles right now.</p>
+                        <button type="button" className="spotlight-btn ghost" onClick={retryTrending}>
+                            <RefreshCw size={16} /> Try again
+                        </button>
+                    </div>
                 ) : (
                     <PosterRow>
                         {mediaItems.map((item) => (
@@ -306,22 +330,20 @@ const Home = () => {
             )}
 
             {/* My List Section */}
-            {watchlist.filter(item => item.type === mediaType).length > 0 && (
+            {recInputs.seeds.length > 0 && (
                 <section>
                     <div className="flex-between" style={{ marginBottom: '16px' }}>
                         <h3>From Your List</h3>
                     </div>
 
                     <PosterRow>
-                        {watchlist
-                            .filter(item => item.type === mediaType)
-                            .map((item) => (
+                        {recInputs.seeds.map((item) => (
                                 <MovieCard
                                     key={item.id}
                                     movie={item}
-                                    onClick={(id) => navigate(`/${item.type}/${id}`)}
-                                />
-                            ))}
+                                onClick={(id) => navigate(`/${item.type}/${id}`)}
+                            />
+                        ))}
                     </PosterRow>
                 </section>
             )}
