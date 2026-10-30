@@ -54,6 +54,10 @@ export const fromDbRow = (row) => {
         poster: normalizePoster(payload.poster) || (row.poster_path ? `${IMAGE_BASE_URL}${row.poster_path}` : PLACEHOLDER_POSTER),
         rating: payload.rating || (row.vote_average != null ? Number(row.vote_average).toFixed(1) : 'N/A'),
         genres: payload.genres || [],
+        // When it went on the list / was watched. Not part of the payload —
+        // sanitizeItem drops it — but the Trakt sync passes it along so a
+        // title's history keeps its real date over there.
+        addedAt: row.watched_at || row.added_at || null,
     };
 };
 
@@ -222,6 +226,67 @@ const chunk = (arr, size) => {
     const out = [];
     for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
     return out;
+};
+
+// --- Bulk writes for the Trakt sync -----------------------------------------
+//
+// A sync can move hundreds of titles in one go, so these batch where the
+// single-item helpers above don't. `keys` are `{ id, type }` pairs.
+
+export const addWatchlistItems = async (userId, items) => {
+    for (const batch of chunk(items.map((m) => toDbRow(userId, m)), 100)) {
+        orThrow(await supabase.from('watchlists').upsert(batch, { onConflict: 'user_id,movie_id,media_type' }));
+    }
+};
+
+export const addHistoryItems = async (userId, items) => {
+    const rows = items.map((m) => ({
+        ...toDbRow(userId, m),
+        ...(m.watchedAt ? { watched_at: m.watchedAt } : {}),
+    }));
+    for (const batch of chunk(rows, 100)) {
+        orThrow(await supabase.from('history').upsert(batch, { onConflict: 'user_id,movie_id,media_type' }));
+    }
+};
+
+const deleteByKeys = async (table, userId, keys) => {
+    for (const type of ['movie', 'tv']) {
+        const ids = keys.filter((k) => (k.type || 'movie') === type).map((k) => Number(k.id));
+        for (const batch of chunk(ids, 200)) {
+            orThrow(await supabase.from(table).delete()
+                .eq('user_id', userId).eq('media_type', type).in('movie_id', batch));
+        }
+    }
+};
+
+export const removeWatchlistItems = (userId, keys) => deleteByKeys('watchlists', userId, keys);
+export const removeHistoryItems = (userId, keys) => deleteByKeys('history', userId, keys);
+
+// `episodes` are `{ tvId, season, episode, watchedAt? }`.
+export const addWatchedEpisodes = async (userId, episodes) => {
+    const rows = episodes.map((e) => ({
+        user_id: userId,
+        tv_id: Number(e.tvId),
+        season_number: Number(e.season),
+        episode_number: Number(e.episode),
+        ...(e.watchedAt ? { watched_at: e.watchedAt } : {}),
+    }));
+    for (const batch of chunk(rows, 200)) {
+        orThrow(await supabase.from('watched_episodes').upsert(batch, EPISODE_UPSERT));
+    }
+};
+
+export const removeWatchedEpisodes = async (userId, episodes) => {
+    const bySeason = new Map();
+    episodes.forEach((e) => {
+        const key = `${e.tvId}:${e.season}`;
+        if (!bySeason.has(key)) bySeason.set(key, []);
+        bySeason.get(key).push(Number(e.episode));
+    });
+    for (const [key, nums] of bySeason) {
+        const [tvId, season] = key.split(':');
+        await setSeasonEpisodesWatched(userId, tvId, season, nums, false);
+    }
 };
 
 // One-time import of guest/localStorage data into a freshly signed-in account.

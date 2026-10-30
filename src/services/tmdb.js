@@ -328,6 +328,13 @@ export const getSpotlightExtras = async (id, type, country = 'US') => {
 };
 
 
+// Just enough to file a title in a list (poster, title, genres…) — one request,
+// unlike getDetails. Used when the Trakt sync brings in titles we've never shown.
+export const getBasicDetails = async (id, type) => {
+    const details = await fetchFromTMDB(type === 'tv' ? `/tv/${id}` : `/movie/${id}`);
+    return details ? mapMediaData({ ...details, media_type: type }) : null;
+};
+
 export const getDetails = async (id, type, country = 'US') => {
     const endpoint = type === 'tv' ? `/tv/${id}` : `/movie/${id}`;
     const [details, credits, providers, videos] = await Promise.all([

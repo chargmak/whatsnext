@@ -9,3 +9,8 @@ verify_jwt = false
 
 [functions.send-episode-alerts]
 verify_jwt = false
+
+# Called from the browser with the user's session; the gateway's JWT check
+# stays on, and the function resolves the user from the same token.
+[functions.trakt]
+verify_jwt = true
