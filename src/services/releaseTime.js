@@ -143,13 +143,19 @@ const EASTERN = 'America/New_York';
 
 // Platform → when it drops. The big streamers publish at one global instant, so
 // a single zone+hour describes them for every viewer on earth: midnight Pacific
-// (03:00 Eastern) is the near-universal convention. Linear channels air in their
+// (03:00 Eastern) is the common convention, with Disney+ and Apple the evening
+// exceptions noted below. Linear channels air in their
 // own prime time instead, which is why HBO's Sunday 21:00 ET differs from Max's
 // catalogue drop.
 const NETWORK_RULES = [
     // US streamers — simultaneous worldwide at 00:00 Pacific.
     { match: ['netflix'], zone: PACIFIC, hour: 0, minute: 0, global: true },
-    { match: ['disney+', 'disney plus'], zone: PACIFIC, hour: 0, minute: 0, global: true },
+    // Disney+ moved its originals (Marvel, Star Wars and the rest of its weekly
+    // series) to an evening drop: 18:00 Pacific / 21:00 Eastern on the date
+    // TMDB lists. For Europe that is the small hours of the *next* day, so
+    // treating it as a midnight-Pacific drop announced episodes as out some
+    // eighteen hours before they were.
+    { match: ['disney+', 'disney plus'], zone: PACIFIC, hour: 18, minute: 0, global: true },
     { match: ['prime video', 'amazon'], zone: PACIFIC, hour: 0, minute: 0, global: true },
     // Apple is the exception among the streamers: it drops at 21:00 Pacific —
     // midnight Eastern, the *next* day — and TMDB dates each episode by that
