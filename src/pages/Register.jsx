@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Film, Mail, Lock, User, Eye, EyeOff, Globe, Calendar } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Link, useNavigate } from 'react-router-dom';
+import { Mail, Eye, EyeOff, ChevronDown } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { deviceTimeZone } from '../services/releaseTime';
 import { COUNTRIES } from '../data/countries';
+import '../styles/auth.css';
 
 const Register = () => {
     const navigate = useNavigate();
@@ -108,358 +108,179 @@ const Register = () => {
     };
 
     return (
-        <div className="container" style={{
-            paddingTop: '40px',
-            paddingBottom: '100px',
-            maxWidth: '500px',
-            margin: '0 auto'
-        }}>
-            {/* Logo/Brand */}
-            <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                style={{ textAlign: 'center', marginBottom: '40px' }}
-            >
-                <div style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    marginBottom: '12px'
-                }}>
-                    <Film size={48} color="var(--brand-600)" />
-                    <h1 style={{
-                        fontSize: '2.5rem',
-                        margin: 0,
-                        background: 'linear-gradient(135deg, var(--brand-600), var(--accent-primary))',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent'
-                    }}>
-                        What's Next?
-                    </h1>
-                </div>
-                <p style={{
-                    color: 'var(--text-secondary)',
-                    fontSize: '1.1rem',
-                    margin: 0
-                }}>
-                    Start tracking your entertainment journey
-                </p>
-            </motion.div>
+        <div className="container page auth-page is-long">
+            <header>
+                <div className="brand-title">What's Next<span className="brand-mark">?</span></div>
+                <p className="auth-tagline">Start tracking your entertainment journey</p>
+            </header>
 
-            {/* Register Form */}
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="glass-panel"
-                style={{
-                    padding: '32px',
-                    borderRadius: 'var(--radius-lg)',
-                    marginBottom: '20px'
-                }}
-            >
-                <h2 style={{ marginTop: 0, marginBottom: '24px', textAlign: 'center' }}>
-                    Create Account
-                </h2>
+            {/* Register form */}
+            <section className="tile auth-card">
+                <h1 className="auth-heading">Create account</h1>
 
                 {needsConfirmation ? (
-                    <div style={{ textAlign: 'center' }}>
-                        <Mail size={40} color="var(--brand-600)" style={{ marginBottom: '12px' }} />
-                        <p style={{ color: 'var(--text-primary)', fontWeight: 600, marginBottom: '8px' }}>
-                            Almost there!
-                        </p>
-                        <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                    <>
+                        <Mail size={32} className="auth-state-icon" aria-hidden="true" />
+                        <p className="auth-state-title" role="status">Almost there!</p>
+                        <p className="auth-state-text">
                             We sent a confirmation link to <strong>{formData.email}</strong>.
                             Confirm your email, then log in.
                         </p>
-                        <button className="action-btn primary" onClick={() => navigate('/login')}>
+                        <button
+                            type="button"
+                            className="pill-btn primary lg block auth-submit"
+                            onClick={() => navigate('/login')}
+                        >
                             Go to Login
                         </button>
-                    </div>
+                    </>
                 ) : (
-                <form onSubmit={handleRegister}>
-                    {/* Name */}
-                    <div style={{ marginBottom: '20px' }}>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '8px',
-                            fontSize: '0.9rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: '500'
-                        }}>
-                            <User size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                            Full Name
-                        </label>
-                        <input
-                            type="text"
-                            name="name"
-                            value={formData.name}
-                            onChange={handleInputChange}
-                            placeholder="John Doe"
-                            style={{
-                                width: '100%',
-                                padding: '12px 16px',
-                                borderRadius: 'var(--radius-md)',
-                                border: errors.name ? '1px solid #EF4444' : '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(255,255,255,0.05)',
-                                color: 'var(--text-primary)',
-                                fontSize: '1rem',
-                                outline: 'none',
-                                transition: 'all 0.2s'
-                            }}
-                            onFocus={(e) => !errors.name && (e.target.style.border = '1px solid var(--brand-600)')}
-                            onBlur={(e) => !errors.name && (e.target.style.border = '1px solid rgba(255,255,255,0.1)')}
-                        />
-                        {errors.name && (
-                            <p style={{ color: '#EF4444', fontSize: '0.85rem', marginTop: '4px', marginBottom: 0 }}>
-                                {errors.name}
-                            </p>
-                        )}
-                    </div>
+                    <form className="auth-form" onSubmit={handleRegister}>
+                        <div className="field">
+                            <label className="field-label" htmlFor="register-name">Full name</label>
+                            <input
+                                id="register-name"
+                                type="text"
+                                name="name"
+                                value={formData.name}
+                                onChange={handleInputChange}
+                                placeholder="Your name"
+                                autoComplete="name"
+                                className="input-field"
+                                aria-invalid={errors.name ? true : undefined}
+                                aria-describedby={errors.name ? 'register-name-error' : undefined}
+                            />
+                            {errors.name && (
+                                <span id="register-name-error" className="field-error" role="alert">
+                                    {errors.name}
+                                </span>
+                            )}
+                        </div>
+                        <div className="field">
+                            <label className="field-label" htmlFor="register-email">Email</label>
+                            <input
+                                id="register-email"
+                                type="email"
+                                name="email"
+                                value={formData.email}
+                                onChange={handleInputChange}
+                                placeholder="you@example.com"
+                                autoComplete="email"
+                                className="input-field"
+                                aria-invalid={errors.email ? true : undefined}
+                                aria-describedby={errors.email ? 'register-email-error' : undefined}
+                            />
+                            {errors.email && (
+                                <span id="register-email-error" className="field-error" role="alert">
+                                    {errors.email}
+                                </span>
+                            )}
+                        </div>
+                        <div className="field">
+                            <label className="field-label" htmlFor="register-country">Country</label>
+                            <div className="auth-select">
+                                <select
+                                    id="register-country"
+                                    name="country"
+                                    value={formData.country}
+                                    onChange={handleInputChange}
+                                    autoComplete="country"
+                                    className={`input-field${formData.country ? '' : ' is-empty'}`}
+                                    aria-invalid={errors.country ? true : undefined}
+                                    aria-describedby={errors.country ? 'register-country-error' : undefined}
+                                >
+                                    <option value="" disabled>Select your country</option>
+                                    {COUNTRIES.map(country => (
+                                        <option key={country.code} value={country.code}>
+                                            {country.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <ChevronDown size={16} aria-hidden="true" />
+                            </div>
+                            {errors.country && (
+                                <span id="register-country-error" className="field-error" role="alert">
+                                    {errors.country}
+                                </span>
+                            )}
+                        </div>
+                        <div className="field">
+                            <label className="field-label" htmlFor="register-password">Password</label>
+                            <div className="auth-password">
+                                <input
+                                    id="register-password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleInputChange}
+                                    placeholder="At least 6 characters"
+                                    autoComplete="new-password"
+                                    className="input-field"
+                                    aria-invalid={errors.password ? true : undefined}
+                                    aria-describedby={errors.password ? 'register-password-error' : undefined}
+                                />
+                                <button
+                                    type="button"
+                                    className="icon-btn bare"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                    aria-pressed={showPassword}
+                                >
+                                    {showPassword ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}
+                                </button>
+                            </div>
+                            {errors.password && (
+                                <span id="register-password-error" className="field-error" role="alert">
+                                    {errors.password}
+                                </span>
+                            )}
+                        </div>
+                        <div className="field">
+                            <label className="field-label" htmlFor="register-confirmPassword">Confirm password</label>
+                            <div className="auth-password">
+                                <input
+                                    id="register-confirmPassword"
+                                    type={showConfirmPassword ? 'text' : 'password'}
+                                    name="confirmPassword"
+                                    value={formData.confirmPassword}
+                                    onChange={handleInputChange}
+                                    placeholder="Repeat your password"
+                                    autoComplete="new-password"
+                                    className="input-field"
+                                    aria-invalid={errors.confirmPassword ? true : undefined}
+                                    aria-describedby={errors.confirmPassword ? 'register-confirmPassword-error' : undefined}
+                                />
+                                <button
+                                    type="button"
+                                    className="icon-btn bare"
+                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                    aria-label={showConfirmPassword ? 'Hide password confirmation' : 'Show password confirmation'}
+                                    aria-pressed={showConfirmPassword}
+                                >
+                                    {showConfirmPassword ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}
+                                </button>
+                            </div>
+                            {errors.confirmPassword && (
+                                <span id="register-confirmPassword-error" className="field-error" role="alert">
+                                    {errors.confirmPassword}
+                                </span>
+                            )}
+                        </div>
 
-                    {/* Email */}
-                    <div style={{ marginBottom: '20px' }}>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '8px',
-                            fontSize: '0.9rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: '500'
-                        }}>
-                            <Mail size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                            Email
-                        </label>
-                        <input
-                            type="email"
-                            name="email"
-                            value={formData.email}
-                            onChange={handleInputChange}
-                            placeholder="your@email.com"
-                            style={{
-                                width: '100%',
-                                padding: '12px 16px',
-                                borderRadius: 'var(--radius-md)',
-                                border: errors.email ? '1px solid #EF4444' : '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(255,255,255,0.05)',
-                                color: 'var(--text-primary)',
-                                fontSize: '1rem',
-                                outline: 'none',
-                                transition: 'all 0.2s'
-                            }}
-                            onFocus={(e) => !errors.email && (e.target.style.border = '1px solid var(--brand-600)')}
-                            onBlur={(e) => !errors.email && (e.target.style.border = '1px solid rgba(255,255,255,0.1)')}
-                        />
-                        {errors.email && (
-                            <p style={{ color: '#EF4444', fontSize: '0.85rem', marginTop: '4px', marginBottom: 0 }}>
-                                {errors.email}
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Country */}
-                    <div style={{ marginBottom: '20px' }}>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '8px',
-                            fontSize: '0.9rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: '500'
-                        }}>
-                            <Globe size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                            Country
-                        </label>
-                        <select
-                            name="country"
-                            value={formData.country}
-                            onChange={handleInputChange}
-                            style={{
-                                width: '100%',
-                                padding: '12px 16px',
-                                borderRadius: 'var(--radius-md)',
-                                border: errors.country ? '1px solid #EF4444' : '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(255,255,255,0.05)',
-                                color: formData.country ? 'var(--text-primary)' : 'var(--text-secondary)',
-                                fontSize: '1rem',
-                                outline: 'none',
-                                transition: 'all 0.2s',
-                                cursor: 'pointer'
-                            }}
-                            onFocus={(e) => !errors.country && (e.target.style.border = '1px solid var(--brand-600)')}
-                            onBlur={(e) => !errors.country && (e.target.style.border = '1px solid rgba(255,255,255,0.1)')}
+                        <button
+                            type="submit"
+                            className="pill-btn primary lg block auth-submit"
+                            disabled={submitting}
                         >
-                            <option value="" disabled>Select your country</option>
-                            {COUNTRIES.map(country => (
-                                <option key={country.code} value={country.code} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
-                                    {country.name}
-                                </option>
-                            ))}
-                        </select>
-                        {errors.country && (
-                            <p style={{ color: '#EF4444', fontSize: '0.85rem', marginTop: '4px', marginBottom: 0 }}>
-                                {errors.country}
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Password */}
-                    <div style={{ marginBottom: '20px' }}>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '8px',
-                            fontSize: '0.9rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: '500'
-                        }}>
-                            <Lock size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                            Password
-                        </label>
-                        <div style={{ position: 'relative' }}>
-                            <input
-                                type={showPassword ? 'text' : 'password'}
-                                name="password"
-                                value={formData.password}
-                                onChange={handleInputChange}
-                                placeholder="••••••••"
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 48px 12px 16px',
-                                    borderRadius: 'var(--radius-md)',
-                                    border: errors.password ? '1px solid #EF4444' : '1px solid rgba(255,255,255,0.1)',
-                                    background: 'rgba(255,255,255,0.05)',
-                                    color: 'var(--text-primary)',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    transition: 'all 0.2s'
-                                }}
-                                onFocus={(e) => !errors.password && (e.target.style.border = '1px solid var(--brand-600)')}
-                                onBlur={(e) => !errors.password && (e.target.style.border = '1px solid rgba(255,255,255,0.1)')}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                style={{
-                                    position: 'absolute',
-                                    right: '12px',
-                                    top: '50%',
-                                    transform: 'translateY(-50%)',
-                                    background: 'transparent',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    color: 'var(--text-secondary)',
-                                    padding: '4px'
-                                }}
-                            >
-                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                            </button>
-                        </div>
-                        {errors.password && (
-                            <p style={{ color: '#EF4444', fontSize: '0.85rem', marginTop: '4px', marginBottom: 0 }}>
-                                {errors.password}
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Confirm Password */}
-                    <div style={{ marginBottom: '24px' }}>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '8px',
-                            fontSize: '0.9rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: '500'
-                        }}>
-                            <Lock size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                            Confirm Password
-                        </label>
-                        <div style={{ position: 'relative' }}>
-                            <input
-                                type={showConfirmPassword ? 'text' : 'password'}
-                                name="confirmPassword"
-                                value={formData.confirmPassword}
-                                onChange={handleInputChange}
-                                placeholder="••••••••"
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 48px 12px 16px',
-                                    borderRadius: 'var(--radius-md)',
-                                    border: errors.confirmPassword ? '1px solid #EF4444' : '1px solid rgba(255,255,255,0.1)',
-                                    background: 'rgba(255,255,255,0.05)',
-                                    color: 'var(--text-primary)',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    transition: 'all 0.2s'
-                                }}
-                                onFocus={(e) => !errors.confirmPassword && (e.target.style.border = '1px solid var(--brand-600)')}
-                                onBlur={(e) => !errors.confirmPassword && (e.target.style.border = '1px solid rgba(255,255,255,0.1)')}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                style={{
-                                    position: 'absolute',
-                                    right: '12px',
-                                    top: '50%',
-                                    transform: 'translateY(-50%)',
-                                    background: 'transparent',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    color: 'var(--text-secondary)',
-                                    padding: '4px'
-                                }}
-                            >
-                                {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                            </button>
-                        </div>
-                        {errors.confirmPassword && (
-                            <p style={{ color: '#EF4444', fontSize: '0.85rem', marginTop: '4px', marginBottom: 0 }}>
-                                {errors.confirmPassword}
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Register Button */}
-                    <button
-                        type="submit"
-                        className="action-btn primary"
-                        disabled={submitting}
-                        style={{
-                            width: '100%',
-                            padding: '14px',
-                            fontSize: '1rem',
-                            fontWeight: '600'
-                        }}
-                    >
-                        {submitting ? 'Creating account...' : 'Create Account'}
-                    </button>
-                </form>
+                            {submitting ? 'Creating account...' : 'Create account'}
+                        </button>
+                    </form>
                 )}
-            </motion.div>
+            </section>
 
-            {/* Login Link */}
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                style={{ textAlign: 'center' }}
-            >
-                <p style={{ color: 'var(--text-secondary)', margin: 0 }}>
-                    Already have an account?{' '}
-                    <button
-                        onClick={() => navigate('/login')}
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: 'var(--brand-600)',
-                            cursor: 'pointer',
-                            fontWeight: '600',
-                            fontSize: '1rem',
-                            textDecoration: 'underline'
-                        }}
-                    >
-                        Log In
-                    </button>
-                </p>
-            </motion.div>
+            <Link to="/login" className="auth-switch">
+                Already have an account? <strong>Log in</strong>
+            </Link>
         </div>
     );
 };

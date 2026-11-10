@@ -1,242 +1,162 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Bell, BarChart2, TrendingUp, Clock, Film, UserPlus, LogIn } from 'lucide-react';
+import { Settings, LogOut, Bell, ChevronRight, UserPlus, LogIn } from 'lucide-react';
 import { useUser } from '../context/UserContext';
+import '../styles/account.css';
 
 const Profile = () => {
-    const { user, loading, logout, status, stats } = useUser();
+    const { user, loading, logout, status, stats, reminders } = useUser();
     const navigate = useNavigate();
     const isGuest = status === 'guest';
 
-    const settingsItems = [
-        { icon: <Bell size={20} />, label: 'Notifications', path: '/notifications' },
-        { icon: <Settings size={20} />, label: 'Settings', path: '/settings' },
-        { icon: <LogOut size={20} />, label: isGuest ? 'Exit Guest Mode' : 'Log Out', color: '#EF4444', action: 'logout' }
-    ];
-
-    const handleItemClick = async (item) => {
-        if (item.action === 'logout') {
-            const message = isGuest ? 'Exit guest mode?' : 'Are you sure you want to log out?';
-            if (confirm(message)) {
-                await logout();
-                navigate('/login');
-            }
-        } else if (item.path) {
-            navigate(item.path);
+    const handleLogout = async () => {
+        const message = isGuest ? 'Exit guest mode?' : 'Are you sure you want to log out?';
+        if (confirm(message)) {
+            await logout();
+            navigate('/login');
         }
     };
 
     // Loading state
     if (loading) {
         return (
-            <div className="container" style={{ paddingTop: '100px', textAlign: 'center' }}>
+            <div className="container account-loading">
                 <div className="spinner"></div>
-                <p style={{ color: 'var(--text-secondary)', marginTop: '16px' }}>Loading profile...</p>
+                <p>Loading profile...</p>
             </div>
         );
     }
 
-    // Guest user view
+    // Signed-out view
     if (!user) {
         return (
-            <div className="container" style={{ paddingTop: '60px', paddingBottom: '90px' }}>
-                <div style={{
-                    textAlign: 'center',
-                    maxWidth: '400px',
-                    margin: '0 auto',
-                    padding: '40px 20px'
-                }}>
-                    <div style={{
-                        width: '100px',
-                        height: '100px',
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, var(--brand-600), var(--accent-primary))',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 24px'
-                    }}>
-                        <Film size={48} color="white" />
-                    </div>
+            <div className="container page">
+                <h1 className="page-title">Profile</h1>
 
-                    <h2 style={{ marginBottom: '12px' }}>Welcome to What's Next?</h2>
-                    <p style={{
-                        color: 'var(--text-secondary)',
-                        marginBottom: '32px',
-                        fontSize: '1rem',
-                        lineHeight: '1.6'
-                    }}>
+                <section className="tile account-welcome">
+                    <h2>Welcome to What's Next?</h2>
+                    <p>
                         Sign in to track your favorite movies and TV shows, create watchlists, and never miss an episode!
                     </p>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <button
-                            onClick={() => navigate('/login')}
-                            className="action-btn primary"
-                            style={{
-                                width: '100%',
-                                padding: '14px',
-                                fontSize: '1rem',
-                                fontWeight: '600',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px'
-                            }}
-                        >
-                            <LogIn size={20} />
+                    <div className="account-actions">
+                        <button type="button" onClick={() => navigate('/login')} className="pill-btn primary lg block">
+                            <LogIn size={18} aria-hidden="true" />
                             Log In
                         </button>
-
-                        <button
-                            onClick={() => navigate('/register')}
-                            className="action-btn secondary"
-                            style={{
-                                width: '100%',
-                                padding: '14px',
-                                fontSize: '1rem',
-                                fontWeight: '600',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px'
-                            }}
-                        >
-                            <UserPlus size={20} />
+                        <button type="button" onClick={() => navigate('/register')} className="pill-btn ghost lg block">
+                            <UserPlus size={18} aria-hidden="true" />
                             Create Account
                         </button>
                     </div>
+                </section>
 
-                    <div className="glass-panel" style={{
-                        marginTop: '32px',
-                        padding: '20px',
-                        borderRadius: 'var(--radius-md)',
-                        textAlign: 'left'
-                    }}>
-                        <h4 style={{ marginTop: 0, marginBottom: '12px', fontSize: '0.95rem' }}>
-                            Why create an account?
-                        </h4>
-                        <ul style={{
-                            margin: 0,
-                            paddingLeft: '20px',
-                            color: 'var(--text-secondary)',
-                            fontSize: '0.9rem',
-                            lineHeight: '1.8'
-                        }}>
-                            <li>Track your watchlist across devices</li>
-                            <li>Mark episodes as watched</li>
-                            <li>Get notifications for new releases</li>
-                            <li>Sync your progress everywhere</li>
-                        </ul>
-                    </div>
-                </div>
+                <section className="tile">
+                    <h3 className="section-title">Why create an account?</h3>
+                    <ul className="account-benefits">
+                        <li>Track your watchlist across devices</li>
+                        <li>Mark episodes as watched</li>
+                        <li>Get notifications for new releases</li>
+                        <li>Sync your progress everywhere</li>
+                    </ul>
+                </section>
             </div>
         );
     }
 
+    const reminderCount = reminders?.length || 0;
+    const genre = stats.favoriteGenre;
+
     // Authenticated / guest user view
     return (
-        <div className="container" style={{ paddingTop: '20px', paddingBottom: '90px' }}>
+        <div className="container page">
+            <h1 className="page-title">Profile</h1>
+
             {/* Guest banner */}
             {isGuest && (
-                <div className="glass-panel" style={{
-                    padding: '16px',
-                    borderRadius: 'var(--radius-md)',
-                    marginBottom: '20px',
-                    border: '1px solid rgba(251, 191, 36, 0.3)',
-                    background: 'rgba(251, 191, 36, 0.08)'
-                }}>
-                    <p style={{ margin: '0 0 12px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                <section className="tile account-guest">
+                    <p>
                         You're browsing as a guest — your data is stored on this device only.
                         Create an account to sync it everywhere.
                     </p>
-                    <button
-                        onClick={() => navigate('/register')}
-                        className="action-btn primary"
-                        style={{ padding: '10px 20px', fontSize: '0.9rem', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-                    >
-                        <UserPlus size={18} />
+                    <button type="button" onClick={() => navigate('/register')} className="pill-btn primary">
+                        <UserPlus size={16} aria-hidden="true" />
                         Create Account
                     </button>
-                </div>
+                </section>
             )}
 
-            {/* Header */}
-            <div className="flex-center" style={{ flexDirection: 'column', marginBottom: '30px' }}>
-                <img
-                    src={user.avatar}
-                    alt="Profile"
-                    className="profile-avatar"
-                />
-                <h2 style={{ margin: 0 }}>{user.name}</h2>
-                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{isGuest ? 'Guest' : stats.rank}</span>
-
-                {/* Edit Profile Button */}
+            {/* Identity */}
+            <section className="tile account-identity">
+                <img src={user.avatar} alt="" className="profile-avatar" />
+                <div className="account-identity-body">
+                    <h2 className="account-name truncate">{user.name}</h2>
+                    <span className="mono-label text-accent account-rank truncate">
+                        {isGuest ? 'Guest' : stats.rank}
+                    </span>
+                </div>
                 <button
+                    type="button"
                     onClick={() => navigate('/profile/edit')}
-                    className="action-btn secondary"
-                    style={{
-                        marginTop: '16px',
-                        padding: '8px 24px',
-                        fontSize: '0.9rem',
-                        width: 'auto'
-                    }}
+                    className="pill-btn"
+                    aria-label="Edit profile"
                 >
-                    Edit Profile
+                    Edit
                 </button>
-            </div>
+            </section>
 
-            {/* Stats Dashboard */}
-            <h3 style={{ marginBottom: '16px' }}>Your Stats</h3>
-            <div className="grid-layout" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: '30px' }}>
-                <div className="card stat-card">
-                    <div className="flex-center" style={{ flexDirection: 'column', gap: '8px' }}>
-                        <Clock size={24} color="var(--accent-primary)" />
-                        <span className="stat-value">{stats.hoursWatched}h</span>
-                        <p className="stat-label" style={{ margin: 0 }}>Time Watched</p>
+            {/* Stats */}
+            <section className="account-section" aria-labelledby="profile-stats-title">
+                <h2 id="profile-stats-title" className="section-title">Your stats</h2>
+                <div className="bento">
+                    <div className="stat-card">
+                        <span className="stat-label">Time watched</span>
+                        <span className="stat-value account-stat-accent">
+                            {stats.hoursWatched.toLocaleString()}
+                            <span className="account-stat-unit"> h</span>
+                        </span>
+                    </div>
+                    <div className="stat-card">
+                        <span className="stat-label">Movies</span>
+                        <span className="stat-value">{stats.moviesWatched.toLocaleString()}</span>
+                    </div>
+                    <div className="stat-card">
+                        <span className="stat-label">Top genre</span>
+                        <span className={`stat-value account-stat-text${genre.length > 8 ? ' is-long' : ''}`}>
+                            {genre}
+                        </span>
+                    </div>
+                    <div className="stat-card">
+                        <span className="stat-label">Episodes</span>
+                        <span className="stat-value">{stats.episodesWatched.toLocaleString()}</span>
                     </div>
                 </div>
-                <div className="card stat-card">
-                    <div className="flex-center" style={{ flexDirection: 'column', gap: '8px' }}>
-                        <Film size={24} color="#F59E0B" />
-                        <span className="stat-value">{stats.moviesWatched}</span>
-                        <p className="stat-label" style={{ margin: 0 }}>Movies</p>
-                    </div>
-                </div>
-                <div className="card stat-card">
-                    <div className="flex-center" style={{ flexDirection: 'column', gap: '8px' }}>
-                        <TrendingUp size={24} color="#10B981" />
-                        <span className="stat-value">{stats.favoriteGenre}</span>
-                        <p className="stat-label" style={{ margin: 0 }}>Top Genre</p>
-                    </div>
-                </div>
-                <div className="card stat-card">
-                    <div className="flex-center" style={{ flexDirection: 'column', gap: '8px' }}>
-                        <BarChart2 size={24} color="#3B82F6" />
-                        <span className="stat-value">{stats.episodesWatched}</span>
-                        <p className="stat-label" style={{ margin: 0 }}>Episodes</p>
-                    </div>
-                </div>
-            </div>
+            </section>
 
-            {/* Settings List */}
-            <div className="glass-panel" style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                {settingsItems.map((item, i) => (
-                    <div
-                        key={i}
-                        className="settings-item"
-                        onClick={() => handleItemClick(item)}
-                        style={{ cursor: 'pointer' }}
-                    >
-                        <div className="flex-center" style={{ gap: '12px', color: item.color || 'var(--text-primary)' }}>
-                            {item.icon}
-                            <span>{item.label}</span>
-                        </div>
-                    </div>
-                ))}
-            </div>
+            {/* Menu */}
+            <nav className="list-tile" aria-label="Account">
+                <button type="button" className="list-row" onClick={() => navigate('/notifications')}>
+                    <Bell size={20} className="account-row-icon" aria-hidden="true" />
+                    <span className="account-row-main">Notifications</span>
+                    {reminderCount > 0 ? (
+                        <span className="mono-label account-row-trail">
+                            {reminderCount} {reminderCount === 1 ? 'reminder' : 'reminders'}
+                        </span>
+                    ) : (
+                        <ChevronRight size={16} className="account-row-trail" aria-hidden="true" />
+                    )}
+                </button>
+                <button type="button" className="list-row" onClick={() => navigate('/settings')}>
+                    <Settings size={20} className="account-row-icon" aria-hidden="true" />
+                    <span className="account-row-main">Settings</span>
+                    <ChevronRight size={16} className="account-row-trail" aria-hidden="true" />
+                </button>
+                <button type="button" className="list-row danger" onClick={handleLogout}>
+                    <LogOut size={20} className="account-row-icon" aria-hidden="true" />
+                    <span className="account-row-main">{isGuest ? 'Exit Guest Mode' : 'Log out'}</span>
+                </button>
+            </nav>
 
-            <p style={{ textAlign: 'center', marginTop: '30px', fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
+            <p className="account-footer">
                 {isGuest ? 'Guest session' : `Account: ${user.email}`}
             </p>
         </div>

@@ -19,14 +19,18 @@ export const MovieCard = ({ movie, onClick }) => {
     // would otherwise flag a same-id show (or vice versa) as seen.
     const isWatched = movie.completed || watched.some(m => m.id === movie.id && (m.type || 'movie') === (movie.type || 'movie'));
 
-    // Get first genre for display
-    const primaryGenre = movie.genres && movie.genres.length > 0 ? movie.genres[0] : null;
-
     const open = () => onClick(movie.id);
+
+    // One line under the poster: type and year, or whatever the caller wants
+    // to flag there instead (e.g. a countdown) via `movie.meta`.
+    const meta = movie.meta
+        || [movie.type === 'tv' ? 'TV' : 'Movie', movie.year && movie.year !== 'N/A' ? movie.year : null]
+            .filter(Boolean)
+            .join(' · ');
 
     return (
         <motion.div
-            whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.96 }}
             className="card"
             role="button"
             tabIndex={0}
@@ -38,63 +42,27 @@ export const MovieCard = ({ movie, onClick }) => {
                     open();
                 }
             }}
-            style={{ cursor: 'pointer', minWidth: '140px', position: 'relative' }}
         >
-            <div style={{ position: 'relative' }}>
-                {/* Rows of posters sit mostly off-screen; lazy loading keeps the
-                    first paint to the handful that are actually visible. The
-                    2:3 box comes from `.card img { aspect-ratio }` in CSS — no
-                    width/height attributes here, since a height attribute
-                    would win over that rule and render the poster 750px tall. */}
-                <img
-                    src={movie.poster || PLACEHOLDER_POSTER}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                    onError={handlePosterError}
-                />
-                {isWatched && (
-                    <div style={{
-                        position: 'absolute',
-                        top: '8px',
-                        right: '8px',
-                        background: 'rgba(20, 20, 21, 0.8)', // Neutral glass
-                        backdropFilter: 'blur(4px)',
-                        borderRadius: '50%',
-                        width: '24px',
-                        height: '24px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                        border: '1px solid rgba(255,255,255,0.2)'
-                    }}>
-                        <Check size={14} color="white" strokeWidth={3} />
-                    </div>
-                )}
-            </div>
-            <div className="card-content" style={{ paddingTop: '8px' }}>
-                <h4 style={{
-                    fontSize: '1rem',
-                    marginBottom: '4px',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                    lineHeight: '1.3',
-                    minHeight: '2.6rem'
-                }}>{movie.title}</h4>
-                {primaryGenre && (
-                    <div style={{ marginBottom: '4px' }}>
-                        <span className="card-genre">
-                            {primaryGenre}
-                        </span>
-                    </div>
-                )}
-                <div className="flex-between" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    <span>{movie.year}</span>
-                    <span style={{ color: 'var(--accent-secondary)' }}>★ {movie.rating}</span>
-                </div>
+            {/* Rows of posters sit mostly off-screen; lazy loading keeps the
+                first paint to the handful that are actually visible. The 2:3
+                box comes from `.card img { aspect-ratio }` in CSS — no
+                width/height attributes here, since a height attribute would
+                win over that rule and render the poster 750px tall. */}
+            <img
+                src={movie.poster || PLACEHOLDER_POSTER}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                onError={handlePosterError}
+            />
+            {isWatched && (
+                <span className="card-check" aria-hidden="true">
+                    <Check size={14} strokeWidth={3} />
+                </span>
+            )}
+            <div className="card-content">
+                <div className="card-title">{movie.title}</div>
+                <div className="card-meta">{meta}</div>
             </div>
         </motion.div>
     );

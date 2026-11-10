@@ -1,0 +1,128 @@
+/* Trailer overlay. It is a cinema surface, so it stays black with white
+   controls in both themes — the only place these colours are fixed. */
+.trailer-overlay {
+  --trailer-bg: #000000;
+  --trailer-surface: #17171A;
+  --trailer-text: #FFFFFF;
+  --trailer-soft: #D4D4D8;
+  --trailer-muted: #A1A1AA;
+  --trailer-accent: #FCA5A5;
+  --trailer-ink: #0B0B0C;
+
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  padding-top: calc(16px + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--trailer-bg);
+  color: var(--trailer-text);
+}
+
+.trailer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+}
+
+.trailer-title {
+  min-width: 0;
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--trailer-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trailer-close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--trailer-text);
+  color: var(--trailer-ink);
+  cursor: pointer;
+}
+
+.trailer-close:focus-visible,
+.trailer-link:focus-visible {
+  outline-color: var(--trailer-text);
+}
+
+.trailer-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.trailer-player {
+  position: relative;
+  /* Full width, but never so wide that 16:9 would outgrow the room left
+     between the bar and the link (a phone held sideways). */
+  width: min(100%, 900px, calc((100vh - 170px) * 16 / 9));
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--trailer-surface);
+}
+
+.trailer-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--trailer-muted);
+}
+
+.trailer-player iframe {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.trailer-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 44px;
+  font-size: 0.8125rem;
+  color: var(--trailer-soft);
+  text-decoration: none;
+}
+
+.trailer-link strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: var(--trailer-accent);
+}

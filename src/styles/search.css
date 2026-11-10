@@ -1,0 +1,193 @@
+/* Search page + BrowseCategories. Tokens and shared classes live in index.css. */
+
+/* ----- Search field row: field + round clear button ----- */
+.search-bar {
+  display: flex;
+  gap: 8px;
+}
+
+.search-bar .search-field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* A typed query keeps the accent border even when focus moves to the results. */
+.search-field.has-value {
+  border-color: var(--brand-600);
+}
+
+.search-clear {
+  width: 52px;
+  height: 52px;
+}
+
+/* ----- Filter chips (type + active genre) ----- */
+.search-filters {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  /* Room for the focus ring, which the scroll container would otherwise clip */
+  padding: 4px;
+  margin: -4px;
+}
+
+/* ----- Section header: title on the left, one text action on the right ----- */
+.search-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 24px;
+}
+
+/* The action is a 44px target in a 24px row; let it overhang instead of
+   pushing the row taller. */
+.search-section-head .link-accent {
+  margin: -10px 0;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+/* ----- Recent searches ----- */
+.recent-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.recent-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+  border-radius: var(--radius-pill);
+  background: var(--bg-secondary);
+}
+
+.recent-term {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 2px 0 16px;
+  border: 0;
+  border-radius: var(--radius-pill) 0 0 var(--radius-pill);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.recent-remove {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+/* ----- Browse categories: 2-column genre tiles ----- */
+.genre-grid {
+  margin-top: 12px;
+}
+
+.genre-tile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  min-height: 84px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-xl);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* --genre-accent is set per tile. The square is the accent mixed into the tile
+   surface and the icon is the accent pulled toward the text colour, so both
+   hold up in the light theme. Browsers without color-mix() get the neutral
+   raised-control colours. */
+.genre-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+@supports (background: color-mix(in srgb, red 50%, blue)) {
+  .genre-icon {
+    background: color-mix(in srgb, var(--genre-accent) 26%, var(--bg-secondary));
+    color: color-mix(in srgb, var(--genre-accent) 72%, var(--text-primary));
+  }
+}
+
+.genre-text {
+  min-width: 0;
+}
+
+.genre-name {
+  display: block;
+  font-size: 0.9375rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+}
+
+.genre-sub {
+  display: block;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--text-secondary);
+}
+
+/* ----- "Popular in <genre>" tile: the poster row bleeds to the right edge ----- */
+.genre-row-tile {
+  padding-right: 0;
+}
+
+.genre-row-tile .search-section-head {
+  padding-right: 16px;
+  margin-bottom: 12px;
+}
+
+.genre-row-tile .poster-row {
+  padding-right: 16px;
+}
+
+.genre-row-tile .poster-row-arrow.right {
+  right: 8px;
+}
+
+.genre-row-empty {
+  margin: 0;
+  padding-right: 16px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+/* ----- No results ----- */
+.search-empty-icon {
+  display: block;
+  margin: 0 auto 12px;
+  color: var(--text-tertiary);
+}
+
+.search-empty .search-empty-hint {
+  margin-bottom: 0;
+  font-size: 0.8125rem;
+}

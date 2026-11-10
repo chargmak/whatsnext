@@ -714,3 +714,10 @@ export const getCollection = async (collectionId) => {
         parts,
     };
 };
+
+// Which collection (franchise) a movie belongs to, or null. A bare /movie/{id}
+// lookup — the detail page's full payload is far more than this needs.
+export const getMovieCollectionId = async (movieId) => {
+    const data = await fetchFromTMDB(`/movie/${movieId}`);
+    return data?.belongs_to_collection?.id || null;
+};

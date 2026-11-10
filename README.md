@@ -12,12 +12,12 @@ This application is built as a **Progressive Web App (PWA)**, offering a native-
 *   **🎬 Comprehensive Tracking**: Search and add movies and TV shows to your personal watchlist.
 *   **📅 Release Calendar**: A personalized calendar view that shows you exactly when new episodes or movies are premiering. Includes a grouped view for easy daily planning.
 *   **📱 PWA Support**: Installable on mobile and desktop devices with offline capabilities and a responsive, touch-friendly interface.
-*   **✨ Modern UI/UX**: Built with a "Glassmorphism" design aesthetic, featuring smooth animations (powered by Framer Motion), dark mode by default, and intuitive navigation.
+*   **✨ Modern UI/UX**: A dark, tile-based "Tonight" design system (solid tiles, one red accent, Geist and Geist Mono type) with a light theme, smooth animations (powered by Framer Motion), and intuitive navigation.
 *   **👤 Real Accounts**: Sign up with email/password (Supabase Auth). Your watchlist, history, episode progress, and reminders sync across devices. Includes password reset, change password, and account deletion.
 *   **🎭 Guest Mode**: Prefer not to sign up? Use "Continue as guest" — your data is stored on the device, and when you later create an account you'll be offered a one-click import into it.
 *   **🔔 Release Reminders + Push Notifications**: Tap "Notify Me" on an upcoming movie to track the countdown from the Notifications page, and opt into Web Push to get alerted the day a title is released — even when the app is closed. Powered by a scheduled Supabase edge function; see [NOTIFICATIONS_SETUP.md](./NOTIFICATIONS_SETUP.md).
 *   **🎯 Completionist Tracking**: Tap any cast member to open their page and see your **filmography completion %** (with per-title check-off), and track your progress through **movie franchises** with an in-order checklist.
-*   **✨ What's Next Spotlight**: The home screen proposes one movie or show at a time, seeded from your watch history — with a "Because you watched…" line, match %, streaming-provider logos, instant trailer playback, and one-tap Save / Seen it / Not for me.
+*   **✨ Tonight Home**: The home screen leads with what you are tracking — the next episode to watch, a countdown to your next release, the week ahead, franchise progress — plus one "What's next?" pick at a time, seeded from your watch history, with one-tap Save / Seen it / Not for me.
 
 ## 🛠️ Tech Stack
 

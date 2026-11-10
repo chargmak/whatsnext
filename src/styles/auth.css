@@ -1,0 +1,227 @@
+/* Login, Register, Reset password and the 404 page. Tokens and shared classes
+   live in index.css. */
+
+.auth-page {
+  max-width: 500px;
+  padding-top: 56px;
+}
+
+.auth-page.is-long {
+  padding-top: 32px;
+}
+
+.auth-tagline {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--text-secondary);
+}
+
+/* The one tile that holds the form */
+.auth-card,
+.auth-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.auth-card {
+  margin-top: 8px;
+}
+
+.auth-page.is-long .auth-card {
+  margin-top: 0;
+}
+
+.auth-heading {
+  margin: 0;
+  font-size: 1.375rem;
+  line-height: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.auth-page .input-field[aria-invalid="true"] {
+  border-color: var(--danger-text);
+}
+
+/* Password input with its show/hide button inside the right edge */
+.auth-password {
+  position: relative;
+}
+
+.auth-password .input-field {
+  padding-right: 52px;
+}
+
+.auth-password .icon-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  color: var(--text-secondary);
+}
+
+/* A native <select> in the field style with our own chevron. index.css styles
+   :read-only inputs as dashed, and a <select> always matches :read-only, so the
+   solid inset look is restated here. */
+.auth-select {
+  position: relative;
+}
+
+.auth-select select.input-field {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 44px;
+  border-style: solid;
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.auth-select select.input-field.is-empty {
+  color: var(--text-soft);
+}
+
+.auth-select select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.auth-select svg {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.auth-forgot {
+  justify-self: start;
+}
+
+.auth-submit {
+  margin-top: 4px;
+}
+
+/* Inline notices inside the tile */
+.auth-notice {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  color: var(--text-soft);
+}
+
+.auth-success {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  color: var(--text-soft);
+}
+
+.auth-success svg,
+.auth-state-icon {
+  flex-shrink: 0;
+  color: var(--accent-text);
+}
+
+/* Non-form states of the tile: confirmation sent, invalid link, done */
+.auth-state-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.auth-state-text {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+.auth-state-text strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Secondary links under the tile */
+.auth-switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 44px;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--text-soft);
+  text-decoration: none;
+}
+
+.auth-switch strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.auth-switch.is-plain {
+  font-weight: 600;
+}
+
+.auth-divider {
+  height: 1px;
+  border: 0;
+  margin: 0;
+  background: var(--border);
+}
+
+.auth-note {
+  margin: 0;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--text-secondary);
+}
+
+/* ----- 404 ----- */
+.auth-notfound {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: calc(100vh - var(--nav-dock-space));
+  min-height: calc(100dvh - var(--nav-dock-space));
+  text-align: center;
+}
+
+.auth-notfound-code {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 6rem;
+  line-height: 6.25rem;
+  color: var(--brand-600);
+}
+
+.auth-notfound-text {
+  margin: 0;
+  font-size: 1.375rem;
+  line-height: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.auth-notfound .pill-btn {
+  margin-top: 12px;
+  padding: 0 28px;
+}

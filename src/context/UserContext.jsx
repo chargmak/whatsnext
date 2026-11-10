@@ -4,6 +4,7 @@ import * as userData from '../services/userData';
 import { getTVWatchStatus } from '../services/tmdb';
 import { resolveViewerZone } from '../services/releaseTime';
 import { syncPushSubscription } from '../services/push';
+import ImportGuestSheet from '../components/ImportGuestSheet';
 
 const UserContext = createContext();
 
@@ -65,6 +66,12 @@ export const UserProvider = ({ children }) => {
     // Drives the "most recently watched first" order in Up Next.
     const [episodeActivity, setEpisodeActivity] = useState({});
     const [reminders, setReminders] = useState([]);
+
+    // The "bring your guest data along?" question, while it is waiting for an
+    // answer: { watchlistCount, watchedCount } | null. The provider renders the
+    // sheet itself, so the question appears on whatever page the user is on.
+    const [guestImport, setGuestImport] = useState(null);
+    const guestImportResolverRef = useRef(null);
 
     const loadedUserIdRef = useRef(null);
     const isAuthed = status === 'authed';
@@ -186,6 +193,20 @@ export const UserProvider = ({ children }) => {
 
     // --- Local data migration (guest → account) ---
 
+    // Opens the import sheet and resolves with the user's choice. Login and
+    // sign-up wait on this exactly as they used to wait on window.confirm.
+    const askGuestImport = (counts) => new Promise((resolve) => {
+        guestImportResolverRef.current = resolve;
+        setGuestImport(counts);
+    });
+
+    const resolveGuestImport = (accept) => {
+        const resolve = guestImportResolverRef.current;
+        guestImportResolverRef.current = null;
+        setGuestImport(null);
+        if (resolve) resolve(Boolean(accept));
+    };
+
     const maybeMigrateLocalData = async (userId) => {
         const local = {
             watchlist: readLocal('user_watchlist', []),
@@ -198,7 +219,10 @@ export const UserProvider = ({ children }) => {
             || Object.keys(local.episodes).length || local.reminders.length;
         if (!hasData || localStorage.getItem('migration_declined') === 'true') return;
 
-        const ok = window.confirm('Import the watchlist and watched history saved on this device into your account?');
+        const ok = await askGuestImport({
+            watchlistCount: local.watchlist.length,
+            watchedCount: local.watched.length,
+        });
         if (!ok) {
             localStorage.setItem('migration_declined', 'true');
             return;
@@ -620,8 +644,18 @@ export const UserProvider = ({ children }) => {
             changePassword,
             deleteAccount,
             enterGuestMode,
+            guestImport,
+            resolveGuestImport,
         }}>
             {children}
+            {guestImport && (
+                <ImportGuestSheet
+                    watchlistCount={guestImport.watchlistCount}
+                    watchedCount={guestImport.watchedCount}
+                    onImport={() => resolveGuestImport(true)}
+                    onSkip={() => resolveGuestImport(false)}
+                />
+            )}
         </UserContext.Provider>
     );
 };

@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, Camera, User, Mail, Calendar as CalendarIcon, Save, Globe, Clock } from 'lucide-react';
+import { ArrowLeft, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { deviceTimeZone, formatZonedTime, timeZoneOptions } from '../services/releaseTime';
 import { COUNTRIES } from '../data/countries';
+import '../styles/account.css';
 
 const EditProfile = () => {
     const navigate = useNavigate();
@@ -87,384 +88,156 @@ const EditProfile = () => {
     };
 
     return (
-        <div className="container" style={{ paddingBottom: '100px' }}>
+        <div className="container page">
             {/* Header */}
-            <header className="page-header">
+            <header className="sub-header">
                 <button
+                    type="button"
+                    className="icon-btn on-page"
                     onClick={() => navigate('/profile')}
-                    style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--text-primary)',
-                        cursor: 'pointer',
-                        padding: '8px',
-                        marginRight: '12px'
-                    }}
+                    aria-label="Back to profile"
                 >
-                    <ArrowLeft size={24} />
+                    <ArrowLeft size={20} aria-hidden="true" />
                 </button>
-                <h1 className="brand-title">
-                    <User size={28} style={{ marginRight: '8px' }} />
-                    Edit Profile
-                </h1>
+                <h1>Edit profile</h1>
             </header>
 
-            {/* Avatar Section */}
-            <section style={{ marginBottom: '30px' }}>
-                <h3 style={{ marginBottom: '16px' }}>Profile Picture</h3>
-
-                {/* Current Avatar Preview */}
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    marginBottom: '20px'
-                }}>
-                    <div style={{ position: 'relative' }}>
-                        <img
-                            src={previewAvatar}
-                            alt="Profile"
-                            style={{
-                                width: '120px',
-                                height: '120px',
-                                borderRadius: '50%',
-                                border: '4px solid var(--brand-600)',
-                                objectFit: 'cover'
-                            }}
-                        />
-                        <button
-                            onClick={handleCustomAvatar}
-                            style={{
-                                position: 'absolute',
-                                bottom: '0',
-                                right: '0',
-                                width: '40px',
-                                height: '40px',
-                                borderRadius: '50%',
-                                background: 'var(--brand-600)',
-                                border: '3px solid var(--bg-primary)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                        >
-                            <Camera size={20} color="white" />
+            {/* Avatar */}
+            <section className="tile" aria-label="Profile picture">
+                <div className="account-avatar-head">
+                    <img src={previewAvatar} alt="Current profile picture" className="account-avatar-preview" />
+                    <div>
+                        <p className="account-avatar-title">Profile picture</p>
+                        <button type="button" className="pill-btn" onClick={handleCustomAvatar}>
+                            Use image URL
                         </button>
                     </div>
                 </div>
 
-                {/* Avatar Options Grid */}
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(4, 1fr)',
-                    gap: '12px'
-                }}>
+                <div className="account-avatar-grid">
                     {avatarOptions.map((avatar, idx) => (
-                        <div
-                            key={idx}
+                        <button
+                            key={avatar}
+                            type="button"
+                            className="account-avatar-option"
                             onClick={() => handleAvatarSelect(avatar)}
-                            style={{
-                                cursor: 'pointer',
-                                borderRadius: '50%',
-                                border: previewAvatar === avatar
-                                    ? '3px solid var(--brand-600)'
-                                    : '3px solid transparent',
-                                padding: '4px',
-                                transition: 'all 0.2s',
-                                background: previewAvatar === avatar
-                                    ? 'rgba(220, 38, 38, 0.1)'
-                                    : 'transparent'
-                            }}
+                            aria-label={`Preset avatar ${idx + 1}`}
+                            aria-pressed={previewAvatar === avatar}
                         >
-                            <img
-                                src={avatar}
-                                alt={`Avatar ${idx + 1}`}
-                                style={{
-                                    width: '100%',
-                                    height: 'auto',
-                                    borderRadius: '50%',
-                                    display: 'block'
-                                }}
-                            />
-                        </div>
+                            <img src={avatar} alt="" loading="lazy" />
+                        </button>
                     ))}
                 </div>
             </section>
 
-            {/* Profile Information */}
-            <section style={{ marginBottom: '30px' }}>
-                <h3 style={{ marginBottom: '16px' }}>Profile Information</h3>
+            {/* Name */}
+            <div className="field">
+                <label className="field-label" htmlFor="profile-name">Display name</label>
+                <input
+                    id="profile-name"
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className="input-field"
+                    autoComplete="name"
+                />
+            </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {/* Name */}
-                    <div>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '8px',
-                            fontSize: '0.9rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: '500'
-                        }}>
-                            <User size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                            Display Name
-                        </label>
-                        <input
-                            type="text"
-                            name="name"
-                            value={formData.name}
-                            onChange={handleInputChange}
-                            className="glass-panel"
-                            style={{
-                                width: '100%',
-                                padding: '12px 16px',
-                                borderRadius: 'var(--radius-md)',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(255,255,255,0.05)',
-                                color: 'var(--text-primary)',
-                                fontSize: '1rem',
-                                outline: 'none',
-                                transition: 'all 0.2s'
-                            }}
-                            onFocus={(e) => e.target.style.border = '1px solid var(--brand-600)'}
-                            onBlur={(e) => e.target.style.border = '1px solid rgba(255,255,255,0.1)'}
-                        />
-                    </div>
+            {/* Email */}
+            <div className="field">
+                <label className="field-label" htmlFor="profile-email">Email address</label>
+                <input
+                    id="profile-email"
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    readOnly
+                    className="input-field"
+                    aria-describedby="profile-email-note"
+                />
+                <span id="profile-email-note" className="field-note">
+                    {isAuthed ? 'Your login email cannot be changed here.' : 'Guests have no email — create an account to get one.'}
+                </span>
+            </div>
 
-                    {/* Email */}
-                    <div>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '8px',
-                            fontSize: '0.9rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: '500'
-                        }}>
-                            <Mail size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                            Email Address
-                        </label>
-                        <input
-                            type="email"
-                            name="email"
-                            value={formData.email}
-                            disabled
-                            className="glass-panel"
-                            style={{
-                                width: '100%',
-                                padding: '12px 16px',
-                                borderRadius: 'var(--radius-md)',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(255,255,255,0.03)',
-                                color: 'var(--text-secondary)',
-                                fontSize: '1rem',
-                                outline: 'none',
-                                cursor: 'not-allowed'
-                            }}
-                        />
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', marginTop: '6px', marginBottom: 0 }}>
-                            {isAuthed ? 'Your login email cannot be changed here.' : 'Guests have no email — create an account to get one.'}
-                        </p>
-                    </div>
-
-                    {/* Country */}
-                    <div>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '8px',
-                            fontSize: '0.9rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: '500'
-                        }}>
-                            <Globe size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                            Country
-                        </label>
-                        <select
-                            name="country"
-                            value={formData.country}
-                            onChange={handleInputChange}
-                            className="glass-panel"
-                            style={{
-                                width: '100%',
-                                padding: '12px 16px',
-                                borderRadius: 'var(--radius-md)',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(255,255,255,0.05)',
-                                color: 'var(--text-primary)',
-                                fontSize: '1rem',
-                                outline: 'none',
-                                transition: 'all 0.2s',
-                                cursor: 'pointer'
-                            }}
-                            onFocus={(e) => e.target.style.border = '1px solid var(--brand-600)'}
-                            onBlur={(e) => e.target.style.border = '1px solid rgba(255,255,255,0.1)'}
-                        >
-                            {COUNTRIES.map(country => (
-                                <option key={country.code} value={country.code} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
-                                    {country.name}
-                                </option>
-                            ))}
-                        </select>
-                        <p style={{
-                            fontSize: '0.8rem',
-                            color: 'var(--text-tertiary)',
-                            marginTop: '6px',
-                            marginBottom: 0
-                        }}>
-                            This affects which streaming services are shown
-                        </p>
-                    </div>
-
-                    {/* Time zone — decides what clock release times are shown in */}
-                    <div>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '8px',
-                            fontSize: '0.9rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: '500'
-                        }}>
-                            <Clock size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                            Time zone
-                        </label>
-                        <select
-                            name="timezone"
-                            value={formData.timezone}
-                            onChange={handleInputChange}
-                            className="glass-panel"
-                            style={{
-                                width: '100%',
-                                padding: '12px 16px',
-                                borderRadius: 'var(--radius-md)',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(255,255,255,0.05)',
-                                color: 'var(--text-primary)',
-                                fontSize: '1rem',
-                                outline: 'none',
-                                transition: 'all 0.2s',
-                                cursor: 'pointer'
-                            }}
-                            onFocus={(e) => e.target.style.border = '1px solid var(--brand-600)'}
-                            onBlur={(e) => e.target.style.border = '1px solid rgba(255,255,255,0.1)'}
-                        >
-                            <option value="" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
-                                Use this device ({detectedZone})
+            {/* Country */}
+            <div className="field">
+                <label className="field-label" htmlFor="profile-country">Country</label>
+                <div className="account-select">
+                    <select
+                        id="profile-country"
+                        name="country"
+                        value={formData.country}
+                        onChange={handleInputChange}
+                        className="input-field"
+                        aria-describedby="profile-country-note"
+                    >
+                        {COUNTRIES.map(country => (
+                            <option key={country.code} value={country.code}>
+                                {country.name}
                             </option>
-                            {zoneOptions.map((zone) => (
-                                <option key={zone} value={zone} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
-                                    {zone.replace(/_/g, ' ')}
-                                </option>
-                            ))}
-                        </select>
-                        <p style={{
-                            fontSize: '0.8rem',
-                            color: 'var(--text-tertiary)',
-                            marginTop: '6px',
-                            marginBottom: 0
-                        }}>
-                            Release and episode times are shown in this zone — it's {zoneNow} there now.
-                        </p>
-                    </div>
-
-                    {/* Bio */}
-                    <div>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '8px',
-                            fontSize: '0.9rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: '500'
-                        }}>
-                            Bio
-                        </label>
-                        <textarea
-                            name="bio"
-                            value={formData.bio}
-                            onChange={handleInputChange}
-                            rows="3"
-                            className="glass-panel"
-                            style={{
-                                width: '100%',
-                                padding: '12px 16px',
-                                borderRadius: 'var(--radius-md)',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(255,255,255,0.05)',
-                                color: 'var(--text-primary)',
-                                fontSize: '1rem',
-                                outline: 'none',
-                                transition: 'all 0.2s',
-                                resize: 'vertical',
-                                fontFamily: 'inherit'
-                            }}
-                            onFocus={(e) => e.target.style.border = '1px solid var(--brand-600)'}
-                            onBlur={(e) => e.target.style.border = '1px solid rgba(255,255,255,0.1)'}
-                        />
-                    </div>
-
-                    {/* Join Date */}
-                    <div>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '8px',
-                            fontSize: '0.9rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: '500'
-                        }}>
-                            <CalendarIcon size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                            Member Since
-                        </label>
-                        <p className="glass-panel" style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            background: 'rgba(255,255,255,0.03)',
-                            color: 'var(--text-secondary)',
-                            fontSize: '1rem',
-                            margin: 0
-                        }}>
-                            {memberSince}
-                        </p>
-                    </div>
+                        ))}
+                    </select>
+                    <ChevronDown size={16} aria-hidden="true" />
                 </div>
-            </section>
+                <span id="profile-country-note" className="field-note">
+                    This affects which streaming services are shown.
+                </span>
+            </div>
 
-            {/* Save Button */}
-            <button
-                onClick={handleSave}
-                className="action-btn primary"
-                style={{
-                    width: '100%',
-                    padding: '16px',
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    marginTop: '20px'
-                }}
-            >
-                <Save size={20} />
-                {saved ? 'Saved!' : 'Save Changes'}
-            </button>
+            {/* Time zone — decides what clock release times are shown in */}
+            <div className="field">
+                <label className="field-label" htmlFor="profile-timezone">Time zone</label>
+                <div className="account-select">
+                    <select
+                        id="profile-timezone"
+                        name="timezone"
+                        value={formData.timezone}
+                        onChange={handleInputChange}
+                        className="input-field"
+                        aria-describedby="profile-timezone-note"
+                    >
+                        <option value="">
+                            Use this device ({detectedZone})
+                        </option>
+                        {zoneOptions.map((zone) => (
+                            <option key={zone} value={zone}>
+                                {zone.replace(/_/g, ' ')}
+                            </option>
+                        ))}
+                    </select>
+                    <ChevronDown size={16} aria-hidden="true" />
+                </div>
+                <span id="profile-timezone-note" className="field-note">
+                    Release and episode times are shown in this zone — it's {zoneNow} there now.
+                </span>
+            </div>
 
-            {/* Cancel Button */}
-            <button
-                onClick={() => navigate('/profile')}
-                className="action-btn secondary"
-                style={{
-                    width: '100%',
-                    padding: '16px',
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    marginTop: '12px'
-                }}
-            >
-                Cancel
-            </button>
+            {/* Bio */}
+            <div className="field">
+                <label className="field-label" htmlFor="profile-bio">Bio</label>
+                <textarea
+                    id="profile-bio"
+                    name="bio"
+                    value={formData.bio}
+                    onChange={handleInputChange}
+                    rows="3"
+                    placeholder="A line about what you like to watch"
+                    className="input-field"
+                />
+            </div>
+
+            <p className="account-meta">Member since {memberSince}</p>
+
+            <div className="account-actions">
+                <button type="button" onClick={handleSave} className="pill-btn primary lg block">
+                    {saved ? 'Saved!' : 'Save changes'}
+                </button>
+                <button type="button" onClick={() => navigate('/profile')} className="account-text-btn">
+                    Cancel
+                </button>
+            </div>
         </div>
     );
 };

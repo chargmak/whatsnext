@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Film, Mail, Lock, Eye, EyeOff, UserCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Eye, EyeOff, Check } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { supabase } from '../services/supabase';
+import '../styles/auth.css';
 
 const Login = () => {
     const navigate = useNavigate();
@@ -91,260 +91,113 @@ const Login = () => {
         navigate('/', { replace: true });
     };
 
-
     return (
-        <div className="container" style={{
-            paddingTop: '40px',
-            paddingBottom: '100px',
-            maxWidth: '500px',
-            margin: '0 auto'
-        }}>
-            {/* Logo/Brand */}
-            <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                style={{ textAlign: 'center', marginBottom: '40px' }}
-            >
-                <div style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    marginBottom: '12px'
-                }}>
-                    <Film size={48} color="var(--brand-600)" />
-                    <h1 style={{
-                        fontSize: '2.5rem',
-                        margin: 0,
-                        background: 'linear-gradient(135deg, var(--brand-600), var(--accent-primary))',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent'
-                    }}>
-                        What's Next?
-                    </h1>
-                </div>
-                <p style={{
-                    color: 'var(--text-secondary)',
-                    fontSize: '1.1rem',
-                    margin: 0
-                }}>
-                    Track your favorite movies & TV shows
-                </p>
-            </motion.div>
+        <div className="container page auth-page">
+            <header>
+                <div className="brand-title">What's Next<span className="brand-mark">?</span></div>
+                <p className="auth-tagline">Track your favorite movies &amp; TV shows</p>
+            </header>
 
-            {/* Login Form */}
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="glass-panel"
-                style={{
-                    padding: '32px',
-                    borderRadius: 'var(--radius-lg)',
-                    marginBottom: '20px'
-                }}
-            >
-                <h2 style={{ marginTop: 0, marginBottom: '24px', textAlign: 'center' }}>
-                    Welcome Back
-                </h2>
+            {/* Login form */}
+            <section className="tile auth-card">
+                <h1 className="auth-heading">Welcome back</h1>
 
-                <form onSubmit={handleLogin}>
+                <form className="auth-form" onSubmit={handleLogin}>
                     {/* Email */}
-                    <div style={{ marginBottom: '20px' }}>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '8px',
-                            fontSize: '0.9rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: '500'
-                        }}>
-                            <Mail size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                            Email
-                        </label>
+                    <div className="field">
+                        <label className="field-label" htmlFor="login-email">Email</label>
                         <input
+                            id="login-email"
                             type="email"
                             name="email"
                             value={formData.email}
                             onChange={handleInputChange}
-                            placeholder="your@email.com"
-                            style={{
-                                width: '100%',
-                                padding: '12px 16px',
-                                borderRadius: 'var(--radius-md)',
-                                border: errors.email ? '1px solid #EF4444' : '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(255,255,255,0.05)',
-                                color: 'var(--text-primary)',
-                                fontSize: '1rem',
-                                outline: 'none',
-                                transition: 'all 0.2s'
-                            }}
-                            onFocus={(e) => !errors.email && (e.target.style.border = '1px solid var(--brand-600)')}
-                            onBlur={(e) => !errors.email && (e.target.style.border = '1px solid rgba(255,255,255,0.1)')}
+                            placeholder="you@example.com"
+                            autoComplete="email"
+                            className="input-field"
+                            aria-invalid={errors.email ? true : undefined}
+                            aria-describedby={errors.email ? 'login-email-error' : undefined}
                         />
                         {errors.email && (
-                            <p style={{ color: '#EF4444', fontSize: '0.85rem', marginTop: '4px', marginBottom: 0 }}>
+                            <span id="login-email-error" className="field-error" role="alert">
                                 {errors.email}
-                            </p>
+                            </span>
                         )}
                     </div>
 
                     {/* Password */}
-                    <div style={{ marginBottom: '24px' }}>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '8px',
-                            fontSize: '0.9rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: '500'
-                        }}>
-                            <Lock size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                            Password
-                        </label>
-                        <div style={{ position: 'relative' }}>
+                    <div className="field">
+                        <label className="field-label" htmlFor="login-password">Password</label>
+                        <div className="auth-password">
                             <input
+                                id="login-password"
                                 type={showPassword ? 'text' : 'password'}
                                 name="password"
                                 value={formData.password}
                                 onChange={handleInputChange}
-                                placeholder="••••••••"
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 48px 12px 16px',
-                                    borderRadius: 'var(--radius-md)',
-                                    border: errors.password ? '1px solid #EF4444' : '1px solid rgba(255,255,255,0.1)',
-                                    background: 'rgba(255,255,255,0.05)',
-                                    color: 'var(--text-primary)',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    transition: 'all 0.2s'
-                                }}
-                                onFocus={(e) => !errors.password && (e.target.style.border = '1px solid var(--brand-600)')}
-                                onBlur={(e) => !errors.password && (e.target.style.border = '1px solid rgba(255,255,255,0.1)')}
+                                placeholder="Your password"
+                                autoComplete="current-password"
+                                className="input-field"
+                                aria-invalid={errors.password ? true : undefined}
+                                aria-describedby={errors.password ? 'login-password-error' : undefined}
                             />
                             <button
                                 type="button"
+                                className="icon-btn bare"
                                 onClick={() => setShowPassword(!showPassword)}
-                                style={{
-                                    position: 'absolute',
-                                    right: '12px',
-                                    top: '50%',
-                                    transform: 'translateY(-50%)',
-                                    background: 'transparent',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    color: 'var(--text-secondary)',
-                                    padding: '4px'
-                                }}
+                                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                aria-pressed={showPassword}
                             >
-                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                {showPassword ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}
                             </button>
                         </div>
                         {errors.password && (
-                            <p style={{ color: '#EF4444', fontSize: '0.85rem', marginTop: '4px', marginBottom: 0 }}>
+                            <span id="login-password-error" className="field-error" role="alert">
                                 {errors.password}
-                            </p>
-                        )}
-                        {supabase && (
-                            <div style={{ textAlign: 'right', marginTop: '8px' }}>
-                                <button
-                                    type="button"
-                                    onClick={handleForgotPassword}
-                                    style={{
-                                        background: 'transparent',
-                                        border: 'none',
-                                        color: 'var(--text-secondary)',
-                                        cursor: 'pointer',
-                                        fontSize: '0.85rem',
-                                        textDecoration: 'underline',
-                                        padding: 0
-                                    }}
-                                >
-                                    Forgot password?
-                                </button>
-                            </div>
-                        )}
-                        {resetNotice && (
-                            <p style={{ color: '#10B981', fontSize: '0.85rem', marginTop: '8px', marginBottom: 0 }}>
-                                {resetNotice}
-                            </p>
+                            </span>
                         )}
                     </div>
 
+                    {supabase && (
+                        <button type="button" className="link-accent auth-forgot" onClick={handleForgotPassword}>
+                            Forgot password?
+                        </button>
+                    )}
+                    {resetNotice && (
+                        <p className="auth-success" role="status">
+                            <Check size={16} aria-hidden="true" />
+                            {resetNotice}
+                        </p>
+                    )}
+
                     {!supabase && (
-                        <p style={{
-                            color: 'var(--text-secondary)',
-                            fontSize: '0.9rem',
-                            background: 'rgba(255,255,255,0.05)',
-                            padding: '12px',
-                            borderRadius: 'var(--radius-md)',
-                            marginBottom: '16px'
-                        }}>
+                        <p className="auth-notice">
                             Accounts are unavailable in this deployment. You can still use the app as a guest below.
                         </p>
                     )}
 
-                    {/* Login Button */}
                     <button
                         type="submit"
-                        className="action-btn primary"
+                        className="pill-btn primary lg block"
                         disabled={submitting || !supabase}
-                        style={{
-                            width: '100%',
-                            padding: '14px',
-                            fontSize: '1rem',
-                            fontWeight: '600',
-                            opacity: !supabase ? 0.5 : 1
-                        }}
                     >
-                        {submitting ? 'Logging in...' : 'Log In'}
+                        {submitting ? 'Logging in...' : 'Log in'}
                     </button>
-
-
                 </form>
-            </motion.div>
+            </section>
 
-            {/* Register Link */}
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                style={{ textAlign: 'center' }}
-            >
-                <p style={{ color: 'var(--text-secondary)', margin: 0 }}>
-                    Don't have an account?{' '}
-                    <button
-                        onClick={() => navigate('/register')}
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: 'var(--brand-600)',
-                            cursor: 'pointer',
-                            fontWeight: '600',
-                            fontSize: '1rem',
-                            textDecoration: 'underline'
-                        }}
-                    >
-                        Sign Up
-                    </button>
-                </p>
+            <Link to="/register" className="auth-switch">
+                Don't have an account? <strong>Sign up</strong>
+            </Link>
 
-                <button
-                    onClick={handleGuest}
-                    className="action-btn"
-                    style={{
-                        marginTop: '20px',
-                        padding: '12px 24px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                    }}
-                >
-                    <UserCircle size={20} />
-                    Continue as guest
-                </button>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '8px' }}>
-                    Guest data stays on this device. You can create an account later to sync it.
-                </p>
-            </motion.div>
+            <hr className="auth-divider" />
+
+            <button type="button" onClick={handleGuest} className="pill-btn ghost lg block">
+                Continue as guest
+            </button>
+            <p className="auth-note">
+                Guest data stays on this device. You can import it into an account later.
+            </p>
         </div>
     );
 };

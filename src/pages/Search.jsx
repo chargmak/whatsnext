@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Search as SearchIcon, History, X, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { Search as SearchIcon, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { searchMulti, mapMediaData, discoverByGenre } from '../services/tmdb';
 import { MovieCard } from '../components/MovieCard';
 import { BrowseCategories } from '../components/BrowseCategories';
 import { useUser } from '../context/UserContext';
+import '../styles/search.css';
 
 function useDebounce(value, delay) {
     const [debouncedValue, setDebouncedValue] = useState(value);
@@ -94,149 +95,99 @@ const Search = () => {
         return item.type === filterType;
     });
 
+    const browsing = !query && !selectedGenre;
+    const TYPE_FILTERS = [
+        { id: 'all', label: 'All types' },
+        { id: 'movie', label: 'Movies' },
+        { id: 'tv', label: 'TV shows' },
+    ];
+
     return (
-        <div className="container" style={{ paddingTop: '20px', paddingBottom: '90px' }}>
+        <div className="container page">
+            <h1 className="page-title">Search</h1>
+
             {/* Search Input */}
-            <div style={{ position: 'relative', marginBottom: '16px' }}>
-                <SearchIcon
-                    style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-secondary)' }}
-                    size={20}
-                />
-                <input
-                    type="text"
-                    placeholder="Search movies & TV shows..."
-                    className="input-field"
-                    style={{ paddingLeft: '40px' }}
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                />
+            <div className="search-bar">
+                <label className={`search-field ${query ? 'has-value' : ''}`}>
+                    <SearchIcon size={20} aria-hidden="true" />
+                    <input
+                        type="text"
+                        placeholder="Search movies & TV shows..."
+                        aria-label="Search movies and TV shows"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                    />
+                </label>
                 {query && (
                     <button
+                        type="button"
+                        className="icon-btn on-page search-clear"
+                        aria-label="Clear search"
                         onClick={() => setQuery('')}
-                        style={{
-                            position: 'absolute',
-                            right: '12px',
-                            top: '12px',
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--text-secondary)',
-                            cursor: 'pointer'
-                        }}
                     >
-                        <X size={18} />
+                        <X size={18} strokeWidth={2.5} aria-hidden="true" />
                     </button>
                 )}
             </div>
 
             {/* Filters (Only show when searching or filtering) */}
-            {(query || selectedGenre) && (
-                <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '4px' }}>
-                    <div style={{ position: 'relative' }}>
-                        <select
-                            value={filterType}
-                            onChange={(e) => setFilterType(e.target.value)}
-                            style={{
-                                appearance: 'none',
-                                padding: '8px 32px 8px 12px',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                background: 'var(--bg-tertiary)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.9rem',
-                                cursor: 'pointer',
-                                outline: 'none'
-                            }}
+            {!browsing && (
+                <div className="search-filters hide-scrollbar" role="group" aria-label="Filter results">
+                    {TYPE_FILTERS.map(({ id, label }) => (
+                        <button
+                            key={id}
+                            type="button"
+                            className={`chip ${filterType === id ? 'active' : ''}`}
+                            aria-pressed={filterType === id}
+                            onClick={() => setFilterType(id)}
                         >
-                            <option value="all">All Types</option>
-                            <option value="movie">Movies</option>
-                            <option value="tv">TV Shows</option>
-                        </select>
-                        <SlidersHorizontal
-                            size={14}
-                            style={{ position: 'absolute', right: '10px', top: '10px', pointerEvents: 'none', color: 'var(--text-secondary)' }}
-                        />
-                    </div>
+                            {label}
+                        </button>
+                    ))}
 
                     {selectedGenre && (
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            background: 'var(--brand-600)',
-                            padding: '6px 12px',
-                            borderRadius: '12px',
-                            fontSize: '0.9rem'
-                        }}>
-                            <span>{selectedGenre}</span>
-                            <X
-                                size={14}
-                                style={{ cursor: 'pointer' }}
-                                onClick={() => {
-                                    setSelectedGenre(null);
-                                    setResults([]);
-                                }}
-                            />
-                        </div>
+                        <button
+                            type="button"
+                            className="chip tint"
+                            aria-label={`Clear ${selectedGenre} filter`}
+                            onClick={() => {
+                                setSelectedGenre(null);
+                                setResults([]);
+                            }}
+                        >
+                            {selectedGenre}
+                            <X size={12} strokeWidth={3} aria-hidden="true" />
+                        </button>
                     )}
                 </div>
             )}
 
             {/* Recent Searches */}
-            {!query && !selectedGenre && searchHistory.length > 0 && (
-                <section style={{ marginBottom: '32px' }}>
-                    <div className="flex-between" style={{ marginBottom: '16px' }}>
-                        <h3 style={{ margin: 0 }}>Recent Searches</h3>
-                        <button
-                            onClick={clearHistory}
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'var(--text-secondary)',
-                                fontSize: '0.85rem',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                            }}
-                        >
-                            <Trash2 size={14} /> Clear
+            {browsing && searchHistory.length > 0 && (
+                <section>
+                    <div className="search-section-head">
+                        <h2 className="section-title">Recent searches</h2>
+                        <button type="button" className="link-accent" onClick={clearHistory}>
+                            Clear
                         </button>
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    <div className="recent-list">
                         {searchHistory.map((term, index) => (
-                            <div
-                                key={index}
-                                onClick={() => handleHistoryClick(term)}
-                                style={{
-                                    background: 'var(--bg-tertiary)',
-                                    padding: '8px 16px',
-                                    borderRadius: '20px',
-                                    fontSize: '0.9rem',
-                                    color: 'var(--text-secondary)',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px',
-                                    transition: 'all 0.2s'
-                                }}
-                                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                                onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
-                            >
-                                <History size={14} />
-                                {term}
+                            <div key={index} className="recent-pill">
                                 <button
-                                    onClick={(e) => removeHistoryItem(e, term)}
-                                    style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        color: 'var(--text-secondary)',
-                                        cursor: 'pointer',
-                                        padding: '2px',
-                                        display: 'flex',
-                                        marginLeft: '4px'
-                                    }}
+                                    type="button"
+                                    className="recent-term truncate"
+                                    onClick={() => handleHistoryClick(term)}
                                 >
-                                    <X size={14} />
+                                    {term}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="recent-remove"
+                                    aria-label={`Remove ${term} from recent searches`}
+                                    onClick={(e) => removeHistoryItem(e, term)}
+                                >
+                                    <X size={14} aria-hidden="true" />
                                 </button>
                             </div>
                         ))}
@@ -245,7 +196,7 @@ const Search = () => {
             )}
 
             {/* Browse Categories */}
-            {!query && !selectedGenre && (
+            {browsing && (
                 <BrowseCategories
                     onOpenGenre={handleGenreClick}
                     onOpenItem={(item) => navigate(`/${item.type}/${item.id}`)}
@@ -253,25 +204,30 @@ const Search = () => {
             )}
 
             {/* No Results */}
-            {displayedResults.length === 0 && (query || selectedGenre) && (
-                <div className="flex-center" style={{ marginTop: '40px', flexDirection: 'column', color: 'var(--text-secondary)' }}>
-                    <SearchIcon size={48} style={{ opacity: 0.2, marginBottom: '16px' }} />
+            {displayedResults.length === 0 && !browsing && (
+                <div className="empty-state search-empty">
+                    <SearchIcon size={40} className="search-empty-icon" aria-hidden="true" />
                     <p>No results found for "{query || selectedGenre}"</p>
-                    {filterType !== 'all' && <p style={{ fontSize: '0.85rem' }}>Try changing the filter type.</p>}
+                    {filterType !== 'all' && <p className="search-empty-hint">Try changing the filter type.</p>}
                 </div>
             )}
 
             {/* Results Grid */}
             {displayedResults.length > 0 && (
-                <div className="grid-layout">
-                    {displayedResults.map(item => (
-                        <MovieCard
-                            key={`${item.type}-${item.id}`}
-                            movie={item}
-                            onClick={(id) => handleResultClick(id, item.type)}
-                        />
-                    ))}
-                </div>
+                <>
+                    <div className="mono-label" aria-live="polite">
+                        {displayedResults.length} {displayedResults.length === 1 ? 'result' : 'results'}
+                    </div>
+                    <div className="grid-layout">
+                        {displayedResults.map(item => (
+                            <MovieCard
+                                key={`${item.type}-${item.id}`}
+                                movie={item}
+                                onClick={(id) => handleResultClick(id, item.type)}
+                            />
+                        ))}
+                    </div>
+                </>
             )}
         </div>
     );

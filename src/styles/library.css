@@ -1,0 +1,51 @@
+/* Library page. Tokens and shared classes live in index.css. */
+
+/* ----- Sort / type dropdown pills + title count ----- */
+.library-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* A native <select> dressed as a pill, with our own chevron over its right edge. */
+.select-pill {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.select-pill select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  max-width: 100%;
+  padding-right: 36px;
+  outline-offset: 2px;
+  text-overflow: ellipsis;
+}
+
+.select-pill select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
+.select-pill svg {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--text-primary);
+}
+
+.library-count {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.library-empty .pill-btn {
+  margin-top: 8px;
+}
