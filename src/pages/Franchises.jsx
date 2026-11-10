@@ -3,17 +3,18 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, ChevronDown, Layers } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { useFranchises } from '../hooks/useFranchiseProgress';
-import { releaseInstant, viewerDayRule } from '../services/releaseTime';
+import { formatZonedDate, releaseInstant, viewerDayRule } from '../services/releaseTime';
 import '../styles/franchises.css';
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 const Franchise = ({ franchise, open, onToggle }) => {
     const { timeZone, watchlist, addToWatchlist, markAsWatched, removeFromWatched } = useUser();
-    const now = new Date();
-    // A film with no date, or a date still ahead, can't have been watched yet.
-    const isOut = (film) =>
-        Boolean(film.releaseDate) && releaseInstant(film.releaseDate, viewerDayRule(timeZone)) <= now;
+    // "13 Nov 2026" for a film still to come, or a plain note when TMDB has
+    // only announced it.
+    const comingDate = (film) => (film.releaseDate
+        ? formatZonedDate(releaseInstant(film.releaseDate, viewerDayRule(timeZone)), timeZone, { weekday: undefined, year: 'numeric' })
+        : 'Date to be announced');
 
     const toggle = (film) => {
         if (film.watched) {
@@ -73,33 +74,51 @@ const Franchise = ({ franchise, open, onToggle }) => {
                         ? `All ${franchise.total} films watched`
                         : <>Next: <strong>{franchise.next.title}</strong>{franchise.next.year ? ` (${franchise.next.year})` : ''}</>}
                 </span>
+                {franchise.newFilm && (
+                    <span className="fr-note" style={{ display: 'block' }}>
+                        <span className="pill-tag">New</span> {franchise.newFilm.title} is out
+                    </span>
+                )}
+                {franchise.upcoming.length > 0 && (
+                    <span className="fr-note" style={{ display: 'block' }}>
+                        <span className="badge">Coming</span> {franchise.upcoming[0].title} · {comingDate(franchise.upcoming[0])}
+                        {franchise.upcoming.length > 1 ? ` · +${franchise.upcoming.length - 1} more` : ''}
+                    </span>
+                )}
             </button>
 
             {open && (
                 <div id={panelId}>
                     <ul className="fr-films">
-                        {franchise.films.map((film) => {
-                            const out = isOut(film);
-                            return (
-                                <li key={film.id} className="fr-film">
-                                    <button
-                                        type="button"
-                                        className="fr-tick"
-                                        aria-pressed={film.watched}
-                                        aria-label={film.watched ? `Mark ${film.title} as not watched` : `Mark ${film.title} as watched`}
-                                        disabled={!out && !film.watched}
-                                        onClick={() => toggle(film)}
-                                    >
-                                        <span><Check size={14} strokeWidth={3} aria-hidden="true" /></span>
-                                    </button>
-                                    <Link to={`/movie/${film.id}`} className="fr-film-link">
-                                        <span className="truncate">{film.title}</span>
-                                        <span className="mono-label">{out ? film.year : (film.year ? `${film.year} · not out` : 'Not out')}</span>
-                                    </Link>
-                                </li>
-                            );
-                        })}
+                        {franchise.films.map((film) => (
+                            <li key={film.id} className="fr-film">
+                                <button
+                                    type="button"
+                                    className="fr-tick"
+                                    aria-pressed={film.watched}
+                                    aria-label={film.watched ? `Mark ${film.title} as not watched` : `Mark ${film.title} as watched`}
+                                    onClick={() => toggle(film)}
+                                >
+                                    <span><Check size={14} strokeWidth={3} aria-hidden="true" /></span>
+                                </button>
+                                <Link to={`/movie/${film.id}`} className="fr-film-link">
+                                    <span className="truncate">{film.title}</span>
+                                    <span className="mono-label">{film.year}</span>
+                                </Link>
+                            </li>
+                        ))}
                     </ul>
+                    {franchise.upcoming.length > 0 && (
+                        <div className="fr-coming">
+                            <div className="mono-label">Not out yet · not counted</div>
+                            {franchise.upcoming.map((film) => (
+                                <Link key={film.id} to={`/movie/${film.id}`} className="fr-film-link">
+                                    <span className="truncate">{film.title}</span>
+                                    <span className="mono-label">{comingDate(film)}</span>
+                                </Link>
+                            ))}
+                        </div>
+                    )}
                     {toSave.length > 0 && (
                         <button type="button" className="pill-btn inverse fr-add" onClick={addRemaining}>
                             Add remaining to watchlist
@@ -114,9 +133,12 @@ const Franchise = ({ franchise, open, onToggle }) => {
 const Franchises = () => {
     const navigate = useNavigate();
     const { loading, franchises } = useFranchises();
-    // Open the one closest to being finished to begin with.
+    // Open the one closest to being finished to begin with. The choice is
+    // pinned once the list arrives, so ticking a film (which can reorder the
+    // list) doesn't close the franchise being worked on.
     const [openId, setOpenId] = useState(undefined);
     const firstId = franchises[0]?.id;
+    if (openId === undefined && firstId !== undefined) setOpenId(firstId);
     const current = openId === undefined ? firstId : openId;
 
     const inProgress = franchises.filter((f) => !f.complete && f.watched > 0).length;

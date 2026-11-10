@@ -315,7 +315,9 @@ const FranchiseTile = ({ progress }) => (
                 {progress.watched}/{progress.total}
             </span>
         </div>
-        <div className="mini-tile-foot tile-sub">{progress.name}</div>
+        <div className="mini-tile-foot tile-sub">
+            {progress.newFilm ? `New: ${progress.newFilm} is out` : progress.name}
+        </div>
     </Link>
 );
 
