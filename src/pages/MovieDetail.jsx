@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Play, Plus, Check, Share2, Bell, Star, Film, Layers, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Play, Plus, Check, Share, Bell, Clock, ChevronDown, RefreshCw } from 'lucide-react';
 import { getDetails, mapMediaData, getTVSeasonDetails, getCollection, getMovieReleaseForCountry, clearTmdbCache } from '../services/tmdb';
 import {
     PRECISION,
@@ -14,6 +14,9 @@ import {
 } from '../services/releaseTime';
 import { TrailerModal } from '../components/TrailerModal';
 import { useUser } from '../context/UserContext';
+import '../styles/detail.css';
+
+const pad2 = (n) => String(n).padStart(2, '0');
 
 // Reusable Detail Component (handles both Movie and TV)
 const MediaDetail = ({ type }) => {
@@ -187,25 +190,25 @@ const MediaDetail = ({ type }) => {
 
     if (loading) {
         return (
-            <div className="container" style={{ paddingTop: '100px', textAlign: 'center' }}>
+            <div className="container detail-status" role="status" aria-label="Loading">
                 <div className="spinner"></div>
             </div>
         );
     }
     if (!item) {
         return (
-            <div className="container" style={{ paddingTop: '100px', textAlign: 'center' }}>
-                <h2>Couldn't load this title</h2>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-                    It may not exist, or the connection dropped.
-                </p>
-                <div className="flex-center" style={{ gap: '12px', flexWrap: 'wrap' }}>
-                    <button type="button" className="spotlight-btn primary" onClick={retry}>
-                        <RefreshCw size={16} /> Try again
-                    </button>
-                    <button type="button" className="spotlight-btn ghost" onClick={() => navigate(-1)}>
-                        <ArrowLeft size={16} /> Go back
-                    </button>
+            <div className="container detail-status">
+                <div className="tile detail-error">
+                    <h2>Couldn't load this title</h2>
+                    <p>It may not exist, or the connection dropped.</p>
+                    <div className="detail-error-actions">
+                        <button type="button" className="pill-btn primary" onClick={retry}>
+                            <RefreshCw size={16} aria-hidden="true" /> Try again
+                        </button>
+                        <button type="button" className="pill-btn ghost" onClick={() => navigate(-1)}>
+                            <ArrowLeft size={16} aria-hidden="true" /> Go back
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -248,512 +251,416 @@ const MediaDetail = ({ type }) => {
         });
     });
 
+    const reminderSet = isReminderSet(item.id, item.type);
+
+    // "8.4 RATING · 2024 · 2 SEASONS · 16 EPS" — only the parts TMDB actually has.
+    const metaParts = [
+        item.rating && item.rating !== 'N/A' ? `${item.rating} rating` : null,
+        item.year && item.year !== 'N/A' ? item.year : null,
+        ...(item.type === 'tv'
+            ? [`${item.seasons} Seasons`, `${item.episodes} Eps`]
+            : [item.runtime]),
+        notOutYet ? 'Not released yet' : null,
+    ].filter(Boolean);
+
+    const episodeList = seasons[selectedSeason];
+
     return (
-        <div style={{ paddingBottom: '100px', background: 'var(--bg-primary)', minHeight: '100vh' }}>
-            {/* Hero Header */}
-            <div style={{ position: 'relative', height: '50vh' }}>
-                <img
-                    src={item.backdrop || item.poster}
-                    alt={item.title}
-                    fetchPriority="high"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-                <div style={{
-                    position: 'absolute', inset: 0,
-                    background: 'linear-gradient(to bottom, rgba(0,0,0,0.3), var(--bg-primary))'
-                }} />
-
-                <button
-                    onClick={() => navigate(-1)}
-                    className="top-bar-btn"
-                    style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 20 }}
-                >
-                    <ArrowLeft size={24} />
-                </button>
-
-                {/* Play Trailer Button (Hero Overlay) */}
-                {item.trailerKey && (
+        <>
+            <motion.div
+                className="container page detail-page"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+            >
+                {/* Hero: full-bleed backdrop */}
+                <div className="detail-hero">
+                    <img
+                        src={item.backdrop || item.poster}
+                        alt={item.title}
+                        fetchPriority="high"
+                    />
                     <button
-                        onClick={() => setShowTrailer(true)}
-                        style={{
-                            position: 'absolute',
-                            top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                            background: 'rgba(239, 68, 68, 0.9)', // Brand red with transparency
-                            border: 'none', borderRadius: '50%',
-                            width: '64px', height: '64px',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer',
-                            boxShadow: '0 0 20px rgba(220, 38, 38, 0.6)',
-                            zIndex: 10
-                        }}
+                        type="button"
+                        onClick={() => navigate(-1)}
+                        className="detail-hero-back"
+                        aria-label="Back"
                     >
-                        <Play size={28} fill="white" color="white" style={{ marginLeft: '4px' }} />
+                        <ArrowLeft size={20} strokeWidth={2.5} aria-hidden="true" />
                     </button>
-                )}
-            </div>
+                    {item.trailerKey && (
+                        <button
+                            type="button"
+                            onClick={() => setShowTrailer(true)}
+                            className="detail-hero-play"
+                            aria-label="Play trailer"
+                        >
+                            <Play size={22} fill="currentColor" aria-hidden="true" />
+                        </button>
+                    )}
+                </div>
 
-            <div className="container" style={{ marginTop: '-80px', position: 'relative', zIndex: 10 }}>
-                {/* Title & Stats */}
-                <motion.div
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                >
-                    <h1 style={{ fontSize: '2.5rem', lineHeight: 1.1, marginBottom: '10px', textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>
-                        {item.title}
-                    </h1>
+                {/* Title & stats */}
+                <header>
+                    <h1 className="detail-title">{item.title}</h1>
+                    {metaParts.length > 0 && (
+                        <div className="detail-meta">{metaParts.join(' · ')}</div>
+                    )}
+                </header>
 
-                    <div className="flex-center" style={{ justifyContent: 'flex-start', gap: '16px', marginBottom: '20px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--accent-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Star size={16} fill="currentColor" /> {item.rating}
-                        </span>
-                        <span>{item.year}</span>
-                        {item.type === 'tv' ? (
-                            <span>{item.seasons} Seasons • {item.episodes} Eps</span>
+                {/* Action tiles */}
+                <div className={`action-grid detail-actions ${type === 'movie' ? 'is-four' : ''}`}>
+                    {type === 'movie' && (
+                        notOutYet ? (
+                            <button type="button" className="action-btn" disabled>
+                                <Clock size={20} aria-hidden="true" />
+                                <span>Not Released</span>
+                            </button>
                         ) : (
-                            <span>{item.runtime}</span>
-                        )}
-
-                    </div>
-
-                    {/* Action Grid */}
-                    <div className="action-grid" style={{ gridTemplateColumns: type === 'tv' ? '1fr 1fr 1fr' : '2fr 1fr 1fr 1fr' }}>
-                        {type === 'movie' && (
-                            notOutYet ? (
-                                <button className="action-btn secondary" disabled style={{ opacity: 0.5, cursor: 'not-allowed' }}>
-                                    Not Released
-                                </button>
-                            ) : (
-                                <button
-                                    className={`action-btn ${isWatched ? 'secondary' : 'primary'}`}
-                                    onClick={() => withUser(() => isWatched ? removeFromWatched(item) : markAsWatched(item))}
-                                >
-                                    <Check size={24} />
-                                    <span>{isWatched ? 'Watched' : 'Mark Watched'}</span>
-                                </button>
-                            )
-                        )}
-
-                        <button
-                            className={`action-btn ${isInWatchlist ? 'active' : 'secondary'}`}
-                            onClick={() => withUser(() => isInWatchlist ? removeFromWatchlist(item.id, type) : addToWatchlist(item))}
-                        >
-                            {isInWatchlist ? <Check size={24} /> : <Plus size={24} />}
-                            <span>My List</span>
-                        </button>
-
-                        {/* Secondary Trailer Button */}
-                        <button
-                            className="action-btn secondary"
-                            disabled={!item.trailerKey}
-                            style={{ opacity: item.trailerKey ? 1 : 0.3 }}
-                            onClick={() => item.trailerKey && setShowTrailer(true)}
-                        >
-                            <Film size={24} />
-                            <span>Trailer</span>
-                        </button>
-
-                        <button
-                            className="action-btn secondary"
-                            onClick={handleShare}
-                        >
-                            {copied ? <Check size={24} /> : <Share2 size={24} />}
-                            <span>{copied ? 'Copied!' : 'Share'}</span>
-                        </button>
-                    </div>
-
-                    <p style={{ lineHeight: 1.6, fontSize: '1rem', color: '#ccc' }}>{item.plot || "No overview available."}</p>
-
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', margin: '20px 0' }}>
-                        {item.genres?.map(g => (
-                            <span key={g} className="meta-tag">
-                                {g}
-                            </span>
-                        ))}
-                    </div>
-
-
-                    {/* Cast Section */}
-                    {item.credits && item.credits.length > 0 && (
-                        <div style={{ marginTop: '30px', marginBottom: '30px' }}>
-                            <h3 style={{ marginBottom: '16px' }}>Cast</h3>
-                            <div style={{
-                                display: 'flex',
-                                gap: '16px',
-                                overflowX: 'auto',
-                                paddingBottom: '16px',
-                                scrollbarWidth: 'none',
-                                msOverflowStyle: 'none'
-                            }}>
-                                {item.credits.map((actor) => (
-                                    <div
-                                        key={actor.id}
-                                        onClick={() => navigate(`/person/${actor.id}`)}
-                                        style={{ minWidth: '100px', textAlign: 'center', cursor: 'pointer' }}
-                                    >
-                                        <img
-                                            src={actor.profile_path
-                                                ? `https://image.tmdb.org/t/p/w185${actor.profile_path}`
-                                                : '/poster-placeholder.svg'}
-                                            alt={actor.name}
-                                            loading="lazy"
-                                            style={{
-                                                width: '100px',
-                                                height: '100px',
-                                                borderRadius: '50%',
-                                                objectFit: 'cover',
-                                                border: '2px solid var(--bg-tertiary)',
-                                                marginBottom: '8px'
-                                            }}
-                                        />
-                                        <p style={{ fontSize: '0.85rem', fontWeight: '600', margin: 0 }}>{actor.name}</p>
-                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>{actor.character}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+                            <button
+                                type="button"
+                                className={`action-btn ${isWatched ? 'active' : ''}`}
+                                aria-pressed={isWatched}
+                                onClick={() => withUser(() => isWatched ? removeFromWatched(item) : markAsWatched(item))}
+                            >
+                                <Check size={20} strokeWidth={2.5} aria-hidden="true" />
+                                <span>{isWatched ? 'Watched' : 'Mark Watched'}</span>
+                            </button>
+                        )
                     )}
 
-                    {/* Franchise / Collection Tracking - Movies Only */}
-                    {type === 'movie' && franchiseParts.length > 1 && (
-                        <div style={{ marginTop: '30px', marginBottom: '30px' }}>
-                            <div className="flex-between" style={{ marginBottom: '16px' }}>
-                                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <Layers size={20} color="var(--brand-600)" /> {collection.name}
-                                </h3>
-                                <span style={{
-                                    fontSize: '0.85rem', fontWeight: 700, color: 'var(--brand-600)',
-                                    background: 'rgba(220,38,38,0.12)', padding: '4px 10px', borderRadius: '999px'
-                                }}>
-                                    {franchiseWatchedCount}/{franchiseParts.length} watched
-                                </span>
-                            </div>
+                    <button
+                        type="button"
+                        className={`action-btn ${isInWatchlist ? 'active' : ''}`}
+                        aria-pressed={isInWatchlist}
+                        onClick={() => withUser(() => isInWatchlist ? removeFromWatchlist(item.id, type) : addToWatchlist(item))}
+                    >
+                        {isInWatchlist
+                            ? <Check size={20} strokeWidth={2.5} aria-hidden="true" />
+                            : <Plus size={20} strokeWidth={2.5} aria-hidden="true" />}
+                        <span>{isInWatchlist ? 'In my list' : 'My List'}</span>
+                    </button>
 
-                            {/* Progress bar */}
-                            <div style={{ height: '6px', background: 'var(--bg-tertiary)', borderRadius: '999px', overflow: 'hidden', marginBottom: '16px' }}>
-                                <motion.div
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${(franchiseWatchedCount / franchiseParts.length) * 100}%` }}
-                                    transition={{ duration: 0.6 }}
-                                    style={{ height: '100%', background: 'var(--accent-gradient)' }}
-                                />
-                            </div>
+                    <button
+                        type="button"
+                        className="action-btn"
+                        disabled={!item.trailerKey}
+                        onClick={() => item.trailerKey && setShowTrailer(true)}
+                    >
+                        <Play size={20} fill="currentColor" aria-hidden="true" />
+                        <span>Trailer</span>
+                    </button>
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {franchiseParts.map((part) => {
-                                    const seen = watched.some((w) => w.id === part.id && w.type === 'movie');
-                                    const isCurrent = part.id === item.id;
-                                    return (
-                                        <div
-                                            key={part.id}
-                                            onClick={() => !isCurrent && navigate(`/movie/${part.id}`)}
-                                            className="glass-panel"
-                                            style={{
-                                                padding: '10px 12px', borderRadius: 'var(--radius-md)',
-                                                display: 'flex', alignItems: 'center', gap: '12px',
-                                                cursor: isCurrent ? 'default' : 'pointer',
-                                                border: `1px solid ${isCurrent ? 'var(--brand-600)' : 'rgba(255,255,255,0.05)'}`,
-                                                opacity: seen ? 0.75 : 1
-                                            }}
-                                        >
-                                            <div style={{
-                                                width: '24px', height: '24px', borderRadius: '50%', flexShrink: 0,
-                                                border: `2px solid ${seen ? 'var(--brand-600)' : 'var(--text-secondary)'}`,
-                                                background: seen ? 'var(--brand-600)' : 'transparent',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                            }}>
-                                                {seen && <Check size={14} color="white" strokeWidth={3} />}
-                                            </div>
-                                            <img
-                                                src={part.poster}
-                                                alt={part.title}
-                                                loading="lazy"
-                                                style={{ width: '40px', height: '60px', borderRadius: '6px', objectFit: 'cover', flexShrink: 0 }}
-                                            />
-                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div style={{ fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                    {part.title}{isCurrent ? ' • Now viewing' : ''}
-                                                </div>
-                                                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{part.year || 'TBA'}</div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                    <button type="button" className="action-btn" onClick={handleShare}>
+                        {copied
+                            ? <Check size={20} strokeWidth={2.5} aria-hidden="true" />
+                            : <Share size={20} aria-hidden="true" />}
+                        <span aria-live="polite">{copied ? 'Copied!' : 'Share'}</span>
+                    </button>
+                </div>
 
-                            {franchiseWatchedCount < franchiseParts.length && (
-                                <button
-                                    onClick={addFranchiseToWatchlist}
-                                    className="btn"
-                                    style={{ width: '100%', marginTop: '14px', background: 'var(--bg-tertiary)' }}
-                                >
-                                    <Plus size={18} style={{ marginRight: '8px' }} /> Add remaining to watchlist
-                                </button>
-                            )}
+                {/* Countdown to the next episode / the local opening day */}
+                {timeLeft && (
+                    <section className="tile" aria-label="Countdown">
+                        <h2 className="tile-label detail-countdown-label">
+                            {item.type === 'tv'
+                                ? `Season ${item.nextEpisode?.season_number} Episode ${item.nextEpisode?.episode_number} airs in`
+                                : 'Movie premiere in'}
+                        </h2>
+                        <div className="detail-countdown-nums">
+                            <div>
+                                <div className="detail-countdown-num">{pad2(timeLeft.days)}</div>
+                                <div className="detail-countdown-unit">DAYS</div>
+                            </div>
+                            <div>
+                                <div className="detail-countdown-num">{pad2(timeLeft.hours)}</div>
+                                <div className="detail-countdown-unit">HOURS</div>
+                            </div>
+                            <div>
+                                <div className="detail-countdown-num">{pad2(timeLeft.minutes)}</div>
+                                <div className="detail-countdown-unit">MINS</div>
+                            </div>
                         </div>
-                    )}
 
-                    {/* Episodes Section - TV Shows Only */}
-                    {type === 'tv' && item.seasons > 0 && (
-                        <div style={{ marginTop: '30px', marginBottom: '30px' }}>
-                            <div className="episodes-header">
-                                <h3>Episodes</h3>
-                                <div className="episodes-actions">
-                                    {seasons[selectedSeason] && seasons[selectedSeason].length > 0 && (() => {
-                                        // Only episodes that have actually aired — marking
-                                        // a season seen shouldn't tick off next month's.
-                                        const episodeNumbers = seasons[selectedSeason]
-                                            .filter((ep) => {
-                                                const air = resolveReleaseTime({
-                                                    dateStr: ep.air_date,
-                                                    rule: airRule || viewerDayRule(timeZone),
-                                                    viewerZone: timeZone,
-                                                });
-                                                return air ? air.hasAired : true;
-                                            })
-                                            .map(ep => ep.episode_number);
-                                        if (episodeNumbers.length === 0) return null;
-                                        const seasonSeen = isSeasonWatched(item.id, selectedSeason, episodeNumbers);
-                                        return (
-                                            <button
-                                                type="button"
-                                                onClick={() => withUser(() => setSeasonWatched(item.id, selectedSeason, episodeNumbers, !seasonSeen))}
-                                                className={`season-mark-btn ${seasonSeen ? 'seen' : ''}`}
-                                                aria-pressed={seasonSeen}
-                                                title={seasonSeen ? 'Mark this season as not seen' : 'Mark every episode this season as seen'}
-                                            >
-                                                <span className="btn-check">
-                                                    {seasonSeen && <Check size={13} strokeWidth={3} />}
-                                                </span>
-                                                <span>{seasonSeen ? 'Season Seen' : 'Mark Season Seen'}</span>
-                                            </button>
-                                        );
-                                    })()}
-                                    <select
-                                        value={selectedSeason}
-                                        onChange={(e) => setSelectedSeason(Number(e.target.value))}
-                                        className="input-field season-select"
-                                        aria-label="Select season"
-                                    >
-                                        {Array.from({ length: item.seasons }, (_, i) => i + 1).map(seasonNum => (
-                                            <option key={seasonNum} value={seasonNum}>Season {seasonNum}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            {loadingEpisodes ? (
-                                <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-secondary)' }}>
-                                    Loading episodes...
-                                </div>
-                            ) : seasons[selectedSeason] ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    {seasons[selectedSeason].map((episode) => {
-                                        const isWatchedEp = isEpisodeWatched(item.id, selectedSeason, episode.episode_number);
-                                        // The real moment this episode airs, in the
-                                        // viewer's clock. Episodes with no date at all
-                                        // stay markable — TMDB omits dates for some
-                                        // long-aired specials.
-                                        const air = resolveReleaseTime({
-                                            dateStr: episode.air_date,
-                                            rule: airRule || viewerDayRule(timeZone),
-                                            viewerZone: timeZone,
-                                        });
-                                        const aired = air ? air.hasAired : true;
-                                        return (
-                                            <div
-                                                key={episode.id}
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    // Nothing to mark watched before it airs.
-                                                    if (!aired) return;
-                                                    withUser(() => toggleEpisodeWatched(item.id, selectedSeason, episode.episode_number));
-                                                }}
-                                                className="glass-panel"
-                                                style={{
-                                                    padding: '12px 16px',
-                                                    borderRadius: 'var(--radius-md)',
-                                                    cursor: aired ? 'pointer' : 'default',
-                                                    display: 'flex',
-                                                    alignItems: 'flex-start',
-                                                    gap: '12px',
-                                                    transition: 'all 0.2s',
-                                                    border: `1px solid ${isWatchedEp ? 'var(--brand-600)' : 'rgba(255,255,255,0.05)'}`,
-                                                    opacity: isWatchedEp ? 0.7 : 1
-                                                }}
-                                            >
-                                                <div style={{
-                                                    width: '24px',
-                                                    height: '24px',
-                                                    borderRadius: '50%',
-                                                    border: `2px solid ${isWatchedEp ? 'var(--brand-600)' : aired ? 'var(--text-secondary)' : 'rgba(255,255,255,0.15)'}`,
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    background: isWatchedEp ? 'var(--brand-600)' : 'transparent',
-                                                    flexShrink: 0,
-                                                    marginTop: '2px'
-                                                }}>
-                                                    {isWatchedEp && <Check size={14} color="white" strokeWidth={3} />}
-                                                </div>
-                                                <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <div style={{
-                                                        fontWeight: '600',
-                                                        marginBottom: '4px',
-                                                        wordWrap: 'break-word',
-                                                        overflowWrap: 'break-word'
-                                                    }}>
-                                                        {episode.episode_number}. {episode.name}
-                                                    </div>
-                                                    {air && (
-                                                        <div style={{
-                                                            fontSize: '0.78rem',
-                                                            fontWeight: aired ? 400 : 600,
-                                                            color: aired ? 'var(--text-tertiary)' : 'var(--brand-600)',
-                                                            marginBottom: '4px'
-                                                        }}>
-                                                            {describeRelease(air, { verb: 'air', zone: timeZone })}
-                                                            {air.precision === PRECISION.ESTIMATED && air.timeLabel ? ' (est.)' : ''}
-                                                        </div>
-                                                    )}
-                                                    {episode.overview && (
-                                                        <div style={{
-                                                            fontSize: '0.85rem',
-                                                            color: 'var(--text-secondary)',
-                                                            display: '-webkit-box',
-                                                            WebkitLineClamp: 2,
-                                                            WebkitBoxOrient: 'vertical',
-                                                            overflow: 'hidden',
-                                                            wordWrap: 'break-word',
-                                                            overflowWrap: 'break-word',
-                                                            lineHeight: '1.4'
-                                                        }}>
-                                                            {episode.overview}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                {episode.runtime && (
-                                                    <span style={{
-                                                        color: 'var(--text-secondary)',
-                                                        fontSize: '0.85rem',
-                                                        flexShrink: 0,
-                                                        marginTop: '2px'
-                                                    }}>
-                                                        {episode.runtime}min
-                                                    </span>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-secondary)' }}>
-                                    No episodes found for this season
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Countdown to the next episode / the local opening day */}
-                    {timeLeft && (
-                        <div className="glass-panel" style={{
-                            padding: '24px', borderRadius: 'var(--radius-lg)',
-                            border: '1px solid var(--brand-600)', marginTop: '20px', textAlign: 'center',
-                            boxShadow: '0 4px 20px rgba(220, 38, 38, 0.2)'
-                        }}>
-                            <h3 style={{ color: 'var(--brand-600)' }}>
-                                {item.type === 'tv'
-                                    ? `Season ${item.nextEpisode?.season_number} Episode ${item.nextEpisode?.episode_number} Airs In`
-                                    : 'Movie Premiere In'}
-                            </h3>
-                            <div className="flex-center" style={{ gap: '24px', marginTop: '16px', marginBottom: '16px' }}>
-                                <div>
-                                    <span style={{ fontSize: '2.5rem', fontWeight: '800', lineHeight: 1 }}>{timeLeft.days}</span>
-                                    <p style={{ fontSize: '0.9rem', margin: 0, color: 'var(--text-secondary)' }}>DAYS</p>
-                                </div>
-                                <div style={{ width: '1px', height: '40px', background: 'var(--bg-tertiary)' }}></div>
-                                <div>
-                                    <span style={{ fontSize: '2.5rem', fontWeight: '800', lineHeight: 1 }}>{timeLeft.hours}</span>
-                                    <p style={{ fontSize: '0.9rem', margin: 0, color: 'var(--text-secondary)' }}>HOURS</p>
-                                </div>
-                                <div style={{ width: '1px', height: '40px', background: 'var(--bg-tertiary)' }}></div>
-                                <div>
-                                    <span style={{ fontSize: '2.5rem', fontWeight: '800', lineHeight: 1 }}>{timeLeft.minutes}</span>
-                                    <p style={{ fontSize: '0.9rem', margin: 0, color: 'var(--text-secondary)' }}>MINS</p>
-                                </div>
-                            </div>
-
+                        <div className="detail-countdown-foot">
                             {/* The actual moment, in the viewer's own clock */}
-                            <p style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: 600 }}>
+                            <p className="detail-countdown-when">
                                 {describeRelease(release, { verb: item.type === 'tv' ? 'air' : 'release', zone: timeZone })}
                                 {release.timeLabel ? ` ${zoneAbbreviation(release.instant, timeZone)}` : ''}
-                            </p>
-                            <p style={{ margin: '0 0 16px 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                                {release.precision === PRECISION.ESTIMATED
-                                    ? `Estimated from ${release.sourceLabel || 'the channel'}'s usual slot — local broadcasters don't publish an exact time`
-                                    : release.precision === PRECISION.DAY
-                                        ? 'Exact time not announced yet'
-                                        : release.global
-                                            ? `${release.sourceLabel} drops worldwide at this moment`
-                                            : movieRelease?.isFallback
-                                                ? `${movieRelease.typeLabel} — ${movieRelease.country} date (no date listed for your country yet)`
-                                                : `${release.sourceLabel || 'Release'}${type === 'movie' ? ` in ${movieRelease?.country || user?.country || 'your country'}` : ''}`}
+                                <span className="detail-countdown-note">
+                                    {release.precision === PRECISION.ESTIMATED
+                                        ? `Estimated from ${release.sourceLabel || 'the channel'}'s usual slot — local broadcasters don't publish an exact time`
+                                        : release.precision === PRECISION.DAY
+                                            ? 'Exact time not announced yet'
+                                            : release.global
+                                                ? `${release.sourceLabel} drops worldwide at this moment`
+                                                : movieRelease?.isFallback
+                                                    ? `${movieRelease.typeLabel} — ${movieRelease.country} date (no date listed for your country yet)`
+                                                    : `${release.sourceLabel || 'Release'}${type === 'movie' ? ` in ${movieRelease?.country || user?.country || 'your country'}` : ''}`}
+                                </span>
                             </p>
                             <button
-                                className="btn"
-                                style={{
-                                    width: '100%',
-                                    background: isReminderSet(item.id, item.type) ? 'var(--bg-tertiary)' : undefined
-                                }}
+                                type="button"
+                                className={`pill-btn ${reminderSet ? 'tint' : 'inverse'}`}
+                                aria-pressed={reminderSet}
                                 onClick={() => withUser(() => toggleReminder(item))}
                             >
-                                {isReminderSet(item.id, item.type) ? (
-                                    <><Check size={18} style={{ marginRight: '8px' }} /> Reminder Set</>
+                                {reminderSet ? (
+                                    <><Check size={16} strokeWidth={2.5} aria-hidden="true" /> Reminder set</>
                                 ) : (
-                                    <><Bell size={18} style={{ marginRight: '8px' }} /> Notify Me</>
+                                    <><Bell size={16} strokeWidth={2.5} aria-hidden="true" /> Notify me</>
                                 )}
                             </button>
                         </div>
-                    )}
+                    </section>
+                )}
 
-                    {/* A series between episodes is still streamable, so it gets both
-                        the countdown and this; an unreleased movie gets neither. */}
-                    {(!timeLeft || type === 'tv') && (
-                        <div style={{ marginTop: timeLeft ? '20px' : '0px' }}>
-                            <h3 style={{ marginBottom: '16px' }}>Where to Watch</h3>
-
-                            {item.streaming && item.streaming.length > 0 ? (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '16px' }}>
-                                    {item.streaming.map((service) => (
-                                        <div key={service.id || service.name} className="glass-panel" style={{
-                                            display: 'flex', alignItems: 'center', gap: '16px',
-                                            padding: '16px',
-                                            borderRadius: '16px'
-                                        }}>
-                                            <img
-                                                src={service.logo}
-                                                alt={service.name}
-                                                loading="lazy"
-                                                style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover' }}
-                                            />
-                                            <span style={{ fontSize: '1.1rem', fontWeight: '600' }}>{service.name}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="glass-panel" style={{
-                                    padding: '24px',
-                                    borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)',
-                                    textAlign: 'center', color: 'var(--text-secondary)'
-                                }}>
-                                    <p style={{ margin: 0 }}>Not currently available for streaming.</p>
-                                </div>
-                            )}
+                {/* Overview + genres */}
+                <section>
+                    <p className="detail-overview">{item.plot || "No overview available."}</p>
+                    {item.genres?.length > 0 && (
+                        <div className="detail-genres">
+                            {item.genres.map(g => (
+                                <span key={g} className="meta-tag">{g}</span>
+                            ))}
                         </div>
                     )}
+                </section>
 
-                </motion.div>
-            </div>
+                {/* A series between episodes is still streamable, so it gets both
+                    the countdown and this; an unreleased movie gets neither. */}
+                {(!timeLeft || type === 'tv') && (
+                    <section className="detail-section">
+                        <h2 className="section-title">Where to watch</h2>
+                        {item.streaming && item.streaming.length > 0 ? (
+                            <div className="detail-providers">
+                                {item.streaming.map((service) => (
+                                    <div key={service.id || service.name} className="detail-provider">
+                                        <img src={service.logo} alt="" loading="lazy" />
+                                        <span>{service.name}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="tile-dashed">
+                                <p className="detail-empty">Not currently available for streaming.</p>
+                            </div>
+                        )}
+                    </section>
+                )}
+
+                {/* Franchise / collection tracking — movies only */}
+                {type === 'movie' && franchiseParts.length > 1 && (
+                    <section className="tile">
+                        <div className="detail-franchise-head">
+                            <h2 className="section-title truncate">{collection.name}</h2>
+                            <span className="pill-tag">
+                                {franchiseWatchedCount}/{franchiseParts.length} watched
+                            </span>
+                        </div>
+
+                        <div
+                            className="detail-progress"
+                            role="progressbar"
+                            aria-label={`${collection.name} watched`}
+                            aria-valuemin={0}
+                            aria-valuemax={franchiseParts.length}
+                            aria-valuenow={franchiseWatchedCount}
+                        >
+                            <motion.div
+                                className="detail-progress-fill"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${(franchiseWatchedCount / franchiseParts.length) * 100}%` }}
+                                transition={{ duration: 0.6 }}
+                            />
+                        </div>
+
+                        <ul className="detail-franchise-list">
+                            {franchiseParts.map((part) => {
+                                const seen = watched.some((w) => w.id === part.id && w.type === 'movie');
+                                const isCurrent = part.id === item.id;
+                                const row = (
+                                    <>
+                                        <span className={`detail-mark ${seen ? 'is-seen' : ''}`} aria-hidden="true">
+                                            <Check size={12} strokeWidth={3.5} />
+                                        </span>
+                                        <span className="detail-franchise-title truncate">{part.title}</span>
+                                        <span className="detail-franchise-note">
+                                            {isCurrent ? 'Now viewing' : part.year || 'TBA'}
+                                        </span>
+                                        <span className="detail-sr-only">{seen ? ', watched' : ', not watched'}</span>
+                                    </>
+                                );
+                                return (
+                                    <li key={part.id}>
+                                        {isCurrent ? (
+                                            <div className="detail-franchise-row" aria-current="page">{row}</div>
+                                        ) : (
+                                            <Link className="detail-franchise-row" to={`/movie/${part.id}`}>{row}</Link>
+                                        )}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+
+                        {franchiseWatchedCount < franchiseParts.length && (
+                            <button
+                                type="button"
+                                onClick={addFranchiseToWatchlist}
+                                className="pill-btn inverse block detail-franchise-add"
+                            >
+                                Add remaining to watchlist
+                            </button>
+                        )}
+                    </section>
+                )}
+
+                {/* Cast */}
+                {item.credits && item.credits.length > 0 && (
+                    <section className="detail-section">
+                        <h2 className="section-title">Cast</h2>
+                        <div className="detail-cast hide-scrollbar">
+                            {item.credits.map((actor) => (
+                                <Link
+                                    key={actor.id}
+                                    to={`/person/${actor.id}`}
+                                    className="detail-cast-item"
+                                >
+                                    <img
+                                        src={actor.profile_path
+                                            ? `https://image.tmdb.org/t/p/w185${actor.profile_path}`
+                                            : '/poster-placeholder.svg'}
+                                        alt=""
+                                        loading="lazy"
+                                    />
+                                    <span className="detail-cast-name">{actor.name}</span>
+                                    {actor.character && (
+                                        <span className="detail-cast-role">{actor.character}</span>
+                                    )}
+                                </Link>
+                            ))}
+                        </div>
+                    </section>
+                )}
+
+                {/* Episodes — TV shows only */}
+                {type === 'tv' && item.seasons > 0 && (
+                    <section className="detail-section">
+                        <div className="episodes-header">
+                            <h2 className="section-title">Episodes</h2>
+                            <div className="detail-season">
+                                <select
+                                    value={selectedSeason}
+                                    onChange={(e) => setSelectedSeason(Number(e.target.value))}
+                                    className="input-field season-select"
+                                    aria-label="Select season"
+                                >
+                                    {Array.from({ length: item.seasons }, (_, i) => i + 1).map(seasonNum => (
+                                        <option key={seasonNum} value={seasonNum}>Season {seasonNum}</option>
+                                    ))}
+                                </select>
+                                <ChevronDown size={14} strokeWidth={2.5} aria-hidden="true" />
+                            </div>
+                        </div>
+
+                        {episodeList && episodeList.length > 0 && (() => {
+                            // Only episodes that have actually aired — marking
+                            // a season seen shouldn't tick off next month's.
+                            const episodeNumbers = episodeList
+                                .filter((ep) => {
+                                    const air = resolveReleaseTime({
+                                        dateStr: ep.air_date,
+                                        rule: airRule || viewerDayRule(timeZone),
+                                        viewerZone: timeZone,
+                                    });
+                                    return air ? air.hasAired : true;
+                                })
+                                .map(ep => ep.episode_number);
+                            if (episodeNumbers.length === 0) return null;
+                            const seasonSeen = isSeasonWatched(item.id, selectedSeason, episodeNumbers);
+                            return (
+                                <button
+                                    type="button"
+                                    onClick={() => withUser(() => setSeasonWatched(item.id, selectedSeason, episodeNumbers, !seasonSeen))}
+                                    className={`season-mark-btn detail-season-mark ${seasonSeen ? 'seen' : ''}`}
+                                    aria-pressed={seasonSeen}
+                                    title={seasonSeen ? 'Mark this season as not seen' : 'Mark every episode this season as seen'}
+                                >
+                                    {seasonSeen && <Check size={16} strokeWidth={2.5} aria-hidden="true" />}
+                                    <span>{seasonSeen ? 'Season seen' : 'Mark season seen'}</span>
+                                </button>
+                            );
+                        })()}
+
+                        {loadingEpisodes ? (
+                            <div className="tile">
+                                <p className="detail-empty" role="status">Loading episodes...</p>
+                            </div>
+                        ) : episodeList && episodeList.length > 0 ? (
+                            <ul className="tile detail-episodes">
+                                {episodeList.map((episode) => {
+                                    const isWatchedEp = isEpisodeWatched(item.id, selectedSeason, episode.episode_number);
+                                    // The real moment this episode airs, in the
+                                    // viewer's clock. Episodes with no date at all
+                                    // stay markable — TMDB omits dates for some
+                                    // long-aired specials.
+                                    const air = resolveReleaseTime({
+                                        dateStr: episode.air_date,
+                                        rule: airRule || viewerDayRule(timeZone),
+                                        viewerZone: timeZone,
+                                    });
+                                    const aired = air ? air.hasAired : true;
+                                    const meta = [
+                                        air
+                                            ? `${describeRelease(air, { verb: 'air', zone: timeZone })}${air.precision === PRECISION.ESTIMATED && air.timeLabel ? ' (est.)' : ''}`
+                                            : null,
+                                        episode.runtime ? `${episode.runtime} min` : null,
+                                        aired ? null : 'Not aired yet',
+                                    ].filter(Boolean).join(' · ');
+                                    const tickLabel = !aired ? 'Not aired yet' : isWatchedEp ? 'Watched' : 'Mark watched';
+                                    return (
+                                        <li
+                                            key={episode.id}
+                                            className={`detail-episode ${isWatchedEp ? 'is-watched' : ''}`}
+                                        >
+                                            {/* Nothing to mark watched before it airs. */}
+                                            <button
+                                                type="button"
+                                                className="detail-tick"
+                                                disabled={!aired}
+                                                aria-pressed={aired ? isWatchedEp : undefined}
+                                                aria-label={`Episode ${episode.episode_number}: ${tickLabel}`}
+                                                onClick={() => {
+                                                    if (!aired) return;
+                                                    withUser(() => toggleEpisodeWatched(item.id, selectedSeason, episode.episode_number));
+                                                }}
+                                            >
+                                                <Check size={16} strokeWidth={3} aria-hidden="true" />
+                                            </button>
+                                            <div className="detail-episode-body">
+                                                <div className="detail-episode-title">
+                                                    {episode.episode_number}. {episode.name}
+                                                </div>
+                                                {meta && (
+                                                    <div className={`detail-episode-meta ${aired ? '' : 'is-upcoming'}`}>
+                                                        {meta}
+                                                    </div>
+                                                )}
+                                                {episode.overview && (
+                                                    <div className="detail-episode-overview">{episode.overview}</div>
+                                                )}
+                                            </div>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        ) : (
+                            <div className="tile">
+                                <p className="detail-empty">No episodes found for this season</p>
+                            </div>
+                        )}
+                    </section>
+                )}
+            </motion.div>
 
             {/* Trailer Modal */}
             <AnimatePresence>
@@ -765,8 +672,7 @@ const MediaDetail = ({ type }) => {
                     />
                 )}
             </AnimatePresence>
-
-        </div>
+        </>
     );
 };
 

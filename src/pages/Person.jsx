@@ -1,71 +1,55 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Check, Star } from 'lucide-react';
+import { ArrowLeft, Check } from 'lucide-react';
 import { getPersonDetails, getPersonCredits, imageUrl } from '../services/tmdb';
 import { useUser } from '../context/UserContext';
+import '../styles/person.css';
 
 // Circular "completion" ring showing how much of a person's filmography you've seen.
-const CompletionRing = ({ percent, watched, total }) => {
-    const size = 92;
+const CompletionRing = ({ percent }) => {
+    const size = 72;
     const stroke = 8;
     const radius = (size - stroke) / 2;
     const circumference = 2 * Math.PI * radius;
     const offset = circumference - (percent / 100) * circumference;
     return (
-        <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
-            <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-                <circle cx={size / 2} cy={size / 2} r={radius} fill="none"
-                    stroke="var(--bg-tertiary)" strokeWidth={stroke} />
-                <motion.circle cx={size / 2} cy={size / 2} r={radius} fill="none"
-                    stroke="var(--brand-600)" strokeWidth={stroke} strokeLinecap="round"
+        <div className="person-ring" role="img" aria-label={`${percent} percent of filmography watched`}>
+            <svg width={size} height={size} aria-hidden="true">
+                <circle className="person-ring-track" cx={size / 2} cy={size / 2} r={radius}
+                    fill="none" strokeWidth={stroke} />
+                <motion.circle className="person-ring-fill" cx={size / 2} cy={size / 2} r={radius}
+                    fill="none" strokeWidth={stroke} strokeLinecap="round"
                     strokeDasharray={circumference}
                     initial={{ strokeDashoffset: circumference }}
                     animate={{ strokeDashoffset: offset }}
                     transition={{ duration: 0.8, ease: 'easeOut' }} />
             </svg>
-            <div style={{
-                position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center'
-            }}>
-                <span style={{ fontSize: '1.4rem', fontWeight: 800, lineHeight: 1 }}>{percent}%</span>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{watched}/{total}</span>
-            </div>
+            <span className="person-ring-percent" aria-hidden="true">{percent}%</span>
         </div>
     );
 };
 
-const CreditCard = ({ credit, isSeen, onOpen, onToggle }) => (
-    <div className="card" style={{ position: 'relative' }}>
-        <img
-            src={credit.poster}
-            alt={credit.title}
-            loading="lazy"
-            onClick={onOpen}
-            style={{ cursor: 'pointer', opacity: isSeen ? 0.55 : 1 }}
-        />
+const CreditCard = ({ credit, isSeen, to, onToggle }) => (
+    <div className="card">
+        <Link to={to} className="person-credit-link">
+            <img src={credit.poster} alt="" loading="lazy" />
+            <div className="card-content">
+                <div className="card-title">{credit.title}</div>
+                <div className="card-meta">
+                    {credit.year || '—'}{credit.character ? ` · ${credit.character}` : credit.job ? ` · ${credit.job}` : ''}
+                </div>
+            </div>
+        </Link>
         <button
+            type="button"
+            className="person-tick"
             onClick={onToggle}
-            aria-label={isSeen ? 'Mark unwatched' : 'Mark watched'}
-            style={{
-                position: 'absolute', top: '8px', right: '8px',
-                width: '30px', height: '30px', borderRadius: '50%',
-                border: `2px solid ${isSeen ? 'var(--brand-600)' : 'rgba(255,255,255,0.7)'}`,
-                background: isSeen ? 'var(--brand-600)' : 'rgba(0,0,0,0.5)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', zIndex: 2, backdropFilter: 'blur(4px)'
-            }}
+            aria-pressed={isSeen}
+            aria-label={`${isSeen ? 'Mark unwatched' : 'Mark watched'}: ${credit.title}`}
         >
-            <Check size={16} color="white" strokeWidth={3} style={{ opacity: isSeen ? 1 : 0.85 }} />
+            <Check size={16} strokeWidth={3} aria-hidden="true" />
         </button>
-        <div className="card-content" onClick={onOpen} style={{ cursor: 'pointer' }}>
-            <p style={{ fontWeight: 600, fontSize: '0.85rem', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {credit.title}
-            </p>
-            <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {credit.year || '—'}{credit.character ? ` · ${credit.character}` : credit.job ? ` · ${credit.job}` : ''}
-            </p>
-        </div>
     </div>
 );
 
@@ -135,117 +119,135 @@ const Person = () => {
         }
     });
 
-    const openCredit = (credit) => navigate(`/${credit.type}/${credit.id}`);
-
     const visibleCast = onlyUnseen ? credits.cast.filter((c) => !isSeen(c)) : credits.cast;
     const visibleCrew = onlyUnseen ? credits.crew.filter((c) => !isSeen(c)) : credits.crew;
 
-    if (loading) return <div className="container flex-center" style={{ height: '100vh' }}>Loading...</div>;
-    if (!person) return <div className="container flex-center" style={{ height: '100vh' }}>Person not found</div>;
+    if (loading) {
+        return (
+            <div className="container person-status" role="status">
+                <div className="spinner"></div>
+                Loading...
+            </div>
+        );
+    }
+    if (!person) {
+        return (
+            <div className="container person-status">
+                Person not found
+                <button type="button" className="pill-btn on-page" onClick={() => navigate(-1)}>
+                    <ArrowLeft size={16} aria-hidden="true" /> Go back
+                </button>
+            </div>
+        );
+    }
 
     const bio = person.biography || '';
     const bioIsLong = bio.length > 320;
+    const complete = seenCount === allCredits.length && allCredits.length > 0;
 
     const renderSection = (heading, list) => list.length > 0 && (
-        <div style={{ marginTop: '28px' }}>
-            <h3 style={{ marginBottom: '14px' }}>{heading} <span style={{ color: 'var(--text-secondary)', fontWeight: 400, fontSize: '0.9rem' }}>({list.length})</span></h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '14px' }}>
+        <section className="person-section">
+            <h2 className="section-title">
+                {heading} <span className="person-section-count">({list.length})</span>
+            </h2>
+            <div className="grid-layout">
                 {list.map((credit) => (
                     <CreditCard
                         key={`${credit.type}-${credit.id}`}
                         credit={credit}
                         isSeen={isSeen(credit)}
-                        onOpen={() => openCredit(credit)}
+                        to={`/${credit.type}/${credit.id}`}
                         onToggle={() => toggleSeen(credit)}
                     />
                 ))}
             </div>
-        </div>
+        </section>
     );
 
     return (
-        <div style={{ paddingBottom: '100px', background: 'var(--bg-primary)', minHeight: '100vh' }}>
-            <div className="container" style={{ paddingTop: '20px' }}>
-                <button onClick={() => navigate(-1)} className="top-bar-btn" style={{ marginBottom: '20px' }}>
-                    <ArrowLeft size={24} />
-                </button>
+        <div className="container page person-page">
+            <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="icon-btn on-page"
+                aria-label="Back"
+            >
+                <ArrowLeft size={20} strokeWidth={2.5} aria-hidden="true" />
+            </button>
 
-                {/* Header: photo + completion ring */}
-                <div style={{ display: 'flex', gap: '18px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <img
-                        src={imageUrl(person.profile_path, 'w300')}
-                        alt={person.name}
-                        style={{ width: '96px', height: '96px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--bg-tertiary)' }}
-                    />
-                    <div style={{ flex: 1, minWidth: '140px' }}>
-                        <h1 style={{ fontSize: '1.8rem', margin: 0, lineHeight: 1.1 }}>{person.name}</h1>
-                        <p style={{ color: 'var(--text-secondary)', margin: '6px 0 0', fontSize: '0.9rem' }}>
-                            {person.known_for_department || 'Acting'}
-                            {person.birthday ? ` · b. ${person.birthday.split('-')[0]}` : ''}
-                        </p>
-                        {person.place_of_birth && (
-                            <p style={{ color: 'var(--text-tertiary)', margin: '2px 0 0', fontSize: '0.82rem' }}>{person.place_of_birth}</p>
-                        )}
+            {/* Header: photo + name */}
+            <header className="person-header">
+                <img
+                    className="person-photo"
+                    src={imageUrl(person.profile_path, 'w300')}
+                    alt={person.name}
+                />
+                <div className="person-header-body">
+                    <h1 className="person-name">{person.name}</h1>
+                    <div className="mono-label person-role">
+                        {person.known_for_department || 'Acting'}
+                        {person.birthday ? ` · b. ${person.birthday.split('-')[0]}` : ''}
                     </div>
+                    {person.place_of_birth && (
+                        <p className="person-birthplace">{person.place_of_birth}</p>
+                    )}
                 </div>
+            </header>
 
-                {/* Completion tracker */}
-                {allCredits.length > 0 && (
-                    <div className="glass-panel" style={{
-                        marginTop: '20px', padding: '18px', borderRadius: 'var(--radius-lg)',
-                        display: 'flex', alignItems: 'center', gap: '18px'
-                    }}>
-                        <CompletionRing percent={percent} watched={seenCount} total={allCredits.length} />
-                        <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
-                                <Star size={16} fill="var(--brand-600)" color="var(--brand-600)" /> Filmography completion
-                            </div>
-                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '6px 0 12px' }}>
-                                {seenCount === allCredits.length && allCredits.length > 0
+            {/* Completion tracker */}
+            {allCredits.length > 0 && (
+                <section className="tile">
+                    <h2 className="tile-label person-completion-label">Filmography completion</h2>
+                    <div className="person-completion-row">
+                        <CompletionRing percent={percent} />
+                        <div>
+                            <div className="person-count">{seenCount}/{allCredits.length}</div>
+                            <p className="person-summary">
+                                {complete
                                     ? `Completionist! You've seen every notable title.`
                                     : `You've seen ${seenCount} of ${allCredits.length} notable titles.`}
                             </p>
-                            <button
-                                onClick={() => setOnlyUnseen((v) => !v)}
-                                className="meta-tag"
-                                style={{
-                                    cursor: 'pointer', background: onlyUnseen ? 'var(--accent-primary)' : 'transparent',
-                                    color: onlyUnseen ? '#fff' : 'var(--text-secondary)'
-                                }}
-                            >
-                                {onlyUnseen ? 'Showing to-watch' : 'Show only to-watch'}
-                            </button>
                         </div>
                     </div>
-                )}
+                    <button
+                        type="button"
+                        onClick={() => setOnlyUnseen((v) => !v)}
+                        className={`pill-btn person-filter ${onlyUnseen ? 'inverse' : ''}`}
+                        aria-pressed={onlyUnseen}
+                    >
+                        {onlyUnseen ? 'Showing to-watch' : 'Show only to-watch'}
+                    </button>
+                </section>
+            )}
 
-                {/* Biography */}
-                {bio && (
-                    <div style={{ marginTop: '24px' }}>
-                        <h3 style={{ marginBottom: '10px' }}>Biography</h3>
-                        <p style={{ lineHeight: 1.6, color: '#ccc', fontSize: '0.95rem' }}>
-                            {bioIsLong && !bioExpanded ? `${bio.slice(0, 320).trim()}…` : bio}
-                        </p>
-                        {bioIsLong && (
-                            <button
-                                onClick={() => setBioExpanded((v) => !v)}
-                                style={{ background: 'none', border: 'none', color: 'var(--brand-600)', cursor: 'pointer', padding: '6px 0', fontWeight: 600 }}
-                            >
-                                {bioExpanded ? 'Show less' : 'Read more'}
-                            </button>
-                        )}
-                    </div>
-                )}
-
-                {renderSection('Acting', visibleCast)}
-                {renderSection('Directing & Writing', visibleCrew)}
-
-                {onlyUnseen && visibleCast.length === 0 && visibleCrew.length === 0 && (
-                    <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginTop: '40px' }}>
-                        You've watched everything here. 🎉
+            {/* Biography */}
+            {bio && (
+                <section>
+                    <h2 className="section-title">Biography</h2>
+                    <p className="person-bio">
+                        {bioIsLong && !bioExpanded ? `${bio.slice(0, 320).trim()}…` : bio}
                     </p>
-                )}
-            </div>
+                    {bioIsLong && (
+                        <button
+                            type="button"
+                            onClick={() => setBioExpanded((v) => !v)}
+                            className="link-accent"
+                            aria-expanded={bioExpanded}
+                        >
+                            {bioExpanded ? 'Show less' : 'Read more'}
+                        </button>
+                    )}
+                </section>
+            )}
+
+            {renderSection('Acting', visibleCast)}
+            {renderSection('Directing & Writing', visibleCrew)}
+
+            {onlyUnseen && visibleCast.length === 0 && visibleCrew.length === 0 && (
+                <div className="empty-state">
+                    <p>You've watched everything here.</p>
+                </div>
+            )}
         </div>
     );
 };

@@ -1,7 +1,7 @@
 // Bumping this clears the old shell cache on activation and reloads open
 // windows (see the activate handler), forcing every installed client onto
 // the current build instead of waiting for its next network-first navigation.
-const CACHE_NAME = 'whatsnext-v9';
+const CACHE_NAME = 'whatsnext-v10';
 const IMAGE_CACHE = 'whatsnext-images-v1';
 const API_CACHE = 'whatsnext-tmdb-v1';
 

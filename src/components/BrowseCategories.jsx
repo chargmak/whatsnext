@@ -1,16 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-    Swords, Rocket, Drama, Ghost, Laugh, Skull, Compass, Sparkles, Film, ChevronRight
+    Swords, Rocket, Drama, Ghost, Laugh, Skull, Compass, Sparkles, Film
 } from 'lucide-react';
 import { discoverByGenre, mapMediaData } from '../services/tmdb';
 import { MovieCard } from './MovieCard';
+import { PosterRow } from './PosterRow';
 import { GENRES } from '../data/genres';
 import { useUser } from '../context/UserContext';
 
+// Styles for this component live in styles/search.css (imported by the Search page).
+
 // Genre -> icon + accent colour. Keyed by the names in GENRES (data/genres.js);
 // anything unmapped falls back to Film + the brand red, so this stays robust
-// if the GENRES list changes.
+// if the GENRES list changes. The accent is handed to CSS as --genre-accent,
+// which mixes it into the theme's own surface and text colours.
 const GENRE_META = {
     'Action': { icon: Swords, accent: '#F97316' },
     'Sci-Fi': { icon: Rocket, accent: '#6366F1' },
@@ -22,30 +26,32 @@ const GENRE_META = {
     'Fantasy': { icon: Sparkles, accent: '#EC4899' },
 };
 
-const FALLBACK_META = { icon: Film, accent: '#EF4444' }; // brand red
+const FALLBACK_META = { icon: Film, accent: 'var(--brand-500)' };
 
-// Tint a #RRGGBB accent to an rgba() string (matches the rgba tinting used
-// elsewhere in the app; avoids color-mix() for older mobile browsers).
-const tint = (hex, alpha) => {
-    const n = parseInt(hex.slice(1), 16);
-    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+// One genre tile — the whole tile is the "See all" entry point.
+const GenreTile = ({ genre, onOpenGenre }) => {
+    const { icon: Icon, accent } = GENRE_META[genre] || FALLBACK_META;
+    return (
+        <motion.button
+            type="button"
+            whileTap={{ scale: 0.98 }}
+            className="genre-tile"
+            style={{ '--genre-accent': accent }}
+            onClick={() => onOpenGenre(genre)}
+        >
+            <span className="genre-icon" aria-hidden="true">
+                <Icon size={20} strokeWidth={2.2} />
+            </span>
+            <span className="genre-text">
+                <span className="genre-name truncate">{genre}</span>
+                <span className="genre-sub">See all</span>
+            </span>
+        </motion.button>
+    );
 };
 
-const PosterSkeleton = () => (
-    <div
-        style={{
-            minWidth: '140px',
-            width: '140px',
-            aspectRatio: '2 / 3',
-            borderRadius: 'var(--radius-md)',
-            background: 'rgba(255,255,255,0.05)',
-            animation: 'pulse-fade 1.4s ease-in-out infinite',
-        }}
-    />
-);
-
-const CategoryRow = ({ genre, onOpenGenre, onOpenItem }) => {
-    const { icon: Icon, accent } = GENRE_META[genre] || FALLBACK_META;
+// A single row of mixed movie/series posters for one genre.
+const GenreRow = ({ genre, onOpenGenre, onOpenItem }) => {
     const { timeZone } = useUser();
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -73,97 +79,58 @@ const CategoryRow = ({ genre, onOpenGenre, onOpenItem }) => {
     }, [genre, timeZone]);
 
     return (
-        <section style={{ marginBottom: '28px' }}>
-            {/* Header — the whole row is the "See all" entry point */}
-            <motion.div
-                whileTap={{ scale: 0.98 }}
-                onClick={() => onOpenGenre(genre)}
-                className="flex-between"
-                style={{ marginBottom: '12px', cursor: 'pointer' }}
-            >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div
-                        className="flex-center"
-                        style={{
-                            width: '40px',
-                            height: '40px',
-                            borderRadius: 'var(--radius-md)',
-                            background: tint(accent, 0.16),
-                            border: `1px solid ${tint(accent, 0.35)}`,
-                            flexShrink: 0,
-                        }}
-                    >
-                        <Icon size={20} color={accent} strokeWidth={2.2} />
-                    </div>
-                    <h4 style={{ margin: 0, fontSize: '1.15rem' }}>{genre}</h4>
-                </div>
-                <span
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '2px',
-                        color: 'var(--text-secondary)',
-                        fontSize: '0.85rem',
-                        whiteSpace: 'nowrap',
-                    }}
+        <section className="tile genre-row-tile">
+            <div className="search-section-head">
+                <h2 className="section-title truncate">Popular in {genre}</h2>
+                <button
+                    type="button"
+                    className="link-accent"
+                    aria-label={`See all ${genre}`}
+                    onClick={() => onOpenGenre(genre)}
                 >
-                    See all <ChevronRight size={16} />
-                </span>
-            </motion.div>
-
-            {/* Horizontal strip of mixed movie/series posters */}
-            <div
-                className="hide-scrollbar"
-                style={{
-                    display: 'flex',
-                    gap: '14px',
-                    overflowX: 'auto',
-                    paddingBottom: '4px',
-                    scrollSnapType: 'x mandatory',
-                    WebkitOverflowScrolling: 'touch',
-                }}
-            >
-                {loading &&
-                    Array.from({ length: 5 }).map((_, i) => <PosterSkeleton key={i} />)}
-
-                {!loading && items.length === 0 && (
-                    <p style={{ margin: '4px 0', fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>
-                        Couldn't load titles right now.
-                    </p>
-                )}
-
-                {!loading &&
-                    items.map((item, index) => (
-                        <div
-                            key={`${item.type}-${item.id}`}
-                            style={{
-                                minWidth: '140px',
-                                width: '140px',
-                                // End-align the last poster so `mandatory` has a
-                                // valid snap stop where it reveals in full (a
-                                // start-aligned last item would sit past max
-                                // scroll and stay clipped).
-                                scrollSnapAlign: index === items.length - 1 ? 'end' : 'start',
-                            }}
-                        >
-                            <MovieCard movie={item} onClick={() => onOpenItem(item)} />
-                        </div>
-                    ))}
+                    See all
+                </button>
             </div>
+
+            {!loading && items.length === 0 ? (
+                <p className="genre-row-empty">Couldn't load titles right now.</p>
+            ) : (
+                <PosterRow>
+                    {loading
+                        ? Array.from({ length: 5 }).map((_, i) => (
+                            <div key={i} className="poster-skeleton" aria-hidden="true" />
+                        ))
+                        : items.map((item) => (
+                            <MovieCard
+                                key={`${item.type}-${item.id}`}
+                                movie={item}
+                                onClick={() => onOpenItem(item)}
+                            />
+                        ))}
+                </PosterRow>
+            )}
         </section>
     );
 };
 
 export const BrowseCategories = ({ onOpenGenre, onOpenItem }) => (
-    <section>
-        <h3 style={{ marginBottom: '20px' }}>Browse Categories</h3>
-        {GENRES.map((genre) => (
-            <CategoryRow
-                key={genre}
-                genre={genre}
+    <>
+        <section>
+            <h2 className="section-title">Browse categories</h2>
+            <div className="bento genre-grid">
+                {GENRES.map((genre) => (
+                    <GenreTile key={genre} genre={genre} onOpenGenre={onOpenGenre} />
+                ))}
+            </div>
+        </section>
+
+        {/* Only the first genre's titles are fetched up front. */}
+        {GENRES.length > 0 && (
+            <GenreRow
+                genre={GENRES[0]}
                 onOpenGenre={onOpenGenre}
                 onOpenItem={onOpenItem}
             />
-        ))}
-    </section>
+        )}
+    </>
 );

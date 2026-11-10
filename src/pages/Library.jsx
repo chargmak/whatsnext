@@ -3,9 +3,10 @@ import { useUser } from '../context/UserContext';
 import { MovieCard } from '../components/MovieCard';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { SlidersHorizontal } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { getTVWatchStatus } from '../services/tmdb';
 import UpNext from '../components/UpNext';
+import '../styles/library.css';
 
 // Toggle order + display labels; internal ids stay space-free.
 const TABS = [
@@ -113,29 +114,23 @@ const Library = () => {
     }, [rawItems, sortBy, filterType]);
 
     return (
-        <div className="container" style={{ paddingTop: '20px', paddingBottom: '90px' }}>
-            <h1>My Library</h1>
+        <div className="container page">
+            <h1 className="page-title">Library</h1>
 
-            {/* Toggle Container - Matching Home Page Style */}
-            <div className="toggle-container" style={{ margin: '30px 0' }}>
+            <div className="seg" role="group" aria-label="Library section">
                 {TABS.map(({ id, label }) => (
                     <button
                         key={id}
+                        type="button"
                         onClick={() => setActiveTab(id)}
-                        className={`toggle-btn ${activeTab === id ? 'active' : ''}`}
+                        className={`seg-btn ${activeTab === id ? 'active' : ''}`}
+                        aria-pressed={activeTab === id}
                     >
                         {label}
                         {activeTab === id && (
-                            <motion.div
+                            <motion.span
                                 layoutId="libraryActiveTab"
-                                style={{
-                                    position: 'absolute',
-                                    inset: 0,
-                                    background: 'var(--brand-600)',
-                                    borderRadius: '12px',
-                                    zIndex: -1,
-                                    boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)'
-                                }}
+                                className="seg-thumb"
                                 transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                             />
                         )}
@@ -146,80 +141,66 @@ const Library = () => {
             {activeTab === 'upnext' ? (
                 <UpNext series={tvWatchlist} />
             ) : (
-            <>
-            {/* Sort and Filter Controls */}
-            <div style={{
-                display: 'flex',
-                gap: '12px',
-                marginBottom: '24px',
-                flexWrap: 'wrap'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <SlidersHorizontal size={18} color="var(--text-secondary)" />
-                    <select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value)}
-                        style={{
-                            padding: '8px 12px',
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            background: 'var(--bg-tertiary)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.9rem',
-                            cursor: 'pointer',
-                            outline: 'none'
-                        }}
-                    >
-                        <option value="dateAdded">Recently Added</option>
-                        <option value="title">Title (A-Z)</option>
-                        <option value="rating">Rating (High-Low)</option>
-                    </select>
-                </div>
+                <>
+                    {/* Sort and Filter Controls */}
+                    <div className="library-controls">
+                        <span className="select-pill">
+                            <select
+                                className="pill-btn on-page"
+                                aria-label="Sort by"
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                            >
+                                <option value="dateAdded">Recently Added</option>
+                                <option value="title">Title (A-Z)</option>
+                                <option value="rating">Rating (High-Low)</option>
+                            </select>
+                            <ChevronDown size={14} strokeWidth={2.5} aria-hidden="true" />
+                        </span>
 
-                <select
-                    value={filterType}
-                    onChange={(e) => setFilterType(e.target.value)}
-                    style={{
-                        padding: '8px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        background: 'var(--bg-tertiary)',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.9rem',
-                        cursor: 'pointer',
-                        outline: 'none'
-                    }}
-                >
-                    <option value="all">All Types</option>
-                    <option value="movie">Movies Only</option>
-                    <option value="tv">TV Shows Only</option>
-                </select>
-            </div>
+                        <span className="select-pill">
+                            <select
+                                className="pill-btn on-page"
+                                aria-label="Filter by type"
+                                value={filterType}
+                                onChange={(e) => setFilterType(e.target.value)}
+                            >
+                                <option value="all">All Types</option>
+                                <option value="movie">Movies Only</option>
+                                <option value="tv">TV Shows Only</option>
+                            </select>
+                            <ChevronDown size={14} strokeWidth={2.5} aria-hidden="true" />
+                        </span>
 
-            {items.length > 0 ? (
-                <div className="grid-layout">
-                    {items.map(item => (
-                        <MovieCard
-                            key={`${item.type || 'movie'}-${item.id}`}
-                            movie={item}
-                            onClick={(id) => navigate(`/${item.type || 'movie'}/${id}`)}
-                        />
-                    ))}
-                </div>
-            ) : (
-                <div className="empty-state">
-                    <p>
-                        {filterType !== 'all'
-                            ? `No ${filterType === 'movie' ? 'movies' : 'TV shows'} in your ${activeTab}.`
-                            : `Your ${activeTab} is empty.`
-                        }
-                    </p>
-                    <button className="btn" style={{ marginTop: '10px' }} onClick={() => navigate('/search')}>
-                        Explore {activeTab === 'watchlist' ? 'Content' : 'History'}
-                    </button>
-                </div>
-            )}
-            </>
+                        <span className="mono-label library-count" aria-live="polite">
+                            {items.length} {items.length === 1 ? 'title' : 'titles'}
+                        </span>
+                    </div>
+
+                    {items.length > 0 ? (
+                        <div className="grid-layout">
+                            {items.map(item => (
+                                <MovieCard
+                                    key={`${item.type || 'movie'}-${item.id}`}
+                                    movie={item}
+                                    onClick={(id) => navigate(`/${item.type || 'movie'}/${id}`)}
+                                />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="empty-state library-empty">
+                            <p>
+                                {filterType !== 'all'
+                                    ? `No ${filterType === 'movie' ? 'movies' : 'TV shows'} in your ${activeTab}.`
+                                    : `Your ${activeTab} is empty.`
+                                }
+                            </p>
+                            <button type="button" className="pill-btn primary" onClick={() => navigate('/search')}>
+                                Explore {activeTab === 'watchlist' ? 'Content' : 'History'}
+                            </button>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Bell, BellOff, Tv, Film, Calendar, X } from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
+import { BellOff, ChevronLeft, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import usePersistentState from '../hooks/usePersistentState';
 import {
@@ -14,6 +14,7 @@ import {
     syncPushSubscription,
 } from '../services/push';
 import { startOfZonedDay, todayKey } from '../services/releaseTime';
+import '../styles/notifications.css';
 
 // Whole days from today to a release date, both read in the viewer's zone — a
 // reminder must not flip to "Released" while it's still yesterday where they are.
@@ -26,7 +27,6 @@ const daysUntil = (dateStr, zone) => {
 };
 
 const Notifications = () => {
-    const navigate = useNavigate();
     const { status, user, reminders, toggleReminder, timeZone } = useUser();
 
     // Guest ids ("guest-12345") are local-only and never key a server row, so
@@ -110,229 +110,138 @@ const Notifications = () => {
     const notificationSettings = [
         {
             id: 'newEpisodes',
-            icon: <Tv size={20} />,
-            title: 'New Episodes',
-            description: 'Get notified when new episodes of your shows air',
-            color: '#9333EA'
+            title: 'New episodes',
+            description: 'Get notified when new episodes of your shows air'
         },
         {
             id: 'movieReleases',
-            icon: <Film size={20} />,
-            title: 'Movie Releases',
-            description: 'Alerts for movies in your watchlist',
-            color: '#DC2626'
+            title: 'Movie releases',
+            description: 'Alerts for movies in your watchlist'
         },
         {
             id: 'upcomingReleases',
-            icon: <Calendar size={20} />,
-            title: 'Upcoming Releases',
-            description: 'Reminders 1 day before release',
-            color: '#FBBF24'
+            title: 'Upcoming releases',
+            description: 'Reminders 1 day before release'
         },
         {
             id: 'weeklyDigest',
-            icon: <Bell size={20} />,
-            title: 'Weekly Digest',
-            description: 'Summary of your week in entertainment',
-            color: '#10B981'
+            title: 'Weekly digest',
+            description: 'Summary of your week in entertainment'
         }
     ];
 
     const deliveryMethods = [
         {
             id: 'pushNotifications',
-            title: 'Push Notifications',
+            title: 'Push notifications',
             description: 'Receive notifications in the app'
         },
         {
             id: 'emailNotifications',
-            title: 'Email Notifications',
+            title: 'Email notifications',
             description: 'Get updates via email'
         }
     ];
 
     return (
-        <div className="container" style={{ paddingBottom: '100px' }}>
-            {/* Header */}
-            <header className="page-header">
-                <button
-                    onClick={() => navigate('/profile')}
-                    style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--text-primary)',
-                        cursor: 'pointer',
-                        padding: '8px',
-                        marginRight: '12px'
-                    }}
-                >
-                    <ArrowLeft size={24} />
-                </button>
-                <h1 className="brand-title">
-                    <Bell size={28} style={{ marginRight: '8px' }} />
-                    Notifications
-                </h1>
+        <div className="container page">
+            <header className="sub-header">
+                <Link to="/profile" className="icon-btn on-page" aria-label="Back to profile">
+                    <ChevronLeft size={18} strokeWidth={2.5} aria-hidden="true" />
+                </Link>
+                <h1>Notifications</h1>
             </header>
 
             {/* Release Reminders */}
-            <section style={{ marginBottom: '30px' }}>
-                <h3 style={{ marginBottom: '16px' }}>Your Reminders</h3>
+            <section className="notif-section">
+                <h2 className="section-title">Your reminders</h2>
                 {sortedReminders.length === 0 ? (
-                    <div className="glass-panel empty-state" style={{ padding: '24px', borderRadius: 'var(--radius-md)' }}>
-                        <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+                    <div className="empty-state notif-empty">
+                        <p>
                             No reminders yet. Tap "Notify Me" on an upcoming movie to track its release here.
                         </p>
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <ul className="list-tile notif-list">
                         {sortedReminders.map((reminder) => {
                             const days = daysUntil(reminder.releaseDate, timeZone);
                             const released = days !== null && days <= 0;
+                            const statusClass = days === null
+                                ? ' is-unknown'
+                                : released ? ' is-released' : '';
                             return (
-                                <div
+                                <li
                                     key={`${reminder.type}-${reminder.id}`}
-                                    className="glass-panel"
-                                    style={{
-                                        padding: '12px 16px',
-                                        borderRadius: 'var(--radius-md)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '16px'
-                                    }}
+                                    className="list-row static notif-reminder"
                                 >
-                                    <Link to={`/${reminder.type}/${reminder.id}`} style={{ flexShrink: 0 }}>
+                                    <Link
+                                        to={`/${reminder.type}/${reminder.id}`}
+                                        className="notif-poster-link"
+                                    >
                                         <img
+                                            className="notif-poster"
                                             src={reminder.poster}
                                             alt={reminder.title}
-                                            style={{ width: '48px', height: '72px', borderRadius: '8px', objectFit: 'cover' }}
                                         />
                                     </Link>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {reminder.title}
-                                        </h4>
-                                        <p style={{ margin: 0, fontSize: '0.85rem', color: released ? '#10B981' : 'var(--text-secondary)' }}>
+                                    <div className="notif-body">
+                                        <div className="notif-title truncate">{reminder.title}</div>
+                                        <div className={`notif-status${statusClass}`}>
                                             {days === null
                                                 ? 'Release date unknown'
                                                 : released
-                                                    ? days === 0 ? 'Out today 🎬' : 'Released! 🎬'
+                                                    ? days === 0 ? 'Out today' : 'Released!'
                                                     : days === 1
                                                         ? 'Releases tomorrow'
                                                         : `Releases in ${days} days (${reminder.releaseDate})`}
-                                        </p>
+                                        </div>
                                     </div>
                                     <button
+                                        type="button"
+                                        className="icon-btn"
                                         onClick={() => toggleReminder(reminder)}
-                                        title="Remove reminder"
-                                        style={{
-                                            background: 'rgba(255,255,255,0.05)',
-                                            border: 'none',
-                                            borderRadius: '50%',
-                                            width: '32px',
-                                            height: '32px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            cursor: 'pointer',
-                                            color: 'var(--text-secondary)',
-                                            flexShrink: 0
-                                        }}
+                                        aria-label={`Remove reminder for ${reminder.title}`}
                                     >
-                                        <X size={16} />
+                                        <X size={16} strokeWidth={2.5} aria-hidden="true" />
                                     </button>
-                                </div>
+                                </li>
                             );
                         })}
-                    </div>
+                    </ul>
                 )}
             </section>
 
             {/* Notification Types */}
-            <section style={{ marginBottom: '30px' }}>
-                <h3 style={{ marginBottom: '16px' }}>Notification Types</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {notificationSettings.map(setting => (
-                        <div
-                            key={setting.id}
-                            className="glass-panel"
-                            style={{
-                                padding: '16px',
-                                borderRadius: 'var(--radius-md)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '16px',
-                                border: preferences[setting.id]
-                                    ? `1px solid ${setting.color}40`
-                                    : '1px solid rgba(255,255,255,0.05)'
-                            }}
-                        >
-                            <div
-                                style={{
-                                    width: '48px',
-                                    height: '48px',
-                                    borderRadius: 'var(--radius-md)',
-                                    background: `${setting.color}20`,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: setting.color,
-                                    flexShrink: 0
-                                }}
-                            >
-                                {setting.icon}
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem' }}>
-                                    {setting.title}
-                                </h4>
-                                <p style={{
-                                    margin: 0,
-                                    fontSize: '0.85rem',
-                                    color: 'var(--text-secondary)'
-                                }}>
+            <section className="notif-section">
+                <h2 className="section-title">Notification types</h2>
+                <div className="list-tile">
+                    {notificationSettings.map((setting) => (
+                        <div key={setting.id} className="list-row static">
+                            <span className="notif-body">
+                                <span className="notif-label">{setting.title}</span>
+                                <span className="notif-sub" id={`notif-desc-${setting.id}`}>
                                     {setting.description}
-                                </p>
-                            </div>
+                                </span>
+                            </span>
                             <button
+                                type="button"
+                                role="switch"
+                                className="switch"
+                                aria-checked={Boolean(preferences[setting.id])}
+                                aria-label={setting.title}
+                                aria-describedby={`notif-desc-${setting.id}`}
                                 onClick={() => togglePreference(setting.id)}
-                                style={{
-                                    width: '52px',
-                                    height: '28px',
-                                    borderRadius: '14px',
-                                    border: 'none',
-                                    background: preferences[setting.id]
-                                        ? setting.color
-                                        : 'rgba(255,255,255,0.1)',
-                                    position: 'relative',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.3s',
-                                    flexShrink: 0
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        width: '24px',
-                                        height: '24px',
-                                        borderRadius: '50%',
-                                        background: 'white',
-                                        position: 'absolute',
-                                        top: '2px',
-                                        left: preferences[setting.id] ? '26px' : '2px',
-                                        transition: 'all 0.3s',
-                                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                                    }}
-                                />
-                            </button>
+                            />
                         </div>
                     ))}
                 </div>
             </section>
 
             {/* Delivery Methods */}
-            <section>
-                <h3 style={{ marginBottom: '16px' }}>Delivery Methods</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {deliveryMethods.map(method => {
+            <section className="notif-section">
+                <h2 className="section-title">Delivery</h2>
+                <div className="list-tile">
+                    {deliveryMethods.map((method) => {
                         const isPush = method.id === 'pushNotifications';
 
                         // The push toggle reflects the real browser subscription;
@@ -358,78 +267,40 @@ const Notifications = () => {
                         }
 
                         return (
-                            <div
-                                key={method.id}
-                                className="glass-panel"
-                                style={{
-                                    padding: '16px',
-                                    borderRadius: 'var(--radius-md)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    gap: '16px'
-                                }}
-                            >
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem' }}>
-                                        {method.title}
-                                    </h4>
-                                    <p style={{
-                                        margin: 0,
-                                        fontSize: '0.85rem',
-                                        color: 'var(--text-secondary)'
-                                    }}>
+                            <div key={method.id} className="list-row static notif-delivery">
+                                <div className="notif-body">
+                                    <span className="notif-label">{method.title}</span>
+                                    <span className="notif-sub" id={`notif-desc-${method.id}`}>
                                         {description}
-                                    </p>
+                                    </span>
                                     {isPush && push.error && (
-                                        <p style={{ margin: '6px 0 0 0', fontSize: '0.8rem', color: '#F87171' }}>
+                                        <span className="notif-warning" role="alert">
                                             {push.error}
-                                        </p>
+                                        </span>
                                     )}
                                     {pushBroken && (
-                                        <p style={{ margin: '6px 0 0 0', fontSize: '0.8rem', color: '#FBBF24' }}>
+                                        <span className="notif-warning">
                                             Your browser dropped its subscription, so alerts stopped arriving.
                                             Turn this off and on again to restore them.
-                                        </p>
+                                        </span>
                                     )}
                                     {isPush && push.subscribed && status !== 'authed' && (
-                                        <p style={{ margin: '6px 0 0 0', fontSize: '0.8rem', color: '#FBBF24' }}>
+                                        <span className="notif-warning">
                                             Sign in to receive scheduled release alerts — guest reminders are tracked on this device only.
-                                        </p>
+                                        </span>
                                     )}
                                 </div>
                                 <button
+                                    type="button"
+                                    role="switch"
+                                    className="switch"
+                                    aria-checked={Boolean(isOn)}
+                                    aria-label={method.title}
+                                    aria-describedby={`notif-desc-${method.id}`}
+                                    aria-busy={isPush && push.busy ? true : undefined}
                                     onClick={onToggle}
                                     disabled={disabled}
-                                    style={{
-                                        width: '52px',
-                                        height: '28px',
-                                        borderRadius: '14px',
-                                        border: 'none',
-                                        background: isOn
-                                            ? 'var(--brand-600)'
-                                            : 'rgba(255,255,255,0.1)',
-                                        position: 'relative',
-                                        cursor: disabled ? 'not-allowed' : 'pointer',
-                                        opacity: disabled ? 0.5 : 1,
-                                        transition: 'all 0.3s',
-                                        flexShrink: 0
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            width: '24px',
-                                            height: '24px',
-                                            borderRadius: '50%',
-                                            background: 'white',
-                                            position: 'absolute',
-                                            top: '2px',
-                                            left: isOn ? '26px' : '2px',
-                                            transition: 'all 0.3s',
-                                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                                        }}
-                                    />
-                                </button>
+                                />
                             </div>
                         );
                     })}
@@ -437,22 +308,11 @@ const Notifications = () => {
             </section>
 
             {/* Info Note */}
-            <div
-                className="glass-panel"
-                style={{
-                    marginTop: '30px',
-                    padding: '16px',
-                    borderRadius: 'var(--radius-md)',
-                    background: 'rgba(251, 191, 36, 0.1)',
-                    border: '1px solid rgba(251, 191, 36, 0.3)'
-                }}
-            >
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                    <BellOff size={20} color="#FBBF24" style={{ flexShrink: 0, marginTop: '2px' }} />
-                    <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                        Turn on Push Notifications to get alerted when a title you tapped "Notify Me" on is released. You'll be asked to allow notifications, and alerts are sent even when the app is closed. Install the app to your home screen for the most reliable delivery.
-                    </p>
-                </div>
+            <div className="notif-note">
+                <BellOff size={18} aria-hidden="true" />
+                <p>
+                    Turn on Push Notifications to get alerted when a title you tapped "Notify Me" on is released. You'll be asked to allow notifications, and alerts are sent even when the app is closed. Install the app to your home screen for the most reliable delivery.
+                </p>
             </div>
         </div>
     );

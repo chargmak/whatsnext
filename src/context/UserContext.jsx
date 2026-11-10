@@ -4,6 +4,7 @@ import * as userData from '../services/userData';
 import { getTVWatchStatus } from '../services/tmdb';
 import { resolveViewerZone } from '../services/releaseTime';
 import { syncPushSubscription } from '../services/push';
+import ImportGuestSheet from '../components/ImportGuestSheet';
 
 const UserContext = createContext();
 
@@ -65,6 +66,12 @@ export const UserProvider = ({ children }) => {
     // Drives the "most recently watched first" order in Up Next.
     const [episodeActivity, setEpisodeActivity] = useState({});
     const [reminders, setReminders] = useState([]);
+
+    // The "bring your guest data along?" question, while it is waiting for an
+    // answer: { watchlistCount, watchedCount } | null. The provider renders the
+    // sheet itself, so the question appears on whatever page the user is on.
+    const [guestImport, setGuestImport] = useState(null);
+    const guestImportResolverRef = useRef(null);
 
     const loadedUserIdRef = useRef(null);
     const isAuthed = status === 'authed';
@@ -159,6 +166,11 @@ export const UserProvider = ({ children }) => {
                 if (event === 'SIGNED_IN' && session?.user) {
                     loadAuthedUser(session.user);
                 } else if (event === 'SIGNED_OUT') {
+                    // A pending import question belongs to the session that
+                    // just ended (e.g. signed out from another tab).
+                    guestImportResolverRef.current?.(null);
+                    guestImportResolverRef.current = null;
+                    setGuestImport(null);
                     loadedUserIdRef.current = null;
                     setUser(null);
                     clearData();
@@ -186,6 +198,26 @@ export const UserProvider = ({ children }) => {
 
     // --- Local data migration (guest → account) ---
 
+    // Opens the import sheet and resolves with the user's choice. Login and
+    // sign-up wait on this exactly as they used to wait on window.confirm.
+    // Resolves true (import), false (declined) or null (the question went away
+    // unanswered: superseded by a newer one, or the session ended).
+    const askGuestImport = (counts) => new Promise((resolve) => {
+        // Never leave an earlier question hanging.
+        guestImportResolverRef.current?.(null);
+        guestImportResolverRef.current = resolve;
+        setGuestImport(counts);
+    });
+
+    const settleGuestImport = (answer) => {
+        const resolve = guestImportResolverRef.current;
+        guestImportResolverRef.current = null;
+        setGuestImport(null);
+        if (resolve) resolve(answer);
+    };
+
+    const resolveGuestImport = (accept) => settleGuestImport(Boolean(accept));
+
     const maybeMigrateLocalData = async (userId) => {
         const local = {
             watchlist: readLocal('user_watchlist', []),
@@ -196,12 +228,18 @@ export const UserProvider = ({ children }) => {
         };
         const hasData = local.watchlist.length || local.watched.length
             || Object.keys(local.episodes).length || local.reminders.length;
-        if (!hasData || localStorage.getItem('migration_declined') === 'true') return;
+        if (!hasData || localStorage.getItem('migration_declined') === 'true') return true;
 
-        const ok = window.confirm('Import the watchlist and watched history saved on this device into your account?');
+        const ok = await askGuestImport({
+            watchlistCount: local.watchlist.length,
+            watchedCount: local.watched.length,
+        });
+        // Abandoned, not answered: leave the guest data and the choice alone,
+        // and tell the caller not to carry on loading this account.
+        if (ok === null) return false;
         if (!ok) {
             localStorage.setItem('migration_declined', 'true');
-            return;
+            return true;
         }
         try {
             await userData.migrateLocalData(userId, local);
@@ -209,6 +247,7 @@ export const UserProvider = ({ children }) => {
         } catch (error) {
             console.error('Error importing local data:', error);
         }
+        return true;
     };
 
     // --- Auth actions ---
@@ -217,7 +256,7 @@ export const UserProvider = ({ children }) => {
         if (!supabase) throw new Error('Accounts are unavailable in this deployment. Use "Continue as guest" instead.');
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw new Error(error.message);
-        await maybeMigrateLocalData(data.user.id);
+        if (!(await maybeMigrateLocalData(data.user.id))) return {};
         await loadAuthedUser(data.user, { force: true });
         return {};
     };
@@ -236,13 +275,14 @@ export const UserProvider = ({ children }) => {
             throw new Error('This email is already registered. Try logging in instead.');
         }
         if (data.user && !data.session) return { needsConfirmation: true };
-        await maybeMigrateLocalData(data.user.id);
+        if (!(await maybeMigrateLocalData(data.user.id))) return {};
         await loadAuthedUser(data.user, { force: true });
         return {};
     };
 
     const logout = async () => {
         if (isAuthed && supabase) {
+            settleGuestImport(null);
             await supabase.auth.signOut();
             loadedUserIdRef.current = null;
             setUser(null);
@@ -620,8 +660,18 @@ export const UserProvider = ({ children }) => {
             changePassword,
             deleteAccount,
             enterGuestMode,
+            guestImport,
+            resolveGuestImport,
         }}>
             {children}
+            {guestImport && (
+                <ImportGuestSheet
+                    watchlistCount={guestImport.watchlistCount}
+                    watchedCount={guestImport.watchedCount}
+                    onImport={() => resolveGuestImport(true)}
+                    onSkip={() => resolveGuestImport(false)}
+                />
+            )}
         </UserContext.Provider>
     );
 };

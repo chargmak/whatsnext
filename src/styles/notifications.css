@@ -1,0 +1,120 @@
+/* Notifications page — reminders, type switches, delivery, info note */
+
+.notif-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.notif-empty {
+  padding: 24px 20px;
+}
+
+.notif-empty p {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}
+
+/* ----- Reminder rows ----- */
+.notif-reminder {
+  justify-content: flex-start;
+  min-height: 72px;
+}
+
+.notif-poster-link {
+  flex-shrink: 0;
+  display: block;
+  border-radius: 8px;
+}
+
+.notif-poster {
+  display: block;
+  width: 40px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--bg-tertiary);
+}
+
+.notif-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-title {
+  font-size: 0.9375rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+}
+
+.notif-status {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
+.notif-status.is-released {
+  color: var(--text-soft);
+}
+
+.notif-status.is-unknown {
+  color: var(--text-secondary);
+}
+
+/* ----- Switch rows ----- */
+.notif-label {
+  display: block;
+  font-size: 0.9375rem;
+  line-height: 1.25rem;
+}
+
+.notif-sub {
+  display: block;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--text-secondary);
+}
+
+.notif-warning {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--danger-text);
+}
+
+.notif-delivery {
+  min-height: 64px;
+}
+
+/* ----- Info note ----- */
+.notif-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text-soft);
+}
+
+.notif-note svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--text-secondary);
+}
+
+.notif-note p {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  color: var(--text-soft);
+}
+
+.notif-list {
+  list-style: none;
+}

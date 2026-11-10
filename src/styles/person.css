@@ -1,0 +1,186 @@
+/* Person + filmography page (/person/:id) */
+
+.person-page {
+  /* The tick sits on a poster, so its unwatched state keeps these colours in
+     both themes. */
+  --person-photo-ink: #0B0B0C;
+  --person-photo-paper: #FFFFFF;
+}
+
+/* ----- Loading / not found ----- */
+.person-status {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+}
+
+/* ----- Header ----- */
+.person-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.person-photo {
+  flex-shrink: 0;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-tertiary);
+}
+
+.person-header-body {
+  min-width: 0;
+}
+
+.person-name {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.875rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.person-role {
+  line-height: 1.125rem;
+  color: var(--text-soft);
+}
+
+.person-birthplace {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  color: var(--text-secondary);
+}
+
+/* ----- Completion tile ----- */
+.person-completion-label {
+  margin: 0 0 8px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.person-completion-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 72px;
+}
+
+.person-ring {
+  position: relative;
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+}
+
+.person-ring svg {
+  display: block;
+  transform: rotate(-90deg);
+}
+
+.person-ring-track {
+  stroke: var(--border);
+}
+
+.person-ring-fill {
+  stroke: var(--brand-600);
+}
+
+.person-ring-percent {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+}
+
+.person-count {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 1.375rem;
+  line-height: 1.75rem;
+}
+
+.person-summary {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  color: var(--text-soft);
+}
+
+.person-filter {
+  margin-top: 12px;
+}
+
+/* ----- Biography ----- */
+.person-bio {
+  margin: 8px 0 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--text-soft);
+  white-space: pre-line;
+}
+
+/* ----- Filmography ----- */
+.person-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.person-section-count {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.person-credit-link {
+  display: block;
+  text-decoration: none;
+  border-radius: 14px;
+}
+
+/* 44px tick on the poster: filled accent = watched, outlined on dark = not yet. */
+.person-tick {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--person-photo-paper);
+  background: var(--person-photo-ink);
+  color: var(--person-photo-paper);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.person-tick[aria-pressed="true"] {
+  border-color: var(--brand-600);
+  background: var(--brand-600);
+  color: var(--on-accent);
+}
+
+.person-tick:focus-visible {
+  outline: 2px solid var(--person-photo-paper);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--person-photo-ink);
+}

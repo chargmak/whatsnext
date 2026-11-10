@@ -1,20 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Lock, Film } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Link, useNavigate } from 'react-router-dom';
+import { Check } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { supabase } from '../services/supabase';
-
-const inputStyle = (hasError) => ({
-    width: '100%',
-    padding: '12px 16px',
-    borderRadius: 'var(--radius-md)',
-    border: hasError ? '1px solid #EF4444' : '1px solid rgba(255,255,255,0.1)',
-    background: 'rgba(255,255,255,0.05)',
-    color: 'var(--text-primary)',
-    fontSize: '1rem',
-    outline: 'none',
-});
+import '../styles/auth.css';
 
 const ResetPassword = () => {
     const navigate = useNavigate();
@@ -52,78 +41,82 @@ const ResetPassword = () => {
     };
 
     return (
-        <div className="container" style={{ paddingTop: '40px', paddingBottom: '100px', maxWidth: '500px', margin: '0 auto' }}>
-            <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                style={{ textAlign: 'center', marginBottom: '40px' }}
-            >
-                <Film size={48} color="var(--brand-600)" />
-                <h1 style={{ fontSize: '2rem', marginTop: '12px' }}>Set a new password</h1>
-            </motion.div>
+        <div className="container page auth-page">
+            <div className="brand-title">What's Next<span className="brand-mark">?</span></div>
 
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="glass-panel"
-                style={{ padding: '32px', borderRadius: 'var(--radius-lg)' }}
-            >
+            <section className="tile auth-card">
+                <h1 className="auth-heading">Set a new password</h1>
+
                 {!canReset ? (
-                    <div style={{ textAlign: 'center' }}>
-                        <p style={{ color: 'var(--text-secondary)' }}>
+                    <>
+                        <p className="auth-state-text">
                             This reset link is invalid or has expired. Request a new one from the login page.
                         </p>
-                        <button className="action-btn primary" onClick={() => navigate('/login')} style={{ marginTop: '16px' }}>
+                        <button
+                            type="button"
+                            className="pill-btn primary lg block auth-submit"
+                            onClick={() => navigate('/login')}
+                        >
                             Back to Login
                         </button>
-                    </div>
+                    </>
                 ) : done ? (
-                    <div style={{ textAlign: 'center' }}>
-                        <p style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Password updated!</p>
-                        <p style={{ color: 'var(--text-secondary)' }}>Taking you to the app...</p>
+                    <div role="status">
+                        <p className="auth-success">
+                            <Check size={16} aria-hidden="true" />
+                            <span className="auth-state-title">Password updated!</span>
+                        </p>
+                        <p className="auth-state-text">Taking you to the app...</p>
                     </div>
                 ) : (
-                    <form onSubmit={handleSubmit}>
-                        <div style={{ marginBottom: '20px' }}>
-                            <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                                <Lock size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                                New Password
-                            </label>
+                    <form className="auth-form" onSubmit={handleSubmit}>
+                        <div className="field">
+                            <label className="field-label" htmlFor="reset-password">New password</label>
                             <input
+                                id="reset-password"
                                 type="password"
                                 value={password}
                                 onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                                placeholder="••••••••"
-                                style={inputStyle(!!error)}
+                                placeholder="At least 6 characters"
+                                autoComplete="new-password"
+                                className="input-field"
+                                aria-invalid={error ? true : undefined}
+                                aria-describedby={error ? 'reset-error' : undefined}
                             />
                         </div>
-                        <div style={{ marginBottom: '24px' }}>
-                            <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                                <Lock size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                                Confirm Password
-                            </label>
+                        <div className="field">
+                            <label className="field-label" htmlFor="reset-confirm">Confirm password</label>
                             <input
+                                id="reset-confirm"
                                 type="password"
                                 value={confirm}
                                 onChange={(e) => { setConfirm(e.target.value); setError(''); }}
-                                placeholder="••••••••"
-                                style={inputStyle(!!error)}
+                                placeholder="Repeat your password"
+                                autoComplete="new-password"
+                                className="input-field"
+                                aria-invalid={error ? true : undefined}
+                                aria-describedby={error ? 'reset-error' : undefined}
                             />
                             {error && (
-                                <p style={{ color: '#EF4444', fontSize: '0.85rem', marginTop: '8px', marginBottom: 0 }}>{error}</p>
+                                <span id="reset-error" className="field-error" role="alert">{error}</span>
                             )}
                         </div>
                         <button
                             type="submit"
-                            className="action-btn primary"
+                            className="pill-btn primary lg block auth-submit"
                             disabled={saving}
-                            style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 600 }}
                         >
-                            {saving ? 'Saving...' : 'Update Password'}
+                            {saving ? 'Saving...' : 'Update password'}
                         </button>
                     </form>
                 )}
-            </motion.div>
+            </section>
+
+            {canReset && !done && (
+                <Link to="/login" className="auth-switch is-plain">
+                    Back to login
+                </Link>
+            )}
         </div>
     );
 };

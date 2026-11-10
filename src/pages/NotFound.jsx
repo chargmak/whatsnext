@@ -1,22 +1,15 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Film } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import '../styles/auth.css';
 
-const NotFound = () => {
-    const navigate = useNavigate();
-
-    return (
-        <div className="container" style={{ paddingTop: '100px', paddingBottom: '100px', textAlign: 'center' }}>
-            <Film size={64} color="var(--brand-600)" style={{ marginBottom: '16px' }} />
-            <h1 style={{ fontSize: '3rem', margin: '0 0 8px' }}>404</h1>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-                This page doesn't exist.
-            </p>
-            <button className="action-btn primary" onClick={() => navigate('/')}>
-                Back to Home
-            </button>
-        </div>
-    );
-};
+const NotFound = () => (
+    <div className="container auth-notfound">
+        <div className="auth-notfound-code">404</div>
+        <h1 className="auth-notfound-text">This page doesn't exist.</h1>
+        <Link to="/" className="pill-btn inverse lg">
+            Back to Home
+        </Link>
+    </div>
+);
 
 export default NotFound;
