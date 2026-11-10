@@ -24,6 +24,7 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const MediaDetail = lazy(() => import('./pages/MovieDetail'));
 const Person = lazy(() => import('./pages/Person'));
+const Franchises = lazy(() => import('./pages/Franchises'));
 
 const RouteFallback = () => (
     <div className="container" style={{ paddingTop: '100px', textAlign: 'center' }}>
@@ -50,6 +51,7 @@ function AppShell() {
             <Route path="/profile/edit" element={<RequireUser><EditProfile /></RequireUser>} />
             <Route path="/notifications" element={<RequireUser><Notifications /></RequireUser>} />
             <Route path="/settings" element={<RequireUser><Settings /></RequireUser>} />
+            <Route path="/franchises" element={<RequireUser><Franchises /></RequireUser>} />
             <Route path="/login" element={<RedirectIfAuthed><Login /></RedirectIfAuthed>} />
             <Route path="/register" element={<RedirectIfAuthed><Register /></RedirectIfAuthed>} />
             <Route path="/reset-password" element={<ResetPassword />} />

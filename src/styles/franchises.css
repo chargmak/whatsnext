@@ -1,0 +1,160 @@
+/* ===== Franchises ===== */
+
+.fr-tile {
+  padding: 0;
+  overflow: hidden;
+}
+
+.fr-head {
+  display: block;
+  width: 100%;
+  padding: 16px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.fr-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fr-name {
+  min-width: 0;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+}
+
+.fr-head-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.fr-chevron {
+  transition: transform 0.2s ease;
+}
+
+.fr-head[aria-expanded="true"] .fr-chevron {
+  transform: rotate(180deg);
+}
+
+.fr-bar {
+  height: 6px;
+  margin-top: 10px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.fr-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--brand-600);
+}
+
+.fr-next {
+  margin-top: 10px;
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  color: var(--text-secondary);
+}
+
+.fr-next strong {
+  font-weight: 600;
+  color: var(--text-soft);
+}
+
+/* A finished franchise reads as done without relying on colour alone: the
+   pill says COMPLETE and the bar is full. */
+.fr-pill-done {
+  background: var(--bg-tertiary);
+  color: var(--text-soft);
+}
+
+.fr-films {
+  list-style: none;
+  padding: 0 16px 8px;
+  border-top: 1px solid var(--border);
+}
+
+.fr-film {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 48px;
+}
+
+.fr-tick {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-left: -10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.fr-tick span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--text-secondary);
+  color: transparent;
+}
+
+.fr-tick[aria-pressed="true"] span {
+  border-color: var(--brand-600);
+  background: var(--brand-600);
+  color: var(--on-accent);
+}
+
+.fr-tick:disabled {
+  cursor: default;
+}
+
+.fr-tick:disabled span {
+  border-style: dashed;
+  border-color: var(--border-strong);
+}
+
+.fr-film-link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+
+.fr-film-link .mono-label {
+  flex-shrink: 0;
+}
+
+.fr-add {
+  margin: 4px 16px 16px;
+  width: calc(100% - 32px);
+}
+
+.fr-skeleton {
+  height: 104px;
+  border-radius: var(--radius-xl);
+}

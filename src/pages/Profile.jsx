@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Bell, ChevronRight, UserPlus, LogIn } from 'lucide-react';
+import { Settings, LogOut, Bell, ChevronRight, UserPlus, LogIn, Layers } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import '../styles/account.css';
 
@@ -87,7 +87,7 @@ const Profile = () => {
 
             {/* Identity */}
             <section className="tile account-identity">
-                <img src={user.avatar} alt="" className="profile-avatar" />
+                <img src={user.avatar || undefined} alt="" className="profile-avatar" />
                 <div className="account-identity-body">
                     <h2 className="account-name truncate">{user.name}</h2>
                     <span className="mono-label text-accent account-rank truncate">
@@ -144,6 +144,11 @@ const Profile = () => {
                     ) : (
                         <ChevronRight size={16} className="account-row-trail" aria-hidden="true" />
                     )}
+                </button>
+                <button type="button" className="list-row" onClick={() => navigate('/franchises')}>
+                    <Layers size={20} className="account-row-icon" aria-hidden="true" />
+                    <span className="account-row-main">Franchises</span>
+                    <ChevronRight size={16} className="account-row-trail" aria-hidden="true" />
                 </button>
                 <button type="button" className="list-row" onClick={() => navigate('/settings')}>
                     <Settings size={20} className="account-row-icon" aria-hidden="true" />
