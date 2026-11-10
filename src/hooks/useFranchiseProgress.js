@@ -49,8 +49,12 @@ export const useFranchiseProgress = () => {
             for (const movieId of recent) {
                 let collectionId = cache[movieId];
                 if (collectionId === undefined) {
-                    collectionId = (await getMovieCollectionId(movieId)) || 0;
+                    const found = await getMovieCollectionId(movieId);
                     if (!active) return;
+                    // The lookup failed: try this movie again on a later visit
+                    // rather than recording it as belonging to no franchise.
+                    if (found === undefined) continue;
+                    collectionId = found || 0;
                     cache[movieId] = collectionId;
                     try {
                         localStorage.setItem(CACHE_KEY, JSON.stringify(cache));

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Eye, EyeOff, ChevronDown } from 'lucide-react';
+import { Mail, Eye, EyeOff, ChevronDown, X } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { deviceTimeZone } from '../services/releaseTime';
 import { COUNTRIES } from '../data/countries';
@@ -109,9 +109,16 @@ const Register = () => {
 
     return (
         <div className="container page auth-page is-long">
-            <header>
-                <div className="brand-title">What's Next<span className="brand-mark">?</span></div>
-                <p className="auth-tagline">Start tracking your entertainment journey</p>
+            {/* The dock is hidden on these screens, so this is the way back to
+                the public pages for someone who doesn't want to sign in yet. */}
+            <header className="auth-header">
+                <div>
+                    <div className="brand-title">What's Next<span className="brand-mark">?</span></div>
+                    <p className="auth-tagline">Start tracking your entertainment journey</p>
+                </div>
+                <Link to="/" className="icon-btn on-page" aria-label="Close and keep browsing">
+                    <X size={18} strokeWidth={2.5} aria-hidden="true" />
+                </Link>
             </header>
 
             {/* Register form */}

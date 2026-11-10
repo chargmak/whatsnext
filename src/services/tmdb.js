@@ -715,9 +715,12 @@ export const getCollection = async (collectionId) => {
     };
 };
 
-// Which collection (franchise) a movie belongs to, or null. A bare /movie/{id}
-// lookup — the detail page's full payload is far more than this needs.
+// Which collection (franchise) a movie belongs to: its id, null when the movie
+// belongs to none, or undefined when the lookup itself failed (offline, rate
+// limited) — callers must not remember a failure as "none". A bare /movie/{id}
+// lookup; the detail page's full payload is far more than this needs.
 export const getMovieCollectionId = async (movieId) => {
     const data = await fetchFromTMDB(`/movie/${movieId}`);
-    return data?.belongs_to_collection?.id || null;
+    if (!data) return undefined;
+    return data.belongs_to_collection?.id || null;
 };

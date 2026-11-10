@@ -106,7 +106,26 @@ export const useUpNext = (series, limit) => {
 
         const next = await getNextUnwatchedEpisode(show.id, updated, timeZone);
         if (next && !next.poster && show.poster) next.poster = show.poster;
+        const known = { ...nextByShow, [show.id]: next };
         setNextByShow((prev) => ({ ...prev, [show.id]: next }));
+
+        // A preview only resolved shows until it had enough. If this show is
+        // now caught up and nothing else resolved so far has an episode
+        // waiting, work through the shows not looked at yet — otherwise the
+        // preview would claim "all caught up" while later shows still have
+        // episodes to watch.
+        if (limit && !next && !Object.values(known).some(Boolean)) {
+            const pending = series.filter((s) => !(s.id in known));
+            for (let i = 0; i < pending.length; i += PREVIEW_BATCH) {
+                const batch = await Promise.all(pending.slice(i, i + PREVIEW_BATCH).map(async (s) => {
+                    const ep = await getNextUnwatchedEpisode(s.id, watchedEpisodes[String(s.id)] || {}, timeZone);
+                    if (ep && !ep.poster && s.poster) ep.poster = s.poster;
+                    return [s.id, ep];
+                }));
+                setNextByShow((prev) => ({ ...prev, ...Object.fromEntries(batch) }));
+                if (batch.some(([, ep]) => ep)) break;
+            }
+        }
         setBusyId(null);
     };
 

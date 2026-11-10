@@ -166,6 +166,11 @@ export const UserProvider = ({ children }) => {
                 if (event === 'SIGNED_IN' && session?.user) {
                     loadAuthedUser(session.user);
                 } else if (event === 'SIGNED_OUT') {
+                    // A pending import question belongs to the session that
+                    // just ended (e.g. signed out from another tab).
+                    guestImportResolverRef.current?.(null);
+                    guestImportResolverRef.current = null;
+                    setGuestImport(null);
                     loadedUserIdRef.current = null;
                     setUser(null);
                     clearData();
@@ -195,17 +200,23 @@ export const UserProvider = ({ children }) => {
 
     // Opens the import sheet and resolves with the user's choice. Login and
     // sign-up wait on this exactly as they used to wait on window.confirm.
+    // Resolves true (import), false (declined) or null (the question went away
+    // unanswered: superseded by a newer one, or the session ended).
     const askGuestImport = (counts) => new Promise((resolve) => {
+        // Never leave an earlier question hanging.
+        guestImportResolverRef.current?.(null);
         guestImportResolverRef.current = resolve;
         setGuestImport(counts);
     });
 
-    const resolveGuestImport = (accept) => {
+    const settleGuestImport = (answer) => {
         const resolve = guestImportResolverRef.current;
         guestImportResolverRef.current = null;
         setGuestImport(null);
-        if (resolve) resolve(Boolean(accept));
+        if (resolve) resolve(answer);
     };
+
+    const resolveGuestImport = (accept) => settleGuestImport(Boolean(accept));
 
     const maybeMigrateLocalData = async (userId) => {
         const local = {
@@ -217,15 +228,18 @@ export const UserProvider = ({ children }) => {
         };
         const hasData = local.watchlist.length || local.watched.length
             || Object.keys(local.episodes).length || local.reminders.length;
-        if (!hasData || localStorage.getItem('migration_declined') === 'true') return;
+        if (!hasData || localStorage.getItem('migration_declined') === 'true') return true;
 
         const ok = await askGuestImport({
             watchlistCount: local.watchlist.length,
             watchedCount: local.watched.length,
         });
+        // Abandoned, not answered: leave the guest data and the choice alone,
+        // and tell the caller not to carry on loading this account.
+        if (ok === null) return false;
         if (!ok) {
             localStorage.setItem('migration_declined', 'true');
-            return;
+            return true;
         }
         try {
             await userData.migrateLocalData(userId, local);
@@ -233,6 +247,7 @@ export const UserProvider = ({ children }) => {
         } catch (error) {
             console.error('Error importing local data:', error);
         }
+        return true;
     };
 
     // --- Auth actions ---
@@ -241,7 +256,7 @@ export const UserProvider = ({ children }) => {
         if (!supabase) throw new Error('Accounts are unavailable in this deployment. Use "Continue as guest" instead.');
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw new Error(error.message);
-        await maybeMigrateLocalData(data.user.id);
+        if (!(await maybeMigrateLocalData(data.user.id))) return {};
         await loadAuthedUser(data.user, { force: true });
         return {};
     };
@@ -260,13 +275,14 @@ export const UserProvider = ({ children }) => {
             throw new Error('This email is already registered. Try logging in instead.');
         }
         if (data.user && !data.session) return { needsConfirmation: true };
-        await maybeMigrateLocalData(data.user.id);
+        if (!(await maybeMigrateLocalData(data.user.id))) return {};
         await loadAuthedUser(data.user, { force: true });
         return {};
     };
 
     const logout = async () => {
         if (isAuthed && supabase) {
+            settleGuestImport(null);
             await supabase.auth.signOut();
             loadedUserIdRef.current = null;
             setUser(null);

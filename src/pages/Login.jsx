@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, Check } from 'lucide-react';
+import { Eye, EyeOff, Check, X } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { supabase } from '../services/supabase';
 import '../styles/auth.css';
@@ -93,9 +93,16 @@ const Login = () => {
 
     return (
         <div className="container page auth-page">
-            <header>
-                <div className="brand-title">What's Next<span className="brand-mark">?</span></div>
-                <p className="auth-tagline">Track your favorite movies &amp; TV shows</p>
+            {/* The dock is hidden on these screens, so this is the way back to
+                the public pages for someone who doesn't want to sign in yet. */}
+            <header className="auth-header">
+                <div>
+                    <div className="brand-title">What's Next<span className="brand-mark">?</span></div>
+                    <p className="auth-tagline">Track your favorite movies &amp; TV shows</p>
+                </div>
+                <Link to="/" className="icon-btn on-page" aria-label="Close and keep browsing">
+                    <X size={18} strokeWidth={2.5} aria-hidden="true" />
+                </Link>
             </header>
 
             {/* Login form */}
