@@ -188,12 +188,16 @@ const MovieUpNextTile = ({ movies, timeZone, onWatched }) => {
 
 // ---- Release tiles ---------------------------------------------------------
 
-const NextReleaseTile = ({ release, timeZone, reminderOn }) => {
+const NextReleaseTile = ({ release, timeZone, reminderOn, mediaType }) => {
     if (!release) {
         return (
             <section className="tile-dashed mini-tile">
-                <div className="tile-label">Next release</div>
-                <div className="mini-tile-hint">Save an upcoming title to start a countdown.</div>
+                <div className="tile-label">{mediaType === 'tv' ? 'Next episode' : 'Next release'}</div>
+                <div className="mini-tile-hint">
+                    {mediaType === 'tv'
+                        ? 'Save a show that is still airing to start a countdown.'
+                        : 'Save an upcoming movie to start a countdown.'}
+                </div>
             </section>
         );
     }
@@ -208,7 +212,7 @@ const NextReleaseTile = ({ release, timeZone, reminderOn }) => {
 
     return (
         <Link to={`/${release.type}/${release.id}`} className="tile mini-tile">
-            <div className="tile-label">Next release</div>
+            <div className="tile-label">{mediaType === 'tv' ? 'Next episode' : 'Next release'}</div>
             <div className="countdown-num">
                 <strong>{value}</strong>
                 <span>{unit}</span>
@@ -225,14 +229,18 @@ const NextReleaseTile = ({ release, timeZone, reminderOn }) => {
     );
 };
 
-const ThisWeekTile = ({ releases, weekKeys, timeZone }) => {
+const ThisWeekTile = ({ releases, weekKeys, timeZone, mediaType }) => {
     const inWeek = releases.filter((r) => weekKeys.has(r.air.dateKey));
 
     if (inWeek.length === 0) {
         return (
             <section className="tile-dashed mini-tile">
                 <div className="tile-label">This week</div>
-                <div className="mini-tile-hint">No upcoming releases in your watchlist.</div>
+                <div className="mini-tile-hint">
+                    {mediaType === 'tv'
+                        ? 'No episodes of your shows air in the next seven days.'
+                        : 'None of your saved movies come out in the next seven days.'}
+                </div>
             </section>
         );
     }
@@ -249,7 +257,9 @@ const ThisWeekTile = ({ releases, weekKeys, timeZone }) => {
                         <span className="mono-label">
                             {new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone }).format(r.air.instant)}
                         </span>
-                        <span className="truncate">{releaseTitle(r)}</span>
+                        <span className="truncate">
+                            {releaseTitle(r)}{r.isEpisode ? ` · E${r.episodeNumber}` : ''}
+                        </span>
                     </li>
                 ))}
             </ul>
@@ -262,19 +272,21 @@ const ThisWeekTile = ({ releases, weekKeys, timeZone }) => {
 
 // ---- Collection tiles ------------------------------------------------------
 
-const WatchlistTile = ({ watchlist }) => (
+const WatchlistTile = ({ items, mediaType }) => (
     <Link to="/library" className="tile mini-tile short">
         <div className="tile-label">Watchlist</div>
         <div className="mini-row">
-            <span className="big-num">{watchlist.length}</span>
+            <span className="big-num">{items.length}</span>
             <span className="poster-stack" aria-hidden="true">
-                {watchlist.slice(-3).reverse().map((item) => (
+                {items.slice(-3).reverse().map((item) => (
                     <img key={`${item.type}-${item.id}`} src={item.poster || PLACEHOLDER_POSTER} alt="" />
                 ))}
             </span>
         </div>
         <div className="mini-tile-foot tile-sub">
-            {watchlist.length === 1 ? 'title saved' : 'titles saved'}
+            {mediaType === 'tv'
+                ? (items.length === 1 ? 'show saved' : 'shows saved')
+                : (items.length === 1 ? 'movie saved' : 'movies saved')}
         </div>
     </Link>
 );
@@ -282,8 +294,10 @@ const WatchlistTile = ({ watchlist }) => (
 const RING_R = 23;
 const RING_C = 2 * Math.PI * RING_R;
 
+// Movies tab: the franchise the viewer is part-way through. Opens the page that
+// lists every franchise.
 const FranchiseTile = ({ progress }) => (
-    <Link to={`/movie/${progress.nextId}`} className="tile mini-tile short">
+    <Link to="/franchises" className="tile mini-tile short">
         <div className="tile-label">Franchise progress</div>
         <div className="mini-row" style={{ justifyContent: 'flex-start' }}>
             <svg className="ring" width="56" height="56" viewBox="0 0 56 56" role="img" aria-label={`${progress.watched} of ${progress.total} films watched`}>
@@ -305,14 +319,26 @@ const FranchiseTile = ({ progress }) => (
     </Link>
 );
 
-const WatchedTile = ({ stats }) => (
-    <Link to="/profile" className="tile mini-tile short">
-        <div className="tile-label">Watched</div>
+// Movies tab, when no franchise is under way.
+const MoviesWatchedTile = ({ stats }) => (
+    <Link to="/franchises" className="tile mini-tile short">
+        <div className="tile-label">Movies watched</div>
         <div className="mini-row">
-            <span className="big-num">{stats?.hoursWatched ?? 0}<span className="tile-sub"> h</span></span>
+            <span className="big-num">{stats?.moviesWatched ?? 0}</span>
+        </div>
+        <div className="mini-tile-foot tile-sub">See your franchises</div>
+    </Link>
+);
+
+// TV tab: how much of their shows the viewer has got through.
+const EpisodesWatchedTile = ({ stats }) => (
+    <Link to="/library" className="tile mini-tile short">
+        <div className="tile-label">Episodes watched</div>
+        <div className="mini-row">
+            <span className="big-num">{(stats?.episodesWatched ?? 0).toLocaleString()}</span>
         </div>
         <div className="mini-tile-foot tile-sub">
-            {stats?.moviesWatched ?? 0} movies · {stats?.episodesWatched ?? 0} episodes
+            {stats?.showsWatched ?? 0} {stats?.showsWatched === 1 ? 'show' : 'shows'} finished
         </div>
     </Link>
 );
@@ -433,9 +459,20 @@ const Home = () => {
     const today = todayKey(timeZone);
     const week = useMemo(() => weekFrom(today), [today]);
     const weekKeys = useMemo(() => new Set(week.map((d) => d.key)), [week]);
-    const upcoming = useMemo(() => releases.filter((r) => !r.air.hasAired), [releases]);
+    // Everything on this page follows the TV / Movies toggle, releases included:
+    // the TV tab counts down to episodes, the Movies tab to films.
+    const upcoming = useMemo(
+        () => releases.filter((r) => !r.air.hasAired && (r.type || 'movie') === mediaType),
+        [releases, mediaType]
+    );
+    const typedWatchlist = mediaType === 'tv' ? tvWatchlist : movieWatchlist;
     const releaseDays = useMemo(() => new Set(upcoming.map((r) => r.air.dateKey)), [upcoming]);
     const nextRelease = upcoming[0] || null;
+
+    // The two progress tiles appear once there is something of this kind to
+    // count: a saved title, or history.
+    const showProgressRow = typedWatchlist.length > 0
+        || (mediaType === 'tv' ? (stats?.episodesWatched ?? 0) > 0 : (stats?.moviesWatched ?? 0) > 0);
 
     const dateLine = formatZonedDate(new Date(), timeZone, { weekday: 'long', day: 'numeric', month: 'long' });
     const noun = mediaType === 'movie' ? 'movies' : 'shows';
@@ -485,7 +522,7 @@ const Home = () => {
                             key={d.key}
                             to="/calendar"
                             className={`week-day ${d.key === today ? 'today' : ''} ${hasRelease ? 'has-release' : ''}`}
-                            aria-label={`${d.name} ${d.day}${hasRelease ? ', has releases' : ''}`}
+                            aria-label={`${d.name} ${d.day}${hasRelease ? (mediaType === 'tv' ? ', episodes airing' : ', movies out') : ''}`}
                         >
                             <span className="week-day-name">{d.name}</span>
                             <span className="week-day-num">{d.day}</span>
@@ -504,16 +541,19 @@ const Home = () => {
                     release={nextRelease}
                     timeZone={timeZone}
                     reminderOn={Boolean(nextRelease) && isReminderSet(nextRelease.id, nextRelease.type)}
+                    mediaType={mediaType}
                 />
-                <ThisWeekTile releases={upcoming} weekKeys={weekKeys} timeZone={timeZone} />
+                <ThisWeekTile releases={upcoming} weekKeys={weekKeys} timeZone={timeZone} mediaType={mediaType} />
 
                 {/* "What's Next?" — answers the app's namesake question */}
                 <WhatsNextSpotlight mediaType={mediaType} />
 
-                {watchlist.length > 0 && <WatchlistTile watchlist={watchlist} />}
-                {watchlist.length > 0 && (franchise
-                    ? <FranchiseTile progress={franchise} />
-                    : <WatchedTile stats={stats} />)}
+                {showProgressRow && <WatchlistTile items={typedWatchlist} mediaType={mediaType} />}
+                {showProgressRow && (mediaType === 'tv'
+                    ? <EpisodesWatchedTile stats={stats} />
+                    : franchise
+                        ? <FranchiseTile progress={franchise} />
+                        : <MoviesWatchedTile stats={stats} />)}
 
                 <section className="tile span-2 row-tile">
                     <div className="row-tile-head">

@@ -1,27 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useUser } from '../context/UserContext';
-import { getCollection, getMovieCollectionId } from '../services/tmdb';
+import { loadFranchise, loadFranchises, resolveCollectionIds } from '../services/franchises';
 
-// movieId -> collectionId (0 = belongs to none), remembered on the device so
-// the lookup for a given movie is paid for once, not on every visit to Home.
-const CACHE_KEY = 'whatsnext_movie_collections';
-// How many of the most recently watched movies to consider.
+// How many of the most recently watched movies the Home tile considers.
 const LOOKBACK = 8;
 
-const readCache = () => {
-    try {
-        const map = JSON.parse(localStorage.getItem(CACHE_KEY));
-        return map && typeof map === 'object' ? map : {};
-    } catch {
-        return {};
-    }
-};
+const movieIdsOf = (list) => list.filter((m) => (m.type || 'movie') === 'movie').map((m) => m.id);
 
 /**
  * The franchise the viewer is part-way through: the collection of the most
- * recently watched movie that belongs to one and still has films left, with how
- * many of its films they have seen. Null when there isn't one (no watched
- * movies, none in a collection, or everything finished).
+ * recently watched movie that belongs to one and still has films left. Null
+ * when there isn't one (no watched movies, none in a collection, or everything
+ * finished). Looks only at recent history so Home stays cheap; the Franchises
+ * page uses useFranchises for the full picture.
  *
  * Returns { name, watched, total, nextId } | null.
  */
@@ -29,7 +20,7 @@ export const useFranchiseProgress = () => {
     const { watched } = useUser();
     const [progress, setProgress] = useState(null);
 
-    const watchedMovieIds = watched.filter((m) => (m.type || 'movie') === 'movie').map((m) => m.id);
+    const watchedMovieIds = useMemo(() => movieIdsOf(watched), [watched]);
     const key = watchedMovieIds.join(',');
 
     useEffect(() => {
@@ -40,44 +31,27 @@ export const useFranchiseProgress = () => {
                 setProgress(null);
                 return;
             }
-            const cache = readCache();
             // Saved order is oldest first, so walk it from the end.
             const recent = watchedMovieIds.slice(-LOOKBACK).reverse();
             const seen = new Set(watchedMovieIds);
-            const tried = new Set();
+            const byMovie = await resolveCollectionIds(recent, () => active);
+            if (!active) return;
 
+            const tried = new Set();
             for (const movieId of recent) {
-                let collectionId = cache[movieId];
-                if (collectionId === undefined) {
-                    const found = await getMovieCollectionId(movieId);
-                    if (!active) return;
-                    // The lookup failed: try this movie again on a later visit
-                    // rather than recording it as belonging to no franchise.
-                    if (found === undefined) continue;
-                    collectionId = found || 0;
-                    cache[movieId] = collectionId;
-                    try {
-                        localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-                    } catch {
-                        // Storage full or blocked: the lookup just isn't remembered.
-                    }
-                }
+                const collectionId = byMovie.get(movieId);
                 if (!collectionId || tried.has(collectionId)) continue;
                 tried.add(collectionId);
 
-                const collection = await getCollection(collectionId);
+                const franchise = await loadFranchise(collectionId, seen);
                 if (!active) return;
-                const parts = collection?.parts || [];
-                if (parts.length < 2) continue;
-                const watchedCount = parts.filter((p) => seen.has(p.id)).length;
-                if (watchedCount >= parts.length) continue;
+                if (!franchise || franchise.complete) continue;
 
                 setProgress({
-                    name: collection.name,
-                    watched: watchedCount,
-                    total: parts.length,
-                    // The first film in watch order they haven't seen yet.
-                    nextId: parts.find((p) => !seen.has(p.id))?.id || parts[0].id,
+                    name: franchise.name,
+                    watched: franchise.watched,
+                    total: franchise.total,
+                    nextId: franchise.next?.id || franchise.films[0].id,
                 });
                 return;
             }
@@ -92,4 +66,68 @@ export const useFranchiseProgress = () => {
     }, [key]);
 
     return progress;
+};
+
+// In progress first (closest to done at the top), then the ones saved but not
+// started, then the finished ones.
+const rank = (f) => (f.complete ? 2 : f.watched > 0 ? 0 : 1);
+const byProgress = (a, b) =>
+    rank(a) - rank(b)
+    || (b.watched / b.total) - (a.watched / a.total)
+    || a.name.localeCompare(b.name);
+
+/**
+ * Every franchise the viewer has touched — any collection containing a movie
+ * they have watched or saved — with their progress through each.
+ *
+ * Returns { loading, franchises }.
+ */
+export const useFranchises = () => {
+    const { watched, watchlist } = useUser();
+    const [state, setState] = useState({ key: null, franchises: [] });
+
+    const watchedIds = useMemo(() => movieIdsOf(watched), [watched]);
+    const savedIds = useMemo(() => movieIdsOf(watchlist), [watchlist]);
+    // Which collections are involved only changes when a movie enters or leaves
+    // the two lists; ticking a film inside a known collection is recomputed
+    // below from what is already loaded, without refetching.
+    const membersKey = [...new Set([...watchedIds, ...savedIds])].sort((a, b) => a - b).join(',');
+
+    useEffect(() => {
+        let active = true;
+        const load = async () => {
+            const ids = membersKey ? membersKey.split(',').map(Number) : [];
+            const byMovie = await resolveCollectionIds(ids, () => active);
+            if (!active) return;
+            const collectionIds = [...new Set(byMovie.values())];
+            const loaded = await loadFranchises(collectionIds, new Set(), () => active);
+            if (!active) return;
+            setState({ key: membersKey, franchises: loaded });
+        };
+        load().catch(() => {
+            if (active) setState({ key: membersKey, franchises: [] });
+        });
+        return () => { active = false; };
+    }, [membersKey]);
+
+    const franchises = useMemo(() => {
+        const seen = new Set(watchedIds);
+        return state.franchises
+            .map((f) => {
+                const films = f.films.map((film) => ({ ...film, watched: seen.has(film.id) }));
+                const count = films.filter((film) => film.watched).length;
+                return {
+                    ...f,
+                    films,
+                    watched: count,
+                    complete: count >= films.length,
+                    next: films.find((film) => !film.watched) || null,
+                };
+            })
+            .sort(byProgress);
+    }, [state.franchises, watchedIds]);
+
+    // Only the very first load shows a loading state; later membership changes
+    // keep the current list on screen while the new one resolves.
+    return { loading: state.key === null, franchises };
 };
