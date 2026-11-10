@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Play, Plus, Check, Share, Bell, Clock, ChevronDown, RefreshCw } from 'lucide-react';
+import { isFilmReleased } from '../services/franchises';
 import { getDetails, mapMediaData, getTVSeasonDetails, getCollection, getMovieReleaseForCountry, clearTmdbCache } from '../services/tmdb';
 import {
     PRECISION,
@@ -239,7 +240,11 @@ const MediaDetail = ({ type }) => {
     const notOutYet = type === 'movie' && (release ? !release.hasAired : item.upcoming);
 
     const franchiseParts = collection?.parts || [];
-    const franchiseWatchedCount = franchiseParts.filter(
+    // Progress counts only the films that are out: an unreleased sequel can't
+    // be watched, so it stays in the list (marked) but out of the total.
+    const franchiseReleased = franchiseParts.filter((p) => isFilmReleased(p));
+    const franchiseTotal = franchiseReleased.length;
+    const franchiseWatchedCount = franchiseReleased.filter(
         (p) => watched.some((w) => w.id === p.id && w.type === 'movie')
     ).length;
 
@@ -454,7 +459,7 @@ const MediaDetail = ({ type }) => {
                         <div className="detail-franchise-head">
                             <h2 className="section-title truncate">{collection.name}</h2>
                             <span className="pill-tag">
-                                {franchiseWatchedCount}/{franchiseParts.length} watched
+                                {franchiseWatchedCount}/{franchiseTotal} watched
                             </span>
                         </div>
 
@@ -463,13 +468,13 @@ const MediaDetail = ({ type }) => {
                             role="progressbar"
                             aria-label={`${collection.name} watched`}
                             aria-valuemin={0}
-                            aria-valuemax={franchiseParts.length}
+                            aria-valuemax={franchiseTotal}
                             aria-valuenow={franchiseWatchedCount}
                         >
                             <motion.div
                                 className="detail-progress-fill"
                                 initial={{ width: 0 }}
-                                animate={{ width: `${(franchiseWatchedCount / franchiseParts.length) * 100}%` }}
+                                animate={{ width: `${franchiseTotal ? (franchiseWatchedCount / franchiseTotal) * 100 : 0}%` }}
                                 transition={{ duration: 0.6 }}
                             />
                         </div>
@@ -478,16 +483,17 @@ const MediaDetail = ({ type }) => {
                             {franchiseParts.map((part) => {
                                 const seen = watched.some((w) => w.id === part.id && w.type === 'movie');
                                 const isCurrent = part.id === item.id;
+                                const out = isFilmReleased(part);
                                 const row = (
                                     <>
-                                        <span className={`detail-mark ${seen ? 'is-seen' : ''}`} aria-hidden="true">
+                                        <span className={`detail-mark ${seen ? 'is-seen' : ''} ${out ? '' : 'is-unreleased'}`} aria-hidden="true">
                                             <Check size={12} strokeWidth={3.5} />
                                         </span>
                                         <span className="detail-franchise-title truncate">{part.title}</span>
                                         <span className="detail-franchise-note">
-                                            {isCurrent ? 'Now viewing' : part.year || 'TBA'}
+                                            {isCurrent ? 'Now viewing' : out ? part.year : `${part.year || 'TBA'} · not out`}
                                         </span>
-                                        <span className="detail-sr-only">{seen ? ', watched' : ', not watched'}</span>
+                                        <span className="detail-sr-only">{!out ? ', not out yet' : seen ? ', watched' : ', not watched'}</span>
                                     </>
                                 );
                                 return (

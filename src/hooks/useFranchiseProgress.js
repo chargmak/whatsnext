@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useUser } from '../context/UserContext';
-import { loadFranchise, loadFranchises, resolveCollectionIds } from '../services/franchises';
+import { franchiseProgress, loadFranchise, loadFranchises, resolveCollectionIds } from '../services/franchises';
 
 // How many of the most recently watched movies the Home tile considers.
 const LOOKBACK = 8;
@@ -52,6 +52,7 @@ export const useFranchiseProgress = () => {
                     watched: franchise.watched,
                     total: franchise.total,
                     nextId: franchise.next?.id || franchise.films[0].id,
+                    newFilm: franchise.newFilm?.title || null,
                 });
                 return;
             }
@@ -113,17 +114,7 @@ export const useFranchises = () => {
     const franchises = useMemo(() => {
         const seen = new Set(watchedIds);
         return state.franchises
-            .map((f) => {
-                const films = f.films.map((film) => ({ ...film, watched: seen.has(film.id) }));
-                const count = films.filter((film) => film.watched).length;
-                return {
-                    ...f,
-                    films,
-                    watched: count,
-                    complete: count >= films.length,
-                    next: films.find((film) => !film.watched) || null,
-                };
-            })
+            .map((f) => ({ ...f, ...franchiseProgress(f.parts, seen) }))
             .sort(byProgress);
     }, [state.franchises, watchedIds]);
 

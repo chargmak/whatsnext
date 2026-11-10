@@ -123,15 +123,6 @@
   color: var(--on-accent);
 }
 
-.fr-tick:disabled {
-  cursor: default;
-}
-
-.fr-tick:disabled span {
-  border-style: dashed;
-  border-color: var(--border-strong);
-}
-
 .fr-film-link {
   flex: 1;
   min-width: 0;
@@ -157,4 +148,27 @@
 .fr-skeleton {
   height: 104px;
   border-radius: var(--radius-xl);
+}
+
+.fr-note {
+  margin-top: 8px;
+  font-size: 0.8125rem;
+  line-height: 1.5rem;
+  color: var(--text-soft);
+}
+
+.fr-note .pill-tag,
+.fr-note .badge {
+  margin-right: 6px;
+  vertical-align: baseline;
+}
+
+/* Films still to come: listed for reference, outside the checklist. */
+.fr-coming {
+  padding: 12px 16px 4px;
+  border-top: 1px solid var(--border);
+}
+
+.fr-coming .fr-film-link {
+  color: var(--text-soft);
 }

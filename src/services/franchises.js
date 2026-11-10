@@ -51,28 +51,63 @@ export const resolveCollectionIds = async (movieIds, isActive = () => true) => {
     return out;
 };
 
+// Has this film come out? TMDB dates are day-level, so this is a calendar-day
+// comparison; a film with no date yet has not been released.
+export const isFilmReleased = (film, today = new Date().toISOString().slice(0, 10)) =>
+    Boolean(film.releaseDate) && film.releaseDate <= today;
+
+// A film counts as new for this long after it comes out.
+const NEW_FILM_DAYS = 90;
+
+/**
+ * Progress through a set of franchise films. Only films that are already out
+ * count — a sequel that hasn't been released can't be watched, so it must not
+ * hold a finished franchise at 6/7. Films still to come are reported
+ * separately in `upcoming`.
+ */
+export const franchiseProgress = (parts, seenIds) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const films = parts.filter((p) => isFilmReleased(p, today)).map((p) => ({ ...p, watched: seenIds.has(p.id) }));
+    // Dated ones first, soonest first; undated (announced, no date) last.
+    const upcoming = parts.filter((p) => !isFilmReleased(p, today));
+    const watched = films.filter((f) => f.watched).length;
+    const next = films.find((f) => !f.watched) || null;
+
+    const newSince = new Date(Date.now() - NEW_FILM_DAYS * 86400000).toISOString().slice(0, 10);
+    // The latest released film, when it is recent and still unwatched.
+    const latest = films[films.length - 1] || null;
+    const newFilm = latest && !latest.watched && latest.releaseDate >= newSince ? latest : null;
+
+    return {
+        films,
+        upcoming,
+        watched,
+        total: films.length,
+        complete: films.length > 0 && watched >= films.length,
+        // The first released film in watch order they haven't seen yet.
+        next,
+        newFilm,
+    };
+};
+
 /**
  * A collection with the viewer's progress through it, or null when it isn't a
- * real franchise (fewer than two films) or couldn't be loaded. Films are in
- * release order, which is the order to watch them in.
+ * real franchise (fewer than two films, or none released yet) or couldn't be
+ * loaded. Films are in release order, which is the order to watch them in.
  */
 export const loadFranchise = async (collectionId, seenIds) => {
     const collection = await getCollection(collectionId);
     const parts = collection?.parts || [];
     if (parts.length < 2) return null;
 
-    const films = parts.map((p) => ({ ...p, watched: seenIds.has(p.id) }));
-    const watched = films.filter((f) => f.watched).length;
+    const progress = franchiseProgress(parts, seenIds);
+    if (progress.total === 0) return null;
     return {
         id: collection.id,
         name: collection.name,
         poster: collection.poster,
-        films,
-        watched,
-        total: films.length,
-        complete: watched >= films.length,
-        // The first film in watch order they haven't seen yet.
-        next: films.find((f) => !f.watched) || null,
+        parts,
+        ...progress,
     };
 };
 

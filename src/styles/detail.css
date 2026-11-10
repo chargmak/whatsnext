@@ -404,6 +404,11 @@ a.detail-franchise-row {
   color: var(--on-accent);
 }
 
+.detail-mark.is-unreleased {
+  border-style: dashed;
+  border-color: var(--border-strong);
+}
+
 .detail-franchise-add {
   margin-top: 12px;
 }
