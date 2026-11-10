@@ -51,7 +51,9 @@ interface NetworkRule {
 // in their own prime time.
 const NETWORK_RULES: NetworkRule[] = [
     { match: ['netflix'], zone: PACIFIC, hour: 0, minute: 0, global: true },
-    { match: ['disney+', 'disney plus'], zone: PACIFIC, hour: 0, minute: 0, global: true },
+    // Disney+ drops its weekly series at 18:00 Pacific on the listed date, not
+    // at midnight. Keep in step with NETWORK_RULES in src/services/releaseTime.js.
+    { match: ['disney+', 'disney plus'], zone: PACIFIC, hour: 18, minute: 0, global: true },
     { match: ['prime video', 'amazon'], zone: PACIFIC, hour: 0, minute: 0, global: true },
     // Apple drops at 21:00 Pacific — midnight Eastern the next day — and TMDB
     // dates episodes by that Pacific evening. Matching on 'apple tv' also covers
