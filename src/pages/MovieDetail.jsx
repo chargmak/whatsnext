@@ -363,64 +363,14 @@ const MediaDetail = ({ type }) => {
                     </button>
                 </div>
 
-                {/* Countdown to the next episode / the local opening day */}
-                {timeLeft && (
-                    <section className="tile" aria-label="Countdown">
-                        <h2 className="tile-label detail-countdown-label">
-                            {item.type === 'tv'
-                                ? `Season ${item.nextEpisode?.season_number} Episode ${item.nextEpisode?.episode_number} airs in`
-                                : 'Movie premiere in'}
-                        </h2>
-                        <div className="detail-countdown-nums">
-                            <div>
-                                <div className="detail-countdown-num">{pad2(timeLeft.days)}</div>
-                                <div className="detail-countdown-unit">DAYS</div>
-                            </div>
-                            <div>
-                                <div className="detail-countdown-num">{pad2(timeLeft.hours)}</div>
-                                <div className="detail-countdown-unit">HOURS</div>
-                            </div>
-                            <div>
-                                <div className="detail-countdown-num">{pad2(timeLeft.minutes)}</div>
-                                <div className="detail-countdown-unit">MINS</div>
-                            </div>
-                        </div>
-
-                        <div className="detail-countdown-foot">
-                            {/* The actual moment, in the viewer's own clock */}
-                            <p className="detail-countdown-when">
-                                {describeRelease(release, { verb: item.type === 'tv' ? 'air' : 'release', zone: timeZone })}
-                                {release.timeLabel ? ` ${zoneAbbreviation(release.instant, timeZone)}` : ''}
-                                <span className="detail-countdown-note">
-                                    {release.precision === PRECISION.ESTIMATED
-                                        ? `Estimated from ${release.sourceLabel || 'the channel'}'s usual slot — local broadcasters don't publish an exact time`
-                                        : release.precision === PRECISION.DAY
-                                            ? 'Exact time not announced yet'
-                                            : release.global
-                                                ? `${release.sourceLabel} drops worldwide at this moment`
-                                                : movieRelease?.isFallback
-                                                    ? `${movieRelease.typeLabel} — ${movieRelease.country} date (no date listed for your country yet)`
-                                                    : `${release.sourceLabel || 'Release'}${type === 'movie' ? ` in ${movieRelease?.country || user?.country || 'your country'}` : ''}`}
-                                </span>
-                            </p>
-                            <button
-                                type="button"
-                                className={`pill-btn ${reminderSet ? 'tint' : 'inverse'}`}
-                                aria-pressed={reminderSet}
-                                onClick={() => withUser(() => toggleReminder(item))}
-                            >
-                                {reminderSet ? (
-                                    <><Check size={16} strokeWidth={2.5} aria-hidden="true" /> Reminder set</>
-                                ) : (
-                                    <><Bell size={16} strokeWidth={2.5} aria-hidden="true" /> Notify me</>
-                                )}
-                            </button>
-                        </div>
-                    </section>
-                )}
-
+                {/* Two columns on wide screens: what the title is on the left,
+                    what the viewer is tracking on the right. On phones both
+                    wrappers dissolve (display: contents) and the blocks fall
+                    back into one column in their detail-o* order. */}
+                <div className="detail-cols">
+                <div className="detail-main">
                 {/* Overview + genres */}
-                <section>
+                <section className="detail-o2">
                     <p className="detail-overview">{item.plot || "No overview available."}</p>
                     {item.genres?.length > 0 && (
                         <div className="detail-genres">
@@ -431,126 +381,9 @@ const MediaDetail = ({ type }) => {
                     )}
                 </section>
 
-                {/* A series between episodes is still streamable, so it gets both
-                    the countdown and this; an unreleased movie gets neither. */}
-                {(!timeLeft || type === 'tv') && (
-                    <section className="detail-section">
-                        <h2 className="section-title">Where to watch</h2>
-                        {item.streaming && item.streaming.length > 0 ? (
-                            <div className="detail-providers">
-                                {item.streaming.map((service) => (
-                                    <div key={service.id || service.name} className="detail-provider">
-                                        <img src={service.logo} alt="" loading="lazy" />
-                                        <span>{service.name}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="tile-dashed">
-                                <p className="detail-empty">Not currently available for streaming.</p>
-                            </div>
-                        )}
-                    </section>
-                )}
-
-                {/* Franchise / collection tracking — movies only */}
-                {type === 'movie' && franchiseParts.length > 1 && (
-                    <section className="tile">
-                        <div className="detail-franchise-head">
-                            <h2 className="section-title truncate">{collection.name}</h2>
-                            <span className="pill-tag">
-                                {franchiseWatchedCount}/{franchiseTotal} watched
-                            </span>
-                        </div>
-
-                        <div
-                            className="detail-progress"
-                            role="progressbar"
-                            aria-label={`${collection.name} watched`}
-                            aria-valuemin={0}
-                            aria-valuemax={franchiseTotal}
-                            aria-valuenow={franchiseWatchedCount}
-                        >
-                            <motion.div
-                                className="detail-progress-fill"
-                                initial={{ width: 0 }}
-                                animate={{ width: `${franchiseTotal ? (franchiseWatchedCount / franchiseTotal) * 100 : 0}%` }}
-                                transition={{ duration: 0.6 }}
-                            />
-                        </div>
-
-                        <ul className="detail-franchise-list">
-                            {franchiseParts.map((part) => {
-                                const seen = watched.some((w) => w.id === part.id && w.type === 'movie');
-                                const isCurrent = part.id === item.id;
-                                const out = isFilmReleased(part);
-                                const row = (
-                                    <>
-                                        <span className={`detail-mark ${seen ? 'is-seen' : ''} ${out ? '' : 'is-unreleased'}`} aria-hidden="true">
-                                            <Check size={12} strokeWidth={3.5} />
-                                        </span>
-                                        <span className="detail-franchise-title truncate">{part.title}</span>
-                                        <span className="detail-franchise-note">
-                                            {isCurrent ? 'Now viewing' : out ? part.year : `${part.year || 'TBA'} · not out`}
-                                        </span>
-                                        <span className="detail-sr-only">{!out ? ', not out yet' : seen ? ', watched' : ', not watched'}</span>
-                                    </>
-                                );
-                                return (
-                                    <li key={part.id}>
-                                        {isCurrent ? (
-                                            <div className="detail-franchise-row" aria-current="page">{row}</div>
-                                        ) : (
-                                            <Link className="detail-franchise-row" to={`/movie/${part.id}`}>{row}</Link>
-                                        )}
-                                    </li>
-                                );
-                            })}
-                        </ul>
-
-                        {franchiseWatchedCount < franchiseParts.length && (
-                            <button
-                                type="button"
-                                onClick={addFranchiseToWatchlist}
-                                className="pill-btn inverse block detail-franchise-add"
-                            >
-                                Add remaining to watchlist
-                            </button>
-                        )}
-                    </section>
-                )}
-
-                {/* Cast */}
-                {item.credits && item.credits.length > 0 && (
-                    <section className="detail-section">
-                        <h2 className="section-title">Cast</h2>
-                        <div className="detail-cast hide-scrollbar">
-                            {item.credits.map((actor) => (
-                                <Link
-                                    key={actor.id}
-                                    to={`/person/${actor.id}`}
-                                    className="detail-cast-item"
-                                >
-                                    <img
-                                        src={actor.profile_path
-                                            ? `https://image.tmdb.org/t/p/w185${actor.profile_path}`
-                                            : '/poster-placeholder.svg'}
-                                        alt=""
-                                        loading="lazy"
-                                    />
-                                    <span className="detail-cast-name">{actor.name}</span>
-                                    {actor.character && (
-                                        <span className="detail-cast-role">{actor.character}</span>
-                                    )}
-                                </Link>
-                            ))}
-                        </div>
-                    </section>
-                )}
-
                 {/* Episodes — TV shows only */}
                 {type === 'tv' && item.seasons > 0 && (
-                    <section className="detail-section">
+                    <section className="detail-section detail-o6">
                         <div className="episodes-header">
                             <h2 className="section-title">Episodes</h2>
                             <div className="detail-season">
@@ -666,6 +499,183 @@ const MediaDetail = ({ type }) => {
                         )}
                     </section>
                 )}
+                {/* Cast */}
+                {item.credits && item.credits.length > 0 && (
+                    <section className="detail-section detail-o5">
+                        <h2 className="section-title">Cast</h2>
+                        <div className="detail-cast hide-scrollbar">
+                            {item.credits.map((actor) => (
+                                <Link
+                                    key={actor.id}
+                                    to={`/person/${actor.id}`}
+                                    className="detail-cast-item"
+                                >
+                                    <img
+                                        src={actor.profile_path
+                                            ? `https://image.tmdb.org/t/p/w185${actor.profile_path}`
+                                            : '/poster-placeholder.svg'}
+                                        alt=""
+                                        loading="lazy"
+                                    />
+                                    <span className="detail-cast-name">{actor.name}</span>
+                                    {actor.character && (
+                                        <span className="detail-cast-role">{actor.character}</span>
+                                    )}
+                                </Link>
+                            ))}
+                        </div>
+                    </section>
+                )}
+
+                </div>
+                <aside className="detail-rail">
+                {/* Countdown to the next episode / the local opening day */}
+                {timeLeft && (
+                    <section className="tile detail-o1" aria-label="Countdown">
+                        <h2 className="tile-label detail-countdown-label">
+                            {item.type === 'tv'
+                                ? `Season ${item.nextEpisode?.season_number} Episode ${item.nextEpisode?.episode_number} airs in`
+                                : 'Movie premiere in'}
+                        </h2>
+                        <div className="detail-countdown-nums">
+                            <div>
+                                <div className="detail-countdown-num">{pad2(timeLeft.days)}</div>
+                                <div className="detail-countdown-unit">DAYS</div>
+                            </div>
+                            <div>
+                                <div className="detail-countdown-num">{pad2(timeLeft.hours)}</div>
+                                <div className="detail-countdown-unit">HOURS</div>
+                            </div>
+                            <div>
+                                <div className="detail-countdown-num">{pad2(timeLeft.minutes)}</div>
+                                <div className="detail-countdown-unit">MINS</div>
+                            </div>
+                        </div>
+
+                        <div className="detail-countdown-foot">
+                            {/* The actual moment, in the viewer's own clock */}
+                            <p className="detail-countdown-when">
+                                {describeRelease(release, { verb: item.type === 'tv' ? 'air' : 'release', zone: timeZone })}
+                                {release.timeLabel ? ` ${zoneAbbreviation(release.instant, timeZone)}` : ''}
+                                <span className="detail-countdown-note">
+                                    {release.precision === PRECISION.ESTIMATED
+                                        ? `Estimated from ${release.sourceLabel || 'the channel'}'s usual slot — local broadcasters don't publish an exact time`
+                                        : release.precision === PRECISION.DAY
+                                            ? 'Exact time not announced yet'
+                                            : release.global
+                                                ? `${release.sourceLabel} drops worldwide at this moment`
+                                                : movieRelease?.isFallback
+                                                    ? `${movieRelease.typeLabel} — ${movieRelease.country} date (no date listed for your country yet)`
+                                                    : `${release.sourceLabel || 'Release'}${type === 'movie' ? ` in ${movieRelease?.country || user?.country || 'your country'}` : ''}`}
+                                </span>
+                            </p>
+                            <button
+                                type="button"
+                                className={`pill-btn ${reminderSet ? 'tint' : 'inverse'}`}
+                                aria-pressed={reminderSet}
+                                onClick={() => withUser(() => toggleReminder(item))}
+                            >
+                                {reminderSet ? (
+                                    <><Check size={16} strokeWidth={2.5} aria-hidden="true" /> Reminder set</>
+                                ) : (
+                                    <><Bell size={16} strokeWidth={2.5} aria-hidden="true" /> Notify me</>
+                                )}
+                            </button>
+                        </div>
+                    </section>
+                )}
+
+                {/* A series between episodes is still streamable, so it gets both
+                    the countdown and this; an unreleased movie gets neither. */}
+                {(!timeLeft || type === 'tv') && (
+                    <section className="detail-section detail-o3">
+                        <h2 className="section-title">Where to watch</h2>
+                        {item.streaming && item.streaming.length > 0 ? (
+                            <div className="detail-providers">
+                                {item.streaming.map((service) => (
+                                    <div key={service.id || service.name} className="detail-provider">
+                                        <img src={service.logo} alt="" loading="lazy" />
+                                        <span>{service.name}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="tile-dashed">
+                                <p className="detail-empty">Not currently available for streaming.</p>
+                            </div>
+                        )}
+                    </section>
+                )}
+
+                {/* Franchise / collection tracking — movies only */}
+                {type === 'movie' && franchiseParts.length > 1 && (
+                    <section className="tile detail-o4">
+                        <div className="detail-franchise-head">
+                            <h2 className="section-title truncate">{collection.name}</h2>
+                            <span className="pill-tag">
+                                {franchiseWatchedCount}/{franchiseTotal} watched
+                            </span>
+                        </div>
+
+                        <div
+                            className="detail-progress"
+                            role="progressbar"
+                            aria-label={`${collection.name} watched`}
+                            aria-valuemin={0}
+                            aria-valuemax={franchiseTotal}
+                            aria-valuenow={franchiseWatchedCount}
+                        >
+                            <motion.div
+                                className="detail-progress-fill"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${franchiseTotal ? (franchiseWatchedCount / franchiseTotal) * 100 : 0}%` }}
+                                transition={{ duration: 0.6 }}
+                            />
+                        </div>
+
+                        <ul className="detail-franchise-list">
+                            {franchiseParts.map((part) => {
+                                const seen = watched.some((w) => w.id === part.id && w.type === 'movie');
+                                const isCurrent = part.id === item.id;
+                                const out = isFilmReleased(part);
+                                const row = (
+                                    <>
+                                        <span className={`detail-mark ${seen ? 'is-seen' : ''} ${out ? '' : 'is-unreleased'}`} aria-hidden="true">
+                                            <Check size={12} strokeWidth={3.5} />
+                                        </span>
+                                        <span className="detail-franchise-title truncate">{part.title}</span>
+                                        <span className="detail-franchise-note">
+                                            {isCurrent ? 'Now viewing' : out ? part.year : `${part.year || 'TBA'} · not out`}
+                                        </span>
+                                        <span className="detail-sr-only">{!out ? ', not out yet' : seen ? ', watched' : ', not watched'}</span>
+                                    </>
+                                );
+                                return (
+                                    <li key={part.id}>
+                                        {isCurrent ? (
+                                            <div className="detail-franchise-row" aria-current="page">{row}</div>
+                                        ) : (
+                                            <Link className="detail-franchise-row" to={`/movie/${part.id}`}>{row}</Link>
+                                        )}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+
+                        {franchiseWatchedCount < franchiseParts.length && (
+                            <button
+                                type="button"
+                                onClick={addFranchiseToWatchlist}
+                                className="pill-btn inverse block detail-franchise-add"
+                            >
+                                Add remaining to watchlist
+                            </button>
+                        )}
+                    </section>
+                )}
+
+                </aside>
+                </div>
             </motion.div>
 
             {/* Trailer Modal */}

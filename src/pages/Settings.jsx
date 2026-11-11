@@ -133,7 +133,7 @@ const Settings = () => {
     const passwordInvalid = passwordMessage && !passwordMessage.ok ? true : undefined;
 
     return (
-        <div className="container page">
+        <div className="container page page-narrow">
             {/* Header */}
             <header className="sub-header">
                 <button
