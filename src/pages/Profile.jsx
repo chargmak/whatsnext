@@ -30,7 +30,7 @@ const Profile = () => {
     // Signed-out view
     if (!user) {
         return (
-            <div className="container page">
+            <div className="container page page-narrow">
                 <h1 className="page-title">Profile</h1>
 
                 <section className="tile account-welcome">
@@ -68,7 +68,7 @@ const Profile = () => {
 
     // Authenticated / guest user view
     return (
-        <div className="container page">
+        <div className="container page page-narrow">
             <h1 className="page-title">Profile</h1>
 
             {/* Guest banner */}

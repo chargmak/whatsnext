@@ -238,6 +238,7 @@ export const WhatsNextSpotlight = ({ mediaType }) => {
                             {current.becauseOf ? `Because you watched ${current.becauseOf}` : 'Trending now'}
                         </div>
                         {facts && <div className="mono-label pick-facts">{facts}</div>}
+                        {current.plot && <p className="pick-plot">{current.plot}</p>}
                         <div className="pick-actions">
                             <button type="button" className="pill-btn inverse pick-save" onClick={guarded(addToWatchlist)}>
                                 Save

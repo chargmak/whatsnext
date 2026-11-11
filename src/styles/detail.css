@@ -530,3 +530,18 @@ a.detail-franchise-row {
   border: 2px dashed var(--border-strong);
   cursor: default;
 }
+
+/* ----- One column on phones: the wrappers dissolve and the blocks are put
+   back in reading order ----- */
+.detail-cols,
+.detail-main,
+.detail-rail {
+  display: contents;
+}
+
+.detail-o1 { order: 1; }
+.detail-o2 { order: 2; }
+.detail-o3 { order: 3; }
+.detail-o4 { order: 4; }
+.detail-o5 { order: 5; }
+.detail-o6 { order: 6; }

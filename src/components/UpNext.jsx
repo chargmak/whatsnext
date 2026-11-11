@@ -55,7 +55,7 @@ const UpNext = ({ series, limit }) => {
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div className="upnext-list">
             {items.map(({ show, ep }) => (
                 <motion.div
                     key={show.id}

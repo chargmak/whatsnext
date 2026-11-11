@@ -152,7 +152,7 @@ const Calendar = () => {
     };
 
     return (
-        <div className="container page">
+        <div className="container page cal-page">
             <header>
                 <h1 className="page-title">Calendar</h1>
                 {/* Which clock everything on this page is in */}
@@ -162,7 +162,7 @@ const Calendar = () => {
                 </p>
             </header>
 
-            <section className="tile" aria-label="Month">
+            <section className="tile cal-month" aria-label="Month">
                 <div className="cal-month-nav">
                     <button
                         type="button"
@@ -207,6 +207,17 @@ const Calendar = () => {
                             <>
                                 <span className="cal-day-num">{date.getDate()}</span>
                                 <span className="cal-day-dot" />
+                                {/* Wide screens have room to name what's on */}
+                                {count > 0 && (
+                                    <span className="cal-day-chips" aria-hidden="true">
+                                        {releasesByDay[key].slice(0, 2).map((r, i) => (
+                                            <span key={i} className={`cal-chip ${r.type === 'movie' ? 'is-movie' : ''}`}>
+                                                {r.isEpisode ? `${r.showTitle} E${r.episodeNumber}` : r.title}
+                                            </span>
+                                        ))}
+                                        {count > 2 && <span className="cal-chip-more">+{count - 2} more</span>}
+                                    </span>
+                                )}
                             </>
                         );
 
@@ -235,6 +246,7 @@ const Calendar = () => {
                 </div>
             </section>
 
+            <div className="cal-rail">
             {/* The picked day, aired entries included */}
             {selectedReleases.length > 0 && (
                 <section className="cal-group" aria-live="polite">
@@ -284,6 +296,7 @@ const Calendar = () => {
                     </p>
                 )}
             </section>
+            </div>
         </div>
     );
 };

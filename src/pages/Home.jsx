@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { Check, RefreshCw } from 'lucide-react';
+import { Bell, Check, RefreshCw, Search } from 'lucide-react';
 import { getTrendingMovies, getTrendingTV, getRecommendationsFromSeeds, mapMediaData, clearTmdbCache, PLACEHOLDER_POSTER } from '../services/tmdb';
 import { formatZonedDate, releaseInstant, todayKey, viewerDayRule } from '../services/releaseTime';
 import { PosterRow, PosterRowSkeleton } from '../components/PosterRow';
@@ -10,6 +10,7 @@ import { useUser } from '../context/UserContext';
 import { useUpNext } from '../hooks/useUpNext';
 import { useReleases, countdownText } from '../hooks/useReleases';
 import { useFranchiseProgress } from '../hooks/useFranchiseProgress';
+import { useIsDesktop } from '../hooks/useIsDesktop';
 import '../styles/home.css';
 
 const MEDIA_TABS = [
@@ -69,8 +70,47 @@ const EmptyUpNext = ({ heading, body, cta }) => (
     </section>
 );
 
-const TvUpNextTile = ({ series }) => {
-    const { loading, items, busyId, markWatched } = useUpNext(series, 1);
+// How many shows the desktop "Then" queue lists after the hero.
+const QUEUE_LENGTH = 4;
+
+// The shows (or movies) lined up after the hero one — desktop only, where there
+// is room to work through several without leaving Home.
+const QueueTile = ({ rows }) => (
+    <section className="tile queue-tile">
+        <div className="row-tile-head queue-head">
+            <h2 className="section-title">Then</h2>
+            <Link to="/library" className="link-accent">All</Link>
+        </div>
+        {rows.length === 0 ? (
+            <p className="queue-empty">Nothing else is waiting.</p>
+        ) : (
+            <ul className="queue-list">
+                {rows.map((row) => (
+                    <li key={row.key} className="queue-row">
+                        <img src={row.image || PLACEHOLDER_POSTER} alt="" loading="lazy" />
+                        <Link to={row.to} className="queue-text">
+                            <span className="tile-title">{row.title}</span>
+                            <span className="mono-label truncate">{row.sub}</span>
+                        </Link>
+                        <button
+                            type="button"
+                            className="icon-btn"
+                            onClick={row.onWatched}
+                            disabled={row.busy}
+                            aria-label={row.label}
+                            title="Mark watched"
+                        >
+                            <Check size={16} strokeWidth={2.5} aria-hidden="true" />
+                        </button>
+                    </li>
+                ))}
+            </ul>
+        )}
+    </section>
+);
+
+const TvUpNextTile = ({ series, queue = false }) => {
+    const { loading, items, busyId, markWatched } = useUpNext(series, queue ? QUEUE_LENGTH + 1 : 1);
 
     if (series.length === 0) {
         return (
@@ -97,7 +137,7 @@ const TvUpNextTile = ({ series }) => {
     }
 
     const { show, ep } = items[0];
-    return (
+    const hero = (
         <section className="tile span-2 upnext-tile">
             <UpNextMedia to={`/tv/${show.id}`} image={ep.still || show.backdrop} alt={`Open ${show.title}`} />
             <div className="upnext-tile-body">
@@ -115,7 +155,7 @@ const TvUpNextTile = ({ series }) => {
                     <Check size={16} strokeWidth={2.5} aria-hidden="true" /> Watched
                 </button>
             </div>
-            {series.length > 1 && (
+            {series.length > 1 && !queue && (
                 <div className="upnext-tile-more">
                     <span className="mono-label">{series.length} shows in your list</span>
                     <Link to="/library" className="link-accent">See all</Link>
@@ -123,9 +163,26 @@ const TvUpNextTile = ({ series }) => {
             )}
         </section>
     );
+    if (!queue) return hero;
+
+    return (
+        <div className="upnext-row">
+            {hero}
+            <QueueTile rows={items.slice(1).map(({ show: s, ep: e }) => ({
+                key: s.id,
+                to: `/tv/${s.id}`,
+                image: e.still || e.poster,
+                title: e.title,
+                sub: `S${e.seasonNumber} · E${e.episodeNumber} · ${e.episodeName}`,
+                label: `Mark ${s.title} S${e.seasonNumber}E${e.episodeNumber} watched`,
+                busy: busyId === s.id,
+                onWatched: () => markWatched(s, e),
+            }))} />
+        </div>
+    );
 };
 
-const MovieUpNextTile = ({ movies, timeZone, onWatched }) => {
+const MovieUpNextTile = ({ movies, timeZone, onWatched, queue = false }) => {
     // Saved order is oldest first; the latest save that is already out wins.
     const released = useMemo(() => {
         const now = new Date();
@@ -159,7 +216,7 @@ const MovieUpNextTile = ({ movies, timeZone, onWatched }) => {
         .filter(Boolean)
         .join(' · ');
 
-    return (
+    const hero = (
         <section className="tile span-2 upnext-tile">
             <UpNextMedia to={`/movie/${movie.id}`} image={movie.backdrop} alt={`Open ${movie.title}`} />
             <div className="upnext-tile-body">
@@ -176,13 +233,30 @@ const MovieUpNextTile = ({ movies, timeZone, onWatched }) => {
                     <Check size={16} strokeWidth={2.5} aria-hidden="true" /> Watched
                 </button>
             </div>
-            {movies.length > 1 && (
+            {movies.length > 1 && !queue && (
                 <div className="upnext-tile-more">
                     <span className="mono-label">{movies.length} movies in your list</span>
                     <Link to="/library" className="link-accent">See all</Link>
                 </div>
             )}
         </section>
+    );
+    if (!queue) return hero;
+
+    return (
+        <div className="upnext-row">
+            {hero}
+            <QueueTile rows={released.slice(1, QUEUE_LENGTH + 1).map((m) => ({
+                key: m.id,
+                to: `/movie/${m.id}`,
+                image: m.poster,
+                title: m.title,
+                sub: [m.year && m.year !== 'N/A' ? m.year : null, m.genres?.[0]].filter(Boolean).join(' · '),
+                label: `Mark ${m.title} watched`,
+                busy: false,
+                onWatched: () => onWatched(m),
+            }))} />
+        </div>
     );
 };
 
@@ -269,6 +343,98 @@ const ThisWeekTile = ({ releases, weekKeys, timeZone, mediaType }) => {
         </section>
     );
 };
+
+// Desktop rail: the week strip and the releases behind its dots, in one tile.
+const AgendaTile = ({ week, today, releaseDays, releases, weekKeys, timeZone, mediaType }) => {
+    const inWeek = releases.filter((r) => weekKeys.has(r.air.dateKey));
+    // With a quiet week, look further ahead rather than show an empty rail.
+    const rows = (inWeek.length > 0 ? inWeek : releases).slice(0, 7);
+    const dayOf = (r) => new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone }).format(r.air.instant);
+
+    return (
+        <section className="tile agenda-tile">
+            <div className="row-tile-head queue-head">
+                <h2 className="section-title">{inWeek.length > 0 || rows.length === 0 ? 'This week' : 'Coming up'}</h2>
+                <Link to="/calendar" className="link-accent">Calendar</Link>
+            </div>
+            <WeekStrip week={week} today={today} releaseDays={releaseDays} mediaType={mediaType} />
+            {rows.length === 0 ? (
+                <p className="queue-empty">
+                    {mediaType === 'tv'
+                        ? 'No episodes of your shows are scheduled.'
+                        : 'None of your saved movies has a release date ahead.'}
+                </p>
+            ) : (
+                <ul className="agenda-list">
+                    {rows.map((r) => (
+                        <li key={`${r.type}-${r.id}-${r.seasonNumber || 0}-${r.episodeNumber || 0}`}>
+                            <Link to={`/${r.type}/${r.id}`} className="agenda-row">
+                                <span className="mono-label agenda-when">
+                                    {dayOf(r)}
+                                    {r.air.timeLabel ? <><br />{r.air.timeLabel}</> : null}
+                                </span>
+                                <span className="agenda-text">
+                                    <span className="tile-title">
+                                        {releaseTitle(r)}{r.isEpisode ? ` · S${r.seasonNumber}E${r.episodeNumber}` : ''}
+                                    </span>
+                                    {r.isEpisode && r.episodeTitle && <span className="tile-sub">{r.episodeTitle}</span>}
+                                </span>
+                                <span className="mono-label text-accent agenda-left">{countdownText(r.air)}</span>
+                            </Link>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </section>
+    );
+};
+
+const WeekStrip = ({ week, today, releaseDays, mediaType }) => (
+    <nav className="week-strip" aria-label="The next seven days">
+        {week.map((d) => {
+            const hasRelease = releaseDays.has(d.key);
+            return (
+                <Link
+                    key={d.key}
+                    to="/calendar"
+                    className={`week-day ${d.key === today ? 'today' : ''} ${hasRelease ? 'has-release' : ''}`}
+                    aria-label={`${d.name} ${d.day}${hasRelease ? (mediaType === 'tv' ? ', episodes airing' : ', movies out') : ''}`}
+                >
+                    <span className="week-day-name">{d.name}</span>
+                    <span className="week-day-num">{d.day}</span>
+                    <span className="week-day-dot" />
+                </Link>
+            );
+        })}
+    </nav>
+);
+
+// Desktop rail: recommendations as a short list rather than a poster row.
+const RecList = ({ items, loading, noun }) => (
+    <section className="tile">
+        <h2 className="section-title">Recommended for you</h2>
+        <p className="row-tile-sub rec-sub">Based on the {noun} in your list</p>
+        {loading && items.length === 0 ? (
+            <div className="skeleton rec-skeleton" aria-busy="true" />
+        ) : (
+            <ul className="rec-list">
+                {items.slice(0, 5).map((item) => (
+                    <li key={item.id}>
+                        <Link to={`/${item.type}/${item.id}`} className="rec-row">
+                            <img src={item.poster || PLACEHOLDER_POSTER} alt="" loading="lazy" />
+                            <span className="agenda-text">
+                                <span className="tile-title">{item.title}</span>
+                                <span className="mono-label truncate">
+                                    {[item.genres?.[0], item.year && item.year !== 'N/A' ? item.year : null].filter(Boolean).join(' · ')}
+                                </span>
+                            </span>
+                        </Link>
+                    </li>
+                ))}
+            </ul>
+        )}
+    </section>
+);
 
 // ---- Collection tiles ------------------------------------------------------
 
@@ -480,109 +646,165 @@ const Home = () => {
     const noun = mediaType === 'movie' ? 'movies' : 'shows';
     const open = (item) => navigate(`/${item.type}/${item.id}`);
 
+    const isDesktop = useIsDesktop();
+    const showRecs = recInputs.seeds.length > 0 && (recsLoading || recommendations.length > 0);
+
+    // ---- The pieces, shared by both arrangements ----
+    const mediaToggle = (
+        // Every tile below follows this toggle
+        <div className="seg compact" role="group" aria-label="Show TV or movies">
+            {MEDIA_TABS.map((tab) => (
+                <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setMediaType(tab.id)}
+                    className={`seg-btn ${mediaType === tab.id ? 'active' : ''}`}
+                    aria-pressed={mediaType === tab.id}
+                >
+                    {tab.label}
+                    {mediaType === tab.id && (
+                        <motion.span
+                            layoutId="homeMediaTab"
+                            className="seg-thumb"
+                            transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
+                        />
+                    )}
+                </button>
+            ))}
+        </div>
+    );
+
+    const heading = (
+        <div>
+            <p className="page-sub">{dateLine}</p>
+            <h1 className="page-title">Tonight</h1>
+        </div>
+    );
+
+    const upNext = mediaType === 'tv'
+        ? <TvUpNextTile series={tvWatchlist} queue={isDesktop} />
+        : <MovieUpNextTile movies={movieWatchlist} timeZone={timeZone} onWatched={markTitleWatched} queue={isDesktop} />;
+
+    const nextReleaseTile = (
+        <NextReleaseTile
+            release={nextRelease}
+            timeZone={timeZone}
+            reminderOn={Boolean(nextRelease) && isReminderSet(nextRelease.id, nextRelease.type)}
+            mediaType={mediaType}
+        />
+    );
+
+    const watchlistTile = <WatchlistTile items={typedWatchlist} mediaType={mediaType} />;
+    const progressTile = mediaType === 'tv'
+        ? <EpisodesWatchedTile stats={stats} />
+        : franchise
+            ? <FranchiseTile progress={franchise} />
+            : <MoviesWatchedTile stats={stats} />;
+
+    const trendingTile = (
+        <section className="tile span-2 row-tile">
+            <div className="row-tile-head">
+                <h2 className="section-title">Trending {noun}</h2>
+                <Link to="/search" className="link-accent">See all</Link>
+            </div>
+
+            {trendingPending ? (
+                <PosterRowSkeleton />
+            ) : trendingFailed ? (
+                <div className="row-error">
+                    <p>Couldn't load trending titles right now.</p>
+                    <button type="button" className="pill-btn" onClick={retryTrending}>
+                        <RefreshCw size={16} aria-hidden="true" /> Try again
+                    </button>
+                </div>
+            ) : (
+                <PosterRow>
+                    {mediaItems.map((item) => (
+                        <PosterButton key={item.id} item={item} onOpen={open} />
+                    ))}
+                </PosterRow>
+            )}
+        </section>
+    );
+
+    // ---- Desktop: main column plus a rail for what is coming up ----
+    if (isDesktop) {
+        return (
+            <div className="container page home-desktop">
+                <header className="home-header">
+                    {heading}
+                    <div className="home-header-actions">
+                        <Link to="/search" className="search-field home-search">
+                            <Search size={18} aria-hidden="true" />
+                            <span>Search movies &amp; TV shows</span>
+                        </Link>
+                        {mediaToggle}
+                        <Link to="/notifications" className="icon-btn on-page" aria-label="Notifications">
+                            <Bell size={18} aria-hidden="true" />
+                        </Link>
+                    </div>
+                </header>
+
+                <div className="home-cols">
+                    <div className="home-main">
+                        {upNext}
+                        <div className="home-stats">
+                            {nextReleaseTile}
+                            {watchlistTile}
+                            {progressTile}
+                        </div>
+                        {/* "What's Next?" — answers the app's namesake question */}
+                        <WhatsNextSpotlight mediaType={mediaType} />
+                        {trendingTile}
+                    </div>
+
+                    <aside className="home-rail" aria-label="Coming up">
+                        <AgendaTile
+                            week={week}
+                            today={today}
+                            releaseDays={releaseDays}
+                            releases={upcoming}
+                            weekKeys={weekKeys}
+                            timeZone={timeZone}
+                            mediaType={mediaType}
+                        />
+                        {showRecs && <RecList items={recommendations} loading={recsLoading} noun={noun} />}
+                    </aside>
+                </div>
+            </div>
+        );
+    }
+
+    // ---- Phone and tablet: one column of tiles ----
     return (
         <div className="container page">
             <header className="home-header">
-                <div>
-                    <p className="page-sub">{dateLine}</p>
-                    <h1 className="page-title">Tonight</h1>
-                </div>
-
+                {heading}
                 <div className="home-header-actions">
-                    {/* Every tile below follows this toggle */}
-                    <div className="seg compact" role="group" aria-label="Show TV or movies">
-                        {MEDIA_TABS.map((tab) => (
-                            <button
-                                key={tab.id}
-                                type="button"
-                                onClick={() => setMediaType(tab.id)}
-                                className={`seg-btn ${mediaType === tab.id ? 'active' : ''}`}
-                                aria-pressed={mediaType === tab.id}
-                            >
-                                {tab.label}
-                                {mediaType === tab.id && (
-                                    <motion.span
-                                        layoutId="homeMediaTab"
-                                        className="seg-thumb"
-                                        transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
-                                    />
-                                )}
-                            </button>
-                        ))}
-                    </div>
+                    {mediaToggle}
                     <Link to="/profile" className="top-bar-btn home-avatar" aria-label="Profile">
                         <img src={user?.avatar || DEFAULT_AVATAR} alt="" />
                     </Link>
                 </div>
             </header>
 
-            <nav className="week-strip" aria-label="The next seven days">
-                {week.map((d) => {
-                    const hasRelease = releaseDays.has(d.key);
-                    return (
-                        <Link
-                            key={d.key}
-                            to="/calendar"
-                            className={`week-day ${d.key === today ? 'today' : ''} ${hasRelease ? 'has-release' : ''}`}
-                            aria-label={`${d.name} ${d.day}${hasRelease ? (mediaType === 'tv' ? ', episodes airing' : ', movies out') : ''}`}
-                        >
-                            <span className="week-day-name">{d.name}</span>
-                            <span className="week-day-num">{d.day}</span>
-                            <span className="week-day-dot" />
-                        </Link>
-                    );
-                })}
-            </nav>
+            <WeekStrip week={week} today={today} releaseDays={releaseDays} mediaType={mediaType} />
 
             <div className="bento">
-                {mediaType === 'tv'
-                    ? <TvUpNextTile series={tvWatchlist} />
-                    : <MovieUpNextTile movies={movieWatchlist} timeZone={timeZone} onWatched={markTitleWatched} />}
-
-                <NextReleaseTile
-                    release={nextRelease}
-                    timeZone={timeZone}
-                    reminderOn={Boolean(nextRelease) && isReminderSet(nextRelease.id, nextRelease.type)}
-                    mediaType={mediaType}
-                />
+                {upNext}
+                {nextReleaseTile}
                 <ThisWeekTile releases={upcoming} weekKeys={weekKeys} timeZone={timeZone} mediaType={mediaType} />
 
                 {/* "What's Next?" — answers the app's namesake question */}
                 <WhatsNextSpotlight mediaType={mediaType} />
 
-                {showProgressRow && <WatchlistTile items={typedWatchlist} mediaType={mediaType} />}
-                {showProgressRow && (mediaType === 'tv'
-                    ? <EpisodesWatchedTile stats={stats} />
-                    : franchise
-                        ? <FranchiseTile progress={franchise} />
-                        : <MoviesWatchedTile stats={stats} />)}
+                {showProgressRow && watchlistTile}
+                {showProgressRow && progressTile}
 
-                <section className="tile span-2 row-tile">
-                    <div className="row-tile-head">
-                        <h2 className="section-title">Trending {noun}</h2>
-                        <Link to="/search" className="link-accent">See all</Link>
-                    </div>
-
-                    {trendingPending ? (
-                        <PosterRowSkeleton />
-                    ) : trendingFailed ? (
-                        <div className="row-error">
-                            <p>Couldn't load trending titles right now.</p>
-                            <button type="button" className="pill-btn" onClick={retryTrending}>
-                                <RefreshCw size={16} aria-hidden="true" /> Try again
-                            </button>
-                        </div>
-                    ) : (
-                        <PosterRow>
-                            {mediaItems.map((item) => (
-                                <PosterButton key={item.id} item={item} onOpen={open} />
-                            ))}
-                        </PosterRow>
-                    )}
-                </section>
+                {trendingTile}
 
                 {/* Recommended For You - built from the user's saved list for this tab */}
-                {recInputs.seeds.length > 0 && (recsLoading || recommendations.length > 0) && (
+                {showRecs && (
                     <section className="tile span-2 row-tile">
                         <div className="row-tile-head">
                             <h2 className="section-title">Recommended for you</h2>

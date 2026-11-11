@@ -151,7 +151,7 @@ const Franchises = () => {
     ].filter(Boolean).join(' · ');
 
     return (
-        <div className="container page">
+        <div className="container page fr-page">
             <header className="sub-header">
                 <button type="button" className="icon-btn on-page" onClick={() => navigate(-1)} aria-label="Back">
                     <ArrowLeft size={20} aria-hidden="true" />
@@ -177,7 +177,7 @@ const Franchises = () => {
             ) : (
                 <>
                     <p className="mono-label">{plural(franchises.length, 'franchise')} · {summary}</p>
-                    <ul className="page" style={{ listStyle: 'none', gap: '12px' }}>
+                    <ul className="fr-list">
                         {franchises.map((f) => (
                             <Franchise
                                 key={f.id}

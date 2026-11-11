@@ -1,0 +1,670 @@
+/* ==========================================================================
+   Desktop layout (1024px and up)
+   Phones and tablets get one column and the floating dock. From here the app
+   has three zones: a fixed sidebar for navigation, a main column for what you
+   act on, and (on Home, a title page and the Calendar) a right rail for what
+   is coming up. Keep the breakpoint in step with src/hooks/useIsDesktop.js.
+
+   Every rule inside the media queries starts with `html`. Page stylesheets
+   load with their lazily-loaded pages, i.e. after this file, so without the
+   extra specificity their phone rules would win on order alone.
+   ========================================================================== */
+
+/* The sidebar exists in the DOM at every width; below the breakpoint it is
+   simply not shown. */
+.sidebar {
+  display: none;
+}
+
+/* Home tiles that only the desktop arrangement renders still need their base
+   styles to live somewhere; they are harmless below the breakpoint. */
+.pick-plot {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --sidebar-width: 248px;
+    /* No dock down here, so nothing needs to keep clear of it. */
+    --nav-height: 0px;
+    --nav-dock-space: 0px;
+  }
+
+  /* ----- Shell ----- */
+  html .bottom-nav {
+    display: none;
+  }
+
+  html .app.has-chrome {
+    padding-left: var(--sidebar-width);
+  }
+
+  html .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 900;
+    width: var(--sidebar-width);
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    padding: 24px 16px;
+    border-right: 1px solid var(--border);
+    background: var(--bg-primary);
+    overflow-y: auto;
+  }
+
+  html .sidebar-brand {
+    padding: 0 12px;
+    font-size: 1.375rem;
+    line-height: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    text-decoration: none;
+  }
+
+  html .sidebar-nav,
+  html .sidebar-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  html .sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 44px;
+    padding: 0 12px;
+    border-radius: var(--radius-pill);
+    color: var(--text-soft);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  html .sidebar-link:hover,
+  html .sidebar-show:hover,
+  html .sidebar-account:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+
+  html .sidebar-link.active {
+    background: var(--inverse-bg);
+    color: var(--inverse-text);
+  }
+
+  html .sidebar-group-label {
+    padding: 0 12px 4px;
+  }
+
+  html .sidebar-show {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 44px;
+    padding: 0 12px;
+    border-radius: var(--radius-sm);
+    color: var(--text-soft);
+    font-size: 0.8125rem;
+    text-decoration: none;
+  }
+
+  html .sidebar-show img {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: var(--bg-tertiary);
+  }
+
+  html .sidebar-show.active {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  html .sidebar-foot {
+    margin-top: auto;
+  }
+
+  html .sidebar-account {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 56px;
+    padding: 0 12px;
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    text-decoration: none;
+  }
+
+  html .sidebar-account.active {
+    outline: 2px solid var(--text-primary);
+    outline-offset: -2px;
+  }
+
+  html .sidebar-account img,
+  html .sidebar-initial {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--bg-tertiary);
+  }
+
+  html .sidebar-initial {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+  }
+
+  html .sidebar-account-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
+  /* ----- Page container ----- */
+  html .container {
+    max-width: 1320px;
+    padding: 24px 32px 48px;
+  }
+
+  /* Forms and settings lists read badly stretched across a monitor. */
+  html .container.page-narrow {
+    max-width: 760px;
+  }
+
+  html .page {
+    gap: 24px;
+  }
+
+  /* Poster grids fill the width with as many columns as fit. */
+  html .grid-layout {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 24px 16px;
+  }
+
+  html .card-title {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  html .poster-row {
+    gap: 12px;
+  }
+
+  html .poster-row > * {
+    width: 132px;
+  }
+
+  html .poster-skeleton {
+    height: calc(132px * 1.5 + 44px);
+  }
+
+  html .upnext-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  html .modal-overlay {
+    align-items: center;
+    padding-left: var(--sidebar-width);
+  }
+
+  html .modal-content {
+    max-width: 480px;
+    border-radius: 32px;
+    padding-bottom: 24px;
+  }
+
+  html .modal-handle {
+    display: none;
+  }
+
+  /* ----- Home ----- */
+  html .home-desktop .home-header {
+    flex-wrap: wrap;
+  }
+
+  html .home-desktop .home-header-actions {
+    flex: 1;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+
+  html .home-search {
+    flex: 1;
+    max-width: 420px;
+    height: 48px;
+    text-decoration: none;
+    font-size: 0.9375rem;
+    cursor: text;
+  }
+
+  html .home-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 24px;
+    align-items: start;
+  }
+
+  html .home-main,
+  html .home-rail {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    min-width: 0;
+  }
+
+  /* Tiles carry .span-2 for the phone's two-column grid; here every block is
+     placed by its own row, so the span must not conjure a second column. */
+  html .home-desktop .span-2 {
+    grid-column: auto;
+  }
+
+  /* Up next: the hero with the queue beside it */
+  html .upnext-row {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  html .upnext-tile-media {
+    height: 240px;
+  }
+
+  html .queue-head {
+    padding-right: 0;
+  }
+
+  html .queue-list,
+  html .agenda-list,
+  html .rec-list {
+    list-style: none;
+  }
+
+  html .queue-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 64px;
+    border-top: 1px solid var(--border);
+  }
+
+  html .queue-row:first-child {
+    border-top: 0;
+  }
+
+  html .queue-row img {
+    flex-shrink: 0;
+    width: 64px;
+    height: 44px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: var(--bg-tertiary);
+  }
+
+  html .queue-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  html .queue-text .tile-title {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  html .queue-empty {
+    margin: 12px 0 0;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+  }
+
+  html .home-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  html .home-stats .mini-tile {
+    min-height: 150px;
+  }
+
+  html .home-stats .countdown-num strong {
+    font-size: 3.5rem;
+    line-height: 3.75rem;
+  }
+
+  /* The pick has room for the plot here */
+  html .home-desktop .pick-tile {
+    padding: 16px;
+  }
+
+  html .home-desktop .pick-body {
+    gap: 20px;
+  }
+
+  html .home-desktop .pick-poster {
+    width: 120px;
+    height: 180px;
+  }
+
+  html .home-desktop .pick-title {
+    font-size: 1.5rem;
+    line-height: 1.875rem;
+  }
+
+  html .home-desktop .pick-plot {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    max-width: 640px;
+    margin: 8px 0 0;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--text-secondary);
+  }
+
+  html .home-desktop .pick-actions {
+    max-width: 320px;
+  }
+
+  html .home-desktop .row-tile .poster-row > * {
+    width: 124px;
+  }
+
+  html .home-desktop .tile-poster {
+    width: 124px;
+    height: 186px;
+    border-radius: 14px;
+  }
+
+  html .home-desktop .row-tile .poster-skeleton {
+    height: 186px;
+  }
+
+  /* Rail: agenda */
+  html .agenda-tile .week-strip {
+    margin-bottom: 8px;
+  }
+
+  html .agenda-tile .week-day {
+    width: 36px;
+  }
+
+  html .agenda-tile .week-day-num {
+    width: 34px;
+    height: 34px;
+    background: var(--bg-tertiary);
+    font-size: 0.8125rem;
+  }
+
+  html .agenda-tile .week-day.today .week-day-num {
+    background: var(--brand-600);
+  }
+
+  html .agenda-row,
+  html .rec-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 64px;
+    border-top: 1px solid var(--border);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  html .agenda-when {
+    flex-shrink: 0;
+    width: 62px;
+    font-size: 0.6875rem;
+  }
+
+  html .agenda-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  html .agenda-text .tile-title {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  html .agenda-left {
+    flex-shrink: 0;
+    font-size: 0.6875rem;
+  }
+
+  html .rec-sub {
+    margin: 0 0 8px;
+  }
+
+  html .rec-row {
+    min-height: 72px;
+  }
+
+  html .rec-list li:first-child .rec-row {
+    border-top: 0;
+  }
+
+  html .rec-row img {
+    flex-shrink: 0;
+    width: 40px;
+    height: 56px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: var(--bg-tertiary);
+  }
+
+  html .rec-skeleton {
+    height: 280px;
+    border-radius: var(--radius-md);
+  }
+
+  /* ----- Title detail ----- */
+  html .detail-page .detail-hero {
+    height: 360px;
+    margin: 0;
+    border-radius: var(--radius-xl);
+  }
+
+  html .detail-page .detail-title {
+    font-size: 2.5rem;
+    line-height: 2.875rem;
+  }
+
+  html .detail-page .detail-actions {
+    max-width: 520px;
+  }
+
+  html .detail-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 24px;
+    align-items: start;
+  }
+
+  html .detail-main,
+  html .detail-rail {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    min-width: 0;
+  }
+
+  html .detail-rail {
+    gap: 16px;
+  }
+
+  /* The detail-o* order is for the phone's single column; here each column
+     keeps its own source order (episodes before cast). */
+  html .detail-main > *,
+  html .detail-rail > * {
+    order: 0;
+  }
+
+  html .detail-page .detail-overview {
+    max-width: 720px;
+    font-size: 0.9375rem;
+    line-height: 1.5rem;
+  }
+
+  /* One provider per line in the narrow rail */
+  html .detail-rail .detail-providers {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* The cast wraps instead of scrolling sideways */
+  html .detail-page .detail-cast {
+    flex-wrap: wrap;
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+    gap: 16px 14px;
+  }
+
+  /* ----- Calendar ----- */
+  html .cal-page {
+    grid-template-columns: minmax(0, 1fr) 360px;
+    column-gap: 24px;
+    align-items: start;
+  }
+
+  html .cal-page > header {
+    grid-column: 1 / -1;
+  }
+
+  html .cal-rail {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    min-width: 0;
+  }
+
+  html .cal-month .cal-grid {
+    gap: 8px;
+  }
+
+  html .cal-month .cal-weekdays {
+    text-align: left;
+    padding: 0 8px;
+  }
+
+  /* Cells become boxes that name what is on that day */
+  html .cal-month .cal-day {
+    align-items: flex-start;
+    justify-content: flex-start;
+    height: auto;
+    min-height: 104px;
+    padding: 8px;
+    border-radius: 14px;
+    background: var(--bg-inset);
+    text-align: left;
+  }
+
+  html .cal-month .cal-day-num {
+    width: auto;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    font-size: 0.75rem;
+  }
+
+  html .cal-month .cal-day-dot {
+    display: none;
+  }
+
+  html .cal-month .cal-day.is-today {
+    outline: 2px solid var(--brand-600);
+    outline-offset: -2px;
+  }
+
+  html .cal-month .cal-day.is-selected {
+    background: var(--bg-tertiary);
+  }
+
+  html .cal-month .cal-day.is-selected .cal-day-num {
+    box-shadow: none;
+  }
+
+  html .cal-day-chips {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  html .cal-chip {
+    display: block;
+    padding: 3px 6px;
+    border-radius: 6px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  html .cal-day.is-selected .cal-chip {
+    background: var(--bg-secondary);
+  }
+
+  html .cal-chip.is-movie {
+    background: var(--accent-tint);
+    color: var(--accent-text);
+  }
+
+  html .cal-day.is-past .cal-chip {
+    color: var(--text-secondary);
+  }
+
+  html .cal-chip-more {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    color: var(--text-secondary);
+  }
+
+  /* ----- Search ----- */
+  html .genre-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  /* ----- Franchises ----- */
+  html .fr-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  /* ----- Sign-in screens: no sidebar, card centred ----- */
+  html .container.auth-page {
+    max-width: 500px;
+  }
+}
+
+/* Very wide windows: let poster columns grow a little. */
+@media (min-width: 1500px) {
+  html .grid-layout {
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  }
+}

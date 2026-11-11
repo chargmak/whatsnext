@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import BottomNav from './components/BottomNav';
+import Sidebar from './components/Sidebar';
+import { isChromeHidden } from './components/chrome';
 import InstallPrompt from './components/InstallPrompt';
 import ErrorBoundary from './components/ErrorBoundary';
 import { RequireUser, RedirectIfAuthed } from './components/RouteGuards';
@@ -39,7 +41,10 @@ const RouteFallback = () => (
 function AppShell() {
   const location = useLocation();
   return (
-    <div className="app">
+    <div className={`app ${isChromeHidden(location.pathname) ? '' : 'has-chrome'}`}>
+      <ErrorBoundary resetKey={location.pathname} fallback={null}>
+        <Sidebar />
+      </ErrorBoundary>
       <ErrorBoundary resetKey={location.pathname}>
         <Suspense fallback={<RouteFallback />}>
           <Routes>

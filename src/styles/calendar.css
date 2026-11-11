@@ -262,3 +262,12 @@ button.cal-day {
   line-height: 1rem;
   color: var(--text-secondary);
 }
+
+/* Phones: the rail wrapper dissolves; day cells show a dot, not titles. */
+.cal-rail {
+  display: contents;
+}
+
+.cal-day-chips {
+  display: none;
+}

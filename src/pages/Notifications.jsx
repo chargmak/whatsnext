@@ -144,7 +144,7 @@ const Notifications = () => {
     ];
 
     return (
-        <div className="container page">
+        <div className="container page page-narrow">
             <header className="sub-header">
                 <Link to="/profile" className="icon-btn on-page" aria-label="Back to profile">
                     <ChevronLeft size={18} strokeWidth={2.5} aria-hidden="true" />
