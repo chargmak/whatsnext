@@ -80,7 +80,8 @@ own auth via `CRON_SECRET`.
 
 Pick any strong random string for `CRON_SECRET` (e.g. `openssl rand -hex 32`).
 `TMDB_API_KEY` is the same TMDB v3 key used by the client (`VITE_TMDB_API_KEY`) —
-it's required by `send-episode-alerts` to look up episode air dates:
+it's required by `send-episode-alerts` to look up episode air dates, and
+`send-release-reminders` uses it to repair TV reminders saved with a stale date:
 
 ```bash
 supabase secrets set \
