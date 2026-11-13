@@ -573,7 +573,16 @@ const MediaDetail = ({ type }) => {
                                 type="button"
                                 className={`pill-btn ${reminderSet ? 'tint' : 'inverse'}`}
                                 aria-pressed={reminderSet}
-                                onClick={() => withUser(() => toggleReminder(item))}
+                                // Remind on the date being counted down to — a series'
+                                // next episode, a movie's local opening — not the
+                                // premiere date, which for a returning show is years
+                                // old and made the reminder fire as "out now" at once.
+                                onClick={() => withUser(() => toggleReminder({
+                                    ...item,
+                                    releaseDate: type === 'tv'
+                                        ? item.nextEpisode?.air_date || null
+                                        : movieRelease?.date || item.releaseDate,
+                                }))}
                             >
                                 {reminderSet ? (
                                     <><Check size={16} strokeWidth={2.5} aria-hidden="true" /> Reminder set</>

@@ -20,6 +20,22 @@ const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY');
 const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');
 const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:notifications@whatsnext.app';
 const CRON_SECRET = Deno.env.get('CRON_SECRET');
+const TMDB_API_KEY = Deno.env.get('TMDB_API_KEY');
+
+// The next episode's air date for a show, or null when TMDB has none / is
+// unreachable.
+const nextEpisodeDate = async (tvId: number): Promise<string | null> => {
+    if (!TMDB_API_KEY) return null;
+    const qs = new URLSearchParams({ api_key: TMDB_API_KEY, language: 'en-US' });
+    try {
+        const res = await fetch(`https://api.themoviedb.org/3/tv/${tvId}?${qs}`);
+        if (!res.ok) return null;
+        const show = await res.json();
+        return show?.next_episode_to_air?.air_date ?? null;
+    } catch {
+        return null;
+    }
+};
 
 const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), {
@@ -69,7 +85,7 @@ Deno.serve(async (req) => {
 
     const { data: reminders, error } = await supabase
         .from('reminders')
-        .select('id, user_id, movie_id, media_type, title, release_date')
+        .select('id, user_id, movie_id, media_type, title, release_date, created_at')
         .is('notified_at', null)
         .not('release_date', 'is', null)
         .lte('release_date', horizon);
@@ -82,7 +98,9 @@ Deno.serve(async (req) => {
     let sent = 0;
     let failed = 0;
     let notYet = 0;
+    let stale = 0;
     const notifiedIds: number[] = [];
+    const nextDateByShow = new Map<number, Promise<string | null>>();
 
     // Each owner's zone — their pinned setting, else the country on their profile.
     const { data: profiles } = await supabase
@@ -101,8 +119,30 @@ Deno.serve(async (req) => {
 
         if (subErr || !subs || subs.length === 0) continue;
 
+        // A reminder is only ever set on something still to come, so a date
+        // that was already past when it was created is wrong — for a series it
+        // used to be the premiere date (years ago) rather than the next episode.
+        // Announcing that as "out now" is exactly the false alert to avoid.
+        // Re-read a series' next episode from TMDB and move the reminder onto it.
+        let releaseDate: string = reminder.release_date;
+        const createdDay = String(reminder.created_at ?? '').slice(0, 10);
+        if (createdDay && releaseDate < createdDay) {
+            const next = reminder.media_type === 'tv'
+                ? await (nextDateByShow.get(reminder.movie_id)
+                    ?? nextDateByShow.set(reminder.movie_id, nextEpisodeDate(reminder.movie_id))
+                        .get(reminder.movie_id))
+                : null;
+            if (!next || next < createdDay) {
+                // Nothing upcoming to point it at; leave it pending, unsent.
+                stale += 1;
+                continue;
+            }
+            releaseDate = next;
+            await supabase.from('reminders').update({ release_date: next }).eq('id', reminder.id);
+        }
+
         const zone = zoneByUser.get(reminder.user_id) ?? 'UTC';
-        const days = daysUntilInZone(reminder.release_date, zone, now);
+        const days = daysUntilInZone(releaseDate, zone, now);
         // Still more than a day away where they are — not this run's business.
         if (days === null || days > 1) {
             notYet += 1;
@@ -154,6 +194,7 @@ Deno.serve(async (req) => {
         ok: true,
         candidates: reminders.length,
         notYet,
+        stale,
         sent,
         failed,
         notified: notifiedIds.length,
