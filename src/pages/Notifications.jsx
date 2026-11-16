@@ -158,20 +158,25 @@ const Notifications = () => {
                 {sortedReminders.length === 0 ? (
                     <div className="empty-state notif-empty">
                         <p>
-                            No reminders yet. Tap "Notify Me" on an upcoming movie to track its release here.
+                            No reminders yet. Tap "Notify Me" on an upcoming movie to track its release here, or "Notify me when it's streaming" on one that's still in cinemas.
                         </p>
                     </div>
                 ) : (
                     <ul className="list-tile notif-list">
                         {sortedReminders.map((reminder) => {
-                            const days = daysUntil(reminder.releaseDate, timeZone);
+                            // A streaming reminder has no date: it is either
+                            // still waiting on a service or has already fired.
+                            const streaming = reminder.kind === 'streaming';
+                            const days = streaming ? null : daysUntil(reminder.releaseDate, timeZone);
                             const released = days !== null && days <= 0;
-                            const statusClass = days === null
-                                ? ' is-unknown'
-                                : released ? ' is-released' : '';
+                            const statusClass = streaming
+                                ? reminder.notified ? ' is-released' : ''
+                                : days === null
+                                    ? ' is-unknown'
+                                    : released ? ' is-released' : '';
                             return (
                                 <li
-                                    key={`${reminder.type}-${reminder.id}`}
+                                    key={`${reminder.type}-${reminder.id}-${reminder.kind || 'release'}`}
                                     className="list-row static notif-reminder"
                                 >
                                     <Link
@@ -187,7 +192,9 @@ const Notifications = () => {
                                     <div className="notif-body">
                                         <div className="notif-title truncate">{reminder.title}</div>
                                         <div className={`notif-status${statusClass}`}>
-                                            {days === null
+                                            {streaming
+                                                ? reminder.notified ? 'Now streaming' : 'Waiting for streaming'
+                                                : days === null
                                                 ? 'Release date unknown'
                                                 : released
                                                     ? days === 0 ? 'Out today' : 'Released!'
@@ -200,7 +207,7 @@ const Notifications = () => {
                                         type="button"
                                         className="icon-btn"
                                         onClick={() => toggleReminder(reminder)}
-                                        aria-label={`Remove reminder for ${reminder.title}`}
+                                        aria-label={`Remove ${streaming ? 'streaming ' : ''}reminder for ${reminder.title}`}
                                     >
                                         <X size={16} strokeWidth={2.5} aria-hidden="true" />
                                     </button>
@@ -311,7 +318,7 @@ const Notifications = () => {
             <div className="notif-note">
                 <BellOff size={18} aria-hidden="true" />
                 <p>
-                    Turn on Push Notifications to get alerted when a title you tapped "Notify Me" on is released. You'll be asked to allow notifications, and alerts are sent even when the app is closed. Install the app to your home screen for the most reliable delivery.
+                    Turn on Push Notifications to get alerted when a title you tapped "Notify Me" on is released, or lands on a streaming service in your country. You'll be asked to allow notifications, and alerts are sent even when the app is closed. Install the app to your home screen for the most reliable delivery.
                 </p>
             </div>
         </div>

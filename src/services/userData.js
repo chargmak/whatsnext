@@ -63,6 +63,10 @@ const fromReminderRow = (row) => ({
     title: row.title,
     poster: row.poster_path ? `${IMAGE_BASE_URL}${row.poster_path}` : PLACEHOLDER_POSTER,
     releaseDate: row.release_date,
+    // 'release' (a date to count down to) or 'streaming' (fires once the title
+    // lands on a streaming service — no date).
+    kind: row.kind || 'release',
+    notified: Boolean(row.notified_at),
 });
 
 const orThrow = ({ data, error }) => {
@@ -190,12 +194,15 @@ export const addReminder = async (userId, entry) => {
         title: entry.title || 'Untitled',
         poster_path: extractPosterPath(entry.poster),
         release_date: entry.releaseDate || null,
-    }, { onConflict: 'user_id,movie_id,media_type' }));
+        kind: entry.kind || 'release',
+        // Re-arming a reminder that already fired must let it fire again.
+        notified_at: null,
+    }, { onConflict: 'user_id,movie_id,media_type,kind' }));
 };
 
-export const removeReminder = async (userId, movieId, mediaType) => {
+export const removeReminder = async (userId, movieId, mediaType, kind = 'release') => {
     orThrow(await supabase.from('reminders')
-        .delete().match({ user_id: userId, movie_id: movieId, media_type: mediaType }));
+        .delete().match({ user_id: userId, movie_id: movieId, media_type: mediaType, kind }));
 };
 
 export const fetchProfile = async (userId) => {

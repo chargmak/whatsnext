@@ -3,6 +3,9 @@
 This app can send **Web Push notifications** — even when the app is closed — for:
 
 - **Release reminders**: a movie or show you tapped **Notify Me** on is released.
+- **Streaming reminders**: a title you tapped **Notify me when it's streaming** on
+  (offered when it's out but on no streaming service yet, e.g. still in cinemas)
+  becomes available on a subscription service in your country.
 - **New episodes**: a new episode of a TV show **in your watchlist** has aired.
 
 ## How it works
@@ -14,6 +17,10 @@ This app can send **Web Push notifications** — even when the app is closed —
    - **`send-release-reminders`** finds reminders releasing today/tomorrow that
      haven't been notified, pushes to each of the user's devices, and stamps
      `reminders.notified_at` so it fires once.
+     The same run checks every pending **streaming** reminder
+     (`reminders.kind = 'streaming'`) against TMDB's watch providers for the
+     owner's profile country and fires the first time a subscription service
+     lists the title. Needs `TMDB_API_KEY`.
    - **`send-episode-alerts`** looks at every TV show in each subscribed user's
      watchlist and works out the *instant* its latest episode actually drops —
      TMDB's date-only `air_date` joined to the platform's release hour, in the
@@ -81,7 +88,8 @@ own auth via `CRON_SECRET`.
 Pick any strong random string for `CRON_SECRET` (e.g. `openssl rand -hex 32`).
 `TMDB_API_KEY` is the same TMDB v3 key used by the client (`VITE_TMDB_API_KEY`) —
 it's required by `send-episode-alerts` to look up episode air dates, and
-`send-release-reminders` uses it to repair TV reminders saved with a stale date:
+`send-release-reminders` uses it to repair TV reminders saved with a stale date
+and to check streaming availability for streaming reminders:
 
 ```bash
 supabase secrets set \

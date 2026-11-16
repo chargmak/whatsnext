@@ -257,6 +257,9 @@ const MediaDetail = ({ type }) => {
     });
 
     const reminderSet = isReminderSet(item.id, item.type);
+    // The second kind of reminder: out (in cinemas, say) but on no streaming
+    // service yet — alert when one picks it up.
+    const streamingReminderSet = isReminderSet(item.id, item.type, 'streaming');
 
     // "8.4 RATING · 2024 · 2 SEASONS · 16 EPS" — only the parts TMDB actually has.
     const metaParts = [
@@ -609,8 +612,24 @@ const MediaDetail = ({ type }) => {
                                 ))}
                             </div>
                         ) : (
-                            <div className="tile-dashed">
-                                <p className="detail-empty">Not currently available for streaming.</p>
+                            <div className="tile-dashed detail-stream-wait">
+                                <p className="detail-empty">
+                                    {streamingReminderSet
+                                        ? "Not streaming yet — we'll alert you the day it is."
+                                        : 'Not currently available for streaming.'}
+                                </p>
+                                <button
+                                    type="button"
+                                    className={`pill-btn ${streamingReminderSet ? 'tint' : 'inverse'}`}
+                                    aria-pressed={streamingReminderSet}
+                                    onClick={() => withUser(() => toggleReminder({ ...item, kind: 'streaming' }))}
+                                >
+                                    {streamingReminderSet ? (
+                                        <><Check size={16} strokeWidth={2.5} aria-hidden="true" /> Streaming reminder set</>
+                                    ) : (
+                                        <><Bell size={16} strokeWidth={2.5} aria-hidden="true" /> Notify me when it's streaming</>
+                                    )}
+                                </button>
                             </div>
                         )}
                     </section>

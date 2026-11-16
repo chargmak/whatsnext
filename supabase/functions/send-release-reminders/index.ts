@@ -5,6 +5,10 @@
 // then delivers a Web Push notification to every device the reminder's owner has
 // subscribed. Each reminder is stamped `notified_at` so it fires only once.
 //
+// It also serves "Notify me when it's streaming" reminders (kind = 'streaming'):
+// those have no date, so each run asks TMDB which subscription services carry
+// the title in the owner's country and fires the first time there is one.
+//
 // Auth: if CRON_SECRET is set, the caller must send `Authorization: Bearer <CRON_SECRET>`.
 // Env (set with `supabase secrets set`): VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY,
 // VAPID_SUBJECT, CRON_SECRET. SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are
@@ -35,6 +39,35 @@ const nextEpisodeDate = async (tvId: number): Promise<string | null> => {
     } catch {
         return null;
     }
+};
+
+// Subscription ("flatrate") services carrying a title, per country code. Null
+// when TMDB can't be asked — which must read as "don't know", never as "none".
+type ProvidersByCountry = Record<string, { flatrate?: { provider_name: string }[] }>;
+const streamingProviders = async (
+    mediaType: string,
+    id: number,
+): Promise<ProvidersByCountry | null> => {
+    if (!TMDB_API_KEY) return null;
+    const qs = new URLSearchParams({ api_key: TMDB_API_KEY });
+    const kind = mediaType === 'tv' ? 'tv' : 'movie';
+    try {
+        const res = await fetch(`https://api.themoviedb.org/3/${kind}/${id}/watch/providers?${qs}`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return (data?.results ?? {}) as ProvidersByCountry;
+    } catch {
+        return null;
+    }
+};
+
+const streamingCopy = (title: string, names: string[]) => {
+    const where = names.length === 1
+        ? names[0]
+        : names.length === 2
+            ? `${names[0]} and ${names[1]}`
+            : `${names[0]} and ${names.length - 1} more`;
+    return { title, body: `${title} is now streaming on ${where}.` };
 };
 
 const json = (body: unknown, status = 200) =>
@@ -83,15 +116,28 @@ Deno.serve(async (req) => {
     const todayMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
     const horizon = new Date(todayMs + 2 * 86_400_000).toISOString().slice(0, 10);
 
-    const { data: reminders, error } = await supabase
+    const { data: releaseRows, error } = await supabase
         .from('reminders')
         .select('id, user_id, movie_id, media_type, title, release_date, created_at')
+        .eq('kind', 'release')
         .is('notified_at', null)
         .not('release_date', 'is', null)
         .lte('release_date', horizon);
 
     if (error) return json({ error: error.message }, 500);
-    if (!reminders || reminders.length === 0) {
+
+    // Streaming reminders carry no date — every pending one is checked each run.
+    const { data: streamingRows, error: streamingErr } = await supabase
+        .from('reminders')
+        .select('id, user_id, movie_id, media_type, title')
+        .eq('kind', 'streaming')
+        .is('notified_at', null);
+
+    if (streamingErr) return json({ error: streamingErr.message }, 500);
+
+    const reminders = releaseRows ?? [];
+    const streamingReminders = streamingRows ?? [];
+    if (reminders.length === 0 && streamingReminders.length === 0) {
         return json({ ok: true, candidates: 0, sent: 0, failed: 0, notified: 0 });
     }
 
@@ -102,22 +148,64 @@ Deno.serve(async (req) => {
     const notifiedIds: number[] = [];
     const nextDateByShow = new Map<number, Promise<string | null>>();
 
-    // Each owner's zone — their pinned setting, else the country on their profile.
+    // Each owner's zone — their pinned setting, else the country on their
+    // profile — and that country, which decides what "streaming" means for them.
     const { data: profiles } = await supabase
         .from('profiles')
         .select('id, country, timezone')
-        .in('id', [...new Set(reminders.map((r) => r.user_id))]);
+        .in('id', [...new Set([...reminders, ...streamingReminders].map((r) => r.user_id))]);
     const zoneByUser = new Map<string, string>(
         (profiles ?? []).map((p) => [p.id as string, zoneForUser(p.timezone, p.country)]),
     );
+    const countryByUser = new Map<string, string>(
+        (profiles ?? []).map((p) => [p.id as string, String(p.country || 'US').toUpperCase()]),
+    );
+
+    type Sub = { endpoint: string; p256dh: string; auth: string };
+    const subsByUser = new Map<string, Promise<Sub[]>>();
+    const subsFor = (userId: string): Promise<Sub[]> => {
+        let pending = subsByUser.get(userId);
+        if (!pending) {
+            pending = (async () => {
+                const { data, error: subErr } = await supabase
+                    .from('push_subscriptions')
+                    .select('endpoint, p256dh, auth')
+                    .eq('user_id', userId);
+                return subErr || !data ? [] : (data as Sub[]);
+            })();
+            subsByUser.set(userId, pending);
+        }
+        return pending;
+    };
+
+    // Push one payload to every device; true when at least one received it.
+    const deliver = async (subs: Sub[], payload: string, reminderId: number) => {
+        let delivered = false;
+        for (const sub of subs) {
+            try {
+                await webpush.sendNotification(
+                    { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                    payload
+                );
+                sent += 1;
+                delivered = true;
+            } catch (err) {
+                failed += 1;
+                const statusCode = (err as { statusCode?: number }).statusCode;
+                // Endpoint gone for good — drop the dead subscription.
+                if (statusCode === 404 || statusCode === 410) {
+                    await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+                } else {
+                    console.error(`push failed for reminder ${reminderId}:`, statusCode, String(err));
+                }
+            }
+        }
+        return delivered;
+    };
 
     for (const reminder of reminders) {
-        const { data: subs, error: subErr } = await supabase
-            .from('push_subscriptions')
-            .select('endpoint, p256dh, auth')
-            .eq('user_id', reminder.user_id);
-
-        if (subErr || !subs || subs.length === 0) continue;
+        const subs = await subsFor(reminder.user_id);
+        if (subs.length === 0) continue;
 
         // A reminder is only ever set on something still to come, so a date
         // that was already past when it was created is wrong — for a series it
@@ -157,29 +245,46 @@ Deno.serve(async (req) => {
             icon: '/icon-192.png',
         });
 
-        let delivered = false;
-        for (const sub of subs) {
-            try {
-                await webpush.sendNotification(
-                    { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-                    payload
-                );
-                sent += 1;
-                delivered = true;
-            } catch (err) {
-                failed += 1;
-                const statusCode = (err as { statusCode?: number }).statusCode;
-                // Endpoint gone for good — drop the dead subscription.
-                if (statusCode === 404 || statusCode === 410) {
-                    await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
-                } else {
-                    console.error(`push failed for reminder ${reminder.id}:`, statusCode, String(err));
-                }
-            }
+        // Mark notified as long as at least one device received it.
+        if (await deliver(subs, payload, reminder.id)) notifiedIds.push(reminder.id);
+    }
+
+    // --- "Notify me when it's streaming" ---
+    //
+    // Availability is per country, and only the owner's own country counts: a
+    // film reaching a US service says nothing about when it reaches Greece, so
+    // there is deliberately no fallback to another country's listing.
+    let notStreaming = 0;
+    const providersByTitle = new Map<string, Promise<ProvidersByCountry | null>>();
+    for (const reminder of streamingReminders) {
+        const subs = await subsFor(reminder.user_id);
+        if (subs.length === 0) continue;
+
+        const key = `${reminder.media_type}-${reminder.movie_id}`;
+        let lookup = providersByTitle.get(key);
+        if (!lookup) {
+            lookup = streamingProviders(reminder.media_type, reminder.movie_id);
+            providersByTitle.set(key, lookup);
+        }
+        const country = countryByUser.get(reminder.user_id) ?? 'US';
+        const names = [...new Set(
+            ((await lookup)?.[country]?.flatrate ?? []).map((p) => p.provider_name).filter(Boolean),
+        )];
+        if (names.length === 0) {
+            notStreaming += 1;
+            continue;
         }
 
-        // Mark notified as long as at least one device received it.
-        if (delivered) notifiedIds.push(reminder.id);
+        const copy = streamingCopy(reminder.title, names);
+        const payload = JSON.stringify({
+            title: copy.title,
+            body: copy.body,
+            url: `/${reminder.media_type}/${reminder.movie_id}`,
+            tag: `reminder-${reminder.id}`,
+            icon: '/icon-192.png',
+        });
+
+        if (await deliver(subs, payload, reminder.id)) notifiedIds.push(reminder.id);
     }
 
     if (notifiedIds.length > 0) {
@@ -193,7 +298,9 @@ Deno.serve(async (req) => {
     return json({
         ok: true,
         candidates: reminders.length,
+        streamingCandidates: streamingReminders.length,
         notYet,
+        notStreaming,
         stale,
         sent,
         failed,

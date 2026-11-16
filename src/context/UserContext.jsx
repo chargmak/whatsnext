@@ -514,18 +514,26 @@ export const UserProvider = ({ children }) => {
     // Movies and TV shows share the TMDB id namespace, so — like watchlist and
     // watched — reminders must be matched on type too, or a same-id movie/show
     // masks or removes the other's reminder.
-    const isReminderSet = (movieId, mediaType = 'movie') =>
-        reminders.some((r) => r.id === movieId && (r.type || 'movie') === mediaType);
+    //
+    // A title can hold two reminders: 'release' (its cinema opening / next
+    // episode) and 'streaming' (the day it lands on a streaming service), so
+    // the kind is part of the match as well.
+    const sameReminder = (r, movieId, mediaType, kind) =>
+        r.id === movieId && (r.type || 'movie') === mediaType && (r.kind || 'release') === kind;
+
+    const isReminderSet = (movieId, mediaType = 'movie', kind = 'release') =>
+        reminders.some((r) => sameReminder(r, movieId, mediaType, kind));
 
     const toggleReminder = async (movie) => {
         const prev = reminders;
         const type = movie.type || 'movie';
-        if (isReminderSet(movie.id, type)) {
-            const newList = reminders.filter((r) => !(r.id === movie.id && (r.type || 'movie') === type));
+        const kind = movie.kind || 'release';
+        if (isReminderSet(movie.id, type, kind)) {
+            const newList = reminders.filter((r) => !sameReminder(r, movie.id, type, kind));
             setReminders(newList);
             if (isAuthed) {
                 try {
-                    await userData.removeReminder(user.id, movie.id, movie.type || 'movie');
+                    await userData.removeReminder(user.id, movie.id, type, kind);
                 } catch (error) {
                     console.error('Error removing reminder:', error);
                     setReminders(prev);
@@ -539,7 +547,9 @@ export const UserProvider = ({ children }) => {
                 type: movie.type || 'movie',
                 title: movie.title,
                 poster: movie.poster,
-                releaseDate: movie.releaseDate || null,
+                // A streaming reminder has no date — it waits on availability.
+                releaseDate: kind === 'streaming' ? null : movie.releaseDate || null,
+                kind,
             };
             const newList = [...reminders, entry];
             setReminders(newList);
