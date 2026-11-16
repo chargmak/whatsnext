@@ -273,6 +273,14 @@
   color: var(--text-secondary);
 }
 
+/* Empty "Where to watch": the note plus the streaming-reminder button. */
+.detail-stream-wait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
 /* ----- Cast ----- */
 .detail-cast {
   display: flex;
